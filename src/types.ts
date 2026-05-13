@@ -109,7 +109,7 @@ export interface KimiOAuthCredentials {
 export type Action =
   | { type: 'INIT' }
   | { type: 'CACHE_LOADED'; payload: QuotaData }
-  | { type: 'API_SUCCESS'; payload: QuotaData }
+  | { type: 'API_SUCCESS'; payload: QuotaData; source?: DataSource }
   | { type: 'API_ERROR'; payload: { error: string; authFailed?: boolean; networkError?: boolean } }
   | { type: 'LOCAL_ESTIMATE'; payload: Partial<LocalEstimate> & { entries?: UsageEntry[] } }
   | { type: 'AUTH_STATUS'; payload: AuthStatus }

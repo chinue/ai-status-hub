@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import * as sinon from 'sinon';
 import { Scheduler } from '../src/services/scheduler';
 import { Store } from '../src/store';
-import { IAuthProvider, IQuotaApiProvider } from '../src/providers/base/types';
+import { IAuthProvider, IQuotaApiProvider, RateLimits } from '../src/providers/base/types';
 import { CacheService } from '../src/services/cacheService';
 import { LocalUsageService } from '../src/services/localUsageService';
 import { ConfigService } from '../src/config';
@@ -20,7 +20,7 @@ describe('Scheduler', () => {
     clock = sinon.useFakeTimers();
     store = new Store();
     auth = {
-      resolveToken: async () => 'mock-token',
+      resolveToken: async () => null, // skip API path in tests, exercise local fallback
       invalidate: () => {},
     };
     api = {
@@ -44,14 +44,12 @@ describe('Scheduler', () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    const quota = {
-      weeklyLimit: 1000, weeklyUsed: 250, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 25, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 25, resets_in_seconds: 86400 },
+      primary: { used_percent: 25, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
-    sinon.stub(cache, 'write').resolves();
     const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(localUsage, 'getLocalUsage').resolves({
       tokensToday: 0, costToday: 0, requestsToday: 0,
       tokensIn5h: 0, tokensOut5h: 0, tokensCacheRead5h: 0, tokensCacheCreate5h: 0,
@@ -62,10 +60,11 @@ describe('Scheduler', () => {
       tokensThisCycle: 0, costThisCycle: 0, requestsThisCycle: 0,
       entries: [],
     });
+    sinon.stub(cache, 'write').resolves();
 
     let loadingEndSeen = false;
     store.subscribe((s) => {
-      if (!s.isLoading && s.dataSource === 'api') {
+      if (!s.isLoading && s.quota !== null) {
         loadingEndSeen = true;
       }
     });
@@ -76,10 +75,10 @@ describe('Scheduler', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(loadingEndSeen || store.getState().dataSource === 'api').to.be.true;
+    expect(loadingEndSeen || store.getState().quota !== null).to.be.true;
     expect(store.getState().quota).to.not.be.null;
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
   it('pauses tick when isPaused is true', async () => {
@@ -93,17 +92,16 @@ describe('Scheduler', () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    // API returns 62% with 25M tokens used
-    const quota = {
-      weeklyLimit: 100_000_000, weeklyUsed: 62_000_000, weeklyUsedPct: 62, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 25, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    // Local rate limits: 62% weekly, 25% window
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 62, resets_in_seconds: 86400 },
+      primary: { used_percent: 25, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
     // Initial local usage: 25M tokens
-    const localUsage = LocalUsageService.getInstance();
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
     getUsageStub.onFirstCall().resolves({
       tokensToday: 25_000_000, costToday: 10, requestsToday: 5,
@@ -128,16 +126,16 @@ describe('Scheduler', () => {
     });
 
     scheduler.start();
-    // First tick = long tick (API fetch + calibration)
+    // First tick = long tick (local quota read + calibration)
     await clock.tickAsync(100);
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
 
     const stateAfterLong = store.getState();
-    expect(stateAfterLong.dataSource).to.equal('api');
+    expect(stateAfterLong.quota).to.not.be.null;
     expect(stateAfterLong.localEstimate).to.not.be.null;
-    expect(stateAfterLong.localEstimate!.weeklyPct).to.equal(62); // API integer
+    expect(stateAfterLong.localEstimate!.weeklyPct).to.equal(62); // local integer
 
     // Advance 5 seconds -> short tick
     await clock.tickAsync(5000);
@@ -153,21 +151,20 @@ describe('Scheduler', () => {
     // Verify it has decimal precision (not exactly an integer)
     expect(stateAfterShort.localEstimate!.weeklyPct % 1).to.not.equal(0);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
-  it('force() triggers a long tick (API fetch) even when short tick is due', async () => {
+  it('force() triggers a long tick (local quota read) even when short tick is due', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    const quota = {
-      weeklyLimit: 1000, weeklyUsed: 250, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 25, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 25, resets_in_seconds: 86400 },
+      primary: { used_percent: 25, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
-    sinon.stub(cache, 'write').resolves();
     const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
+    sinon.stub(cache, 'write').resolves();
     sinon.stub(localUsage, 'getLocalUsage').resolves({
       tokensToday: 0, costToday: 0, requestsToday: 0,
       tokensIn5h: 0, tokensOut5h: 0, tokensCacheRead5h: 0, tokensCacheCreate5h: 0,
@@ -183,40 +180,39 @@ describe('Scheduler', () => {
     await clock.tickAsync(100); // first long tick
     await Promise.resolve();
 
-    expect(store.getState().dataSource).to.equal('api');
-    expect(fetchStub.callCount).to.equal(1);
+    expect(store.getState().quota).to.not.be.null;
+    expect(rlStub.callCount).to.equal(1);
 
-    // Advance 5s �?normally this would be a short tick
+    // Advance 5s -> normally this would be a short tick
     await clock.tickAsync(5000);
     await Promise.resolve();
 
-    // Without force, short tick should NOT call fetchQuota again
-    expect(fetchStub.callCount).to.equal(1);
+    // Without force, short tick should NOT call getRateLimits again
+    expect(rlStub.callCount).to.equal(1);
 
     // Now call force()
     scheduler.force();
     await clock.tickAsync(100);
     await Promise.resolve();
 
-    // force() must trigger another long tick �?API fetch
-    expect(fetchStub.callCount).to.equal(2);
+    // force() must trigger another long tick -> local quota read
+    expect(rlStub.callCount).to.equal(2);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
   it('short tick dispatches full usage detail in LOCAL_ESTIMATE', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    const quota = {
-      weeklyLimit: 100_000_000, weeklyUsed: 62_000_000, weeklyUsedPct: 62, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 25, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 62, resets_in_seconds: 86400 },
+      primary: { used_percent: 25, resets_in_seconds: 18000 },
     };
-    sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
-    const localUsage = LocalUsageService.getInstance();
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
     getUsageStub.onFirstCall().resolves({
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
@@ -273,20 +269,19 @@ describe('Scheduler', () => {
     expect(secondCall).to.not.be.null;
   });
 
-  it('long tick preserves smooth estimate when rounded value matches API integer', async () => {
+  it('long tick preserves smooth estimate when rounded value matches local integer', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    // API returns integer 25, but local estimate is 25.3 (smooth)
-    const quota = {
-      weeklyLimit: 100_000_000, weeklyUsed: 25_000_000, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 10, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    // Local rate limits return integer 25, but local estimate is 25.3 (smooth)
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 25, resets_in_seconds: 86400 },
+      primary: { used_percent: 10, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
-    const localUsage = LocalUsageService.getInstance();
     sinon.stub(localUsage, 'getLocalUsage').resolves({
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 2_000_000, tokensOut5h: 500_000, tokensCacheRead5h: 100, tokensCacheCreate5h: 50,
@@ -330,28 +325,27 @@ describe('Scheduler', () => {
 
     const le = store.getState().localEstimate;
     expect(le).to.not.be.null;
-    // Math.round(25.3) === 25 (API value) -> preserve smooth estimate
+    // Math.round(25.3) === 25 (local value) -> preserve smooth estimate
     expect(le!.weeklyPct).to.equal(25.3);
-    // Math.round(10.4) === 10 (API value) -> preserve smooth estimate
+    // Math.round(10.4) === 10 (local value) -> preserve smooth estimate
     expect(le!.windowPct).to.equal(10.4);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
-  it('long tick forces API integer when rounded estimate differs', async () => {
+  it('long tick forces local integer when rounded estimate differs', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    // API returns integer 25, but local estimate drifted to 25.6 (rounds to 26)
-    const quota = {
-      weeklyLimit: 100_000_000, weeklyUsed: 25_000_000, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 10, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    // Local rate limits return integer 25, but local estimate drifted to 25.6 (rounds to 26)
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 25, resets_in_seconds: 86400 },
+      primary: { used_percent: 10, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
-    const localUsage = LocalUsageService.getInstance();
     sinon.stub(localUsage, 'getLocalUsage').resolves({
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 2_000_000, tokensOut5h: 500_000, tokensCacheRead5h: 100, tokensCacheCreate5h: 50,
@@ -368,7 +362,7 @@ describe('Scheduler', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Simulate estimate drifted above the API integer
+    // Simulate estimate drifted above the local integer
     store.dispatch({
       type: 'LOCAL_ESTIMATE',
       payload: {
@@ -395,19 +389,19 @@ describe('Scheduler', () => {
 
     const le = store.getState().localEstimate;
     expect(le).to.not.be.null;
-    // Math.round(25.6) === 26 !== 25 (API value) -> force API integer
+    // Math.round(25.6) === 26 !== 25 (local value) -> force local integer
     expect(le!.weeklyPct).to.equal(25);
-    // Math.round(10.6) === 11 !== 10 (API value) -> force API integer
+    // Math.round(10.6) === 11 !== 10 (local value) -> force local integer
     expect(le!.windowPct).to.equal(10);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
-  it('preserves old quota decimal precision when API returns integer and no current estimate', async () => {
+  it('preserves old quota decimal precision when local returns integer and no current estimate', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    // Seed old quota with 12.1% precision (e.g. from a previous API response)
+    // Seed old quota with 12.1% precision (e.g. from a previous response)
     store.dispatch({
       type: 'API_SUCCESS',
       payload: {
@@ -419,16 +413,15 @@ describe('Scheduler', () => {
     // No localEstimate yet
     expect(store.getState().localEstimate).to.be.null;
 
-    // Next API call returns integer 12 (rounded down from 12.1)
-    const quota = {
-      weeklyLimit: 100_000_000, weeklyUsed: 12_000_000, weeklyUsedPct: 12, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 10, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    // Next local read returns integer 12 (rounded down from 12.1)
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 12, resets_in_seconds: 86400 },
+      primary: { used_percent: 10, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
-    const localUsage = LocalUsageService.getInstance();
     sinon.stub(localUsage, 'getLocalUsage').resolves({
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 2_000_000, tokensOut5h: 500_000, tokensCacheRead5h: 100, tokensCacheCreate5h: 50,
@@ -448,28 +441,27 @@ describe('Scheduler', () => {
 
     const le = store.getState().localEstimate;
     expect(le).to.not.be.null;
-    // Old quota had 12.1, API returns 12 -> preserve old precision
+    // Old quota had 12.1, local returns 12 -> preserve old precision
     expect(le!.weeklyPct).to.equal(12.1);
-    // Old quota had 10.4, API returns 10 -> preserve old precision
+    // Old quota had 10.4, local returns 10 -> preserve old precision
     expect(le!.windowPct).to.equal(10.4);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
   it('smooth estimate preserved through short tick after long tick', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    // API returns integer 25
-    const quota = {
-      weeklyLimit: 100_000_000, weeklyUsed: 25_000_000, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 10, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    // Local rate limits return integer 25
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 25, resets_in_seconds: 86400 },
+      primary: { used_percent: 10, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
-    const localUsage = LocalUsageService.getInstance();
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
     // First long tick: 25M tokens
     getUsageStub.onCall(0).resolves({
@@ -539,7 +531,7 @@ describe('Scheduler', () => {
     await Promise.resolve();
 
     const afterLong = store.getState().localEstimate;
-    // Math.round(25.3) === 25 (API value) -> preserve smooth estimate
+    // Math.round(25.3) === 25 (local value) -> preserve smooth estimate
     expect(afterLong!.weeklyPct).to.be.greaterThan(25);
     expect(afterLong!.weeklyPct).to.be.lessThan(26);
 
@@ -554,7 +546,7 @@ describe('Scheduler', () => {
     // Should be very close to the previous smooth estimate
     expect(afterSecondShort!.weeklyPct).to.be.closeTo(afterLong!.weeklyPct, 0.01);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
   it('respects custom refreshIntervalSeconds for long tick', async () => {
@@ -563,14 +555,14 @@ describe('Scheduler', () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    const quota = {
-      weeklyLimit: 1000, weeklyUsed: 250, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 25, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 25, resets_in_seconds: 86400 },
+      primary: { used_percent: 25, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
-    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves({
+    sinon.stub(localUsage, 'getLocalUsage').resolves({
       tokensToday: 0, costToday: 0, requestsToday: 0,
       tokensIn5h: 0, tokensOut5h: 0, tokensCacheRead5h: 0, tokensCacheCreate5h: 0,
       requests5h: 0,
@@ -587,38 +579,37 @@ describe('Scheduler', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(fetchStub.callCount).to.equal(1);
+    expect(rlStub.callCount).to.equal(1);
 
     // Advance 60 seconds -> should still be short tick (not long)
     await clock.tickAsync(60000);
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(fetchStub.callCount).to.equal(1);
+    expect(rlStub.callCount).to.equal(1);
 
     // Advance another 60 seconds -> total 120s -> long tick
     await clock.tickAsync(60000);
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(fetchStub.callCount).to.equal(2);
+    expect(rlStub.callCount).to.equal(2);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 
   it('short tick skips dispatch when no local entries exist', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
-    const quota = {
-      weeklyLimit: 100_000_000, weeklyUsed: 25_000_000, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
-      windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 10, windowResetAt: Date.now() + 18000000,
-      parallelLimit: 30,
+    const rateLimits: RateLimits = {
+      secondary: { used_percent: 25, resets_in_seconds: 86400 },
+      primary: { used_percent: 10, resets_in_seconds: 18000 },
     };
-    const fetchStub = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
-    const localUsage = LocalUsageService.getInstance();
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
     // First long tick: normal usage with entries
     getUsageStub.onCall(0).resolves({
@@ -653,7 +644,7 @@ describe('Scheduler', () => {
     expect(afterLong.localEstimate).to.not.be.null;
     expect(afterLong.localEstimate!.weeklyPct).to.equal(25);
 
-    // Short tick with no entries -> should NOT overwrite API percentage
+    // Short tick with no entries -> should NOT overwrite local percentage
     await clock.tickAsync(5000);
     await Promise.resolve();
     await Promise.resolve();
@@ -662,7 +653,7 @@ describe('Scheduler', () => {
     expect(afterShort.localEstimate).to.not.be.null;
     expect(afterShort.localEstimate!.weeklyPct).to.equal(25);
 
-    fetchStub.restore();
+    rlStub.restore();
   });
 });
 

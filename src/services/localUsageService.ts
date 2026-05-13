@@ -65,6 +65,11 @@ export class LocalUsageService {
     return usage.entries;
   }
 
+  async getRateLimits(): Promise<import('../providers/base/types').RateLimits | null> {
+    if (!this.provider) return null;
+    return this.provider.localUsage.getRateLimits();
+  }
+
   invalidate(): void {
     this.provider?.localUsage.invalidate();
     this.aggregate = null;

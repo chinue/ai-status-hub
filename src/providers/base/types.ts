@@ -65,6 +65,19 @@ export interface IQuotaApiProvider {
   fetchQuota(token: string): Promise<ApiResult>;
 }
 
+export interface RateLimits {
+  primary?: {
+    used_percent: number;
+    window_minutes?: number;
+    resets_in_seconds?: number;
+  };
+  secondary?: {
+    used_percent: number;
+    window_minutes?: number;
+    resets_in_seconds?: number;
+  };
+}
+
 export interface ILocalUsageProvider {
   /** Scan local session files and return parsed entries */
   scanSessions(opts?: {
@@ -73,6 +86,8 @@ export interface ILocalUsageProvider {
     dataRetentionDays?: number;
     force?: boolean;
   }): Promise<UnifiedUsageEntry[]>;
+  /** Get latest rate limits from local session files (if available) */
+  getRateLimits(): Promise<RateLimits | null>;
   /** Invalidate any cached scan state */
   invalidate(): void;
 }

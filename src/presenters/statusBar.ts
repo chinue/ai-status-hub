@@ -133,20 +133,22 @@ export class StatusBarPresenter {
         ? Date.now() - state.lastSuccessfulFetchAt > STALE_THRESHOLD_MS
         : !hasApiData;
       const staleIndicator = isStale ? ' \uD83D\uDCA4' : '';
-      const estimateIndicator = !hasApiData && hasEstimate ? ' \uD83D\uDD0D' : ''; // 🔍 for estimate
-      const errorIndicator = state.error && (state.error.includes('network') || state.error.includes('ECONN'))
-        ? ' \u26D3\uFE0F\u200D\uD83D\uDCA5'
-        : '';
+      // Data source indicator: 🌐 = API, ⛓️‍💥 = local fallback
+      const sourceIndicator = state.dataSource === 'api'
+        ? ' \uD83C\uDF10'
+        : state.dataSource === 'local-only'
+          ? ' \u26D3\uFE0F\u200D\uD83D\uDCA5'
+          : '';
 
       // Always render itemWindow (even during animation) so it stays visible
       if (this.config.displayMode === 'absolute') {
         if (hasApiData) {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${state.quota!.windowUsed}/${state.quota!.windowLimit}${staleIndicator}`;
+          this.itemWindow.text = `5\uFE0F\u20E3 ${state.quota!.windowUsed}/${state.quota!.windowLimit}${staleIndicator}${sourceIndicator}`;
         } else {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${windowPct > 0 ? '~' + formatPercent(windowPct, 1) : '—'}${staleIndicator}`;
+          this.itemWindow.text = `5\uFE0F\u20E3 ${windowPct > 0 ? '~' + formatPercent(windowPct, 1) : '—'}${staleIndicator}${sourceIndicator}`;
         }
       } else {
-        this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 1)}${staleIndicator}`;
+        this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 1)}${staleIndicator}${sourceIndicator}`;
       }
       this.itemWindow.color = this.utilizationToColor(windowUtil);
       this.itemWindow.show();
@@ -158,12 +160,12 @@ export class StatusBarPresenter {
 
       if (this.config.displayMode === 'absolute') {
         if (hasApiData) {
-          this.itemWeekly.text = `$(openai) ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}${errorIndicator}`;
+          this.itemWeekly.text = `$(openai) ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}`;
         } else {
-          this.itemWeekly.text = `$(openai) ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 1) : '—'}${estimateIndicator}${errorIndicator}`;
+          this.itemWeekly.text = `$(openai) ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 1) : '—'}`;
         }
       } else {
-        this.itemWeekly.text = `$(openai) ${this.displayName}:${formatPercent(weeklyPct, 1)}${estimateIndicator}${errorIndicator}`;
+        this.itemWeekly.text = `$(openai) ${this.displayName}:${formatPercent(weeklyPct, 1)}`;
       }
 
       this.itemWeekly.command = 'codexStatusPro.showDashboard';

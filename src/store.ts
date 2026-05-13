@@ -40,7 +40,7 @@ function reducer(state: AppState, action: Action): AppState {
         quota: action.payload,
         lastFetchAt: now,
         lastSuccessfulFetchAt: now,
-        dataSource: 'api',
+        dataSource: action.source ?? 'api',
         error: null,
         authStatus: state.authStatus === 'missing' ? 'authenticated' : state.authStatus,
         isLoading: false,

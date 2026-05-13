@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.3.7] - 2026-05-13
+
+### 改进
+
+- **状态栏显示优化**：状态栏第一个百分数（Weekly）后面不再显示 `%` 符号，保持与 codex-ratelimit-vscode 一致的紧凑风格。
+- **参考 codex-ratelimit-vscode 改进 short tick 算法**：当 API 校准容量不可用时，short tick 会直接从本地 `~/.codex/sessions` 的 `rate_limits` 中读取 `used_percent`，实现不依赖 API 调用的实时百分比显示。
+- **参考 tokscale 优化本地解析器**：
+  - 增加 content hash（MD5）作为文件指纹的第三重校验，防止 mtime 不变但内容变化时漏更新。
+  - 支持增量行解析：当 JSONL 文件仅追加内容时，只解析新增行，避免重复处理历史数据。
+  - 去重 key 增加 model 字段，防止不同模型的相同 token 用量被误去重。
+
 ## [0.3.4] - 2026-05-13
 
 ### Bug 修复

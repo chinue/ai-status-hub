@@ -6,7 +6,8 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { ILocalUsageProvider, UnifiedUsageEntry } from '../base/types';
+import { createHash } from 'crypto';
+import { ILocalUsageProvider, UnifiedUsageEntry, RateLimits } from '../base/types';
 import { log } from '../../utils';
 
 const SESSIONS_DIR = path.join(os.homedir(), '.codex', 'sessions');
@@ -83,12 +84,16 @@ function intoTokenUsage(totals: CodexTotals): { inputOther: number; output: numb
 interface FileState {
   mtimeMs: number;
   size: number;
+  contentHash: string;
   entries: UnifiedUsageEntry[];
+  lineCount: number;
+  lastTotals: CodexTotals | undefined;
 }
 
 export class CodexLocalParser implements ILocalUsageProvider {
   private fileStates = new Map<string, FileState>();
   private currentModel: string | undefined;
+  private latestRateLimits: RateLimits | null = null;
 
   async scanSessions(): Promise<UnifiedUsageEntry[]> {
     const allEntries: UnifiedUsageEntry[] = [];
@@ -113,6 +118,13 @@ export class CodexLocalParser implements ILocalUsageProvider {
   invalidate(): void {
     this.fileStates.clear();
     this.currentModel = undefined;
+    this.latestRateLimits = null;
+  }
+
+  async getRateLimits(): Promise<RateLimits | null> {
+    // Re-scan to pick up latest rate_limits from recent JSONL lines
+    await this.scanSessions();
+    return this.latestRateLimits;
   }
 
   private async enumerateJsonlFiles(): Promise<string[]> {
@@ -155,32 +167,52 @@ export class CodexLocalParser implements ILocalUsageProvider {
       const s = await fs.stat(filePath);
       stat = { mtimeMs: s.mtimeMs, size: s.size };
     } catch {
-      return existing ?? { mtimeMs: 0, size: 0, entries: [] };
-    }
-
-    if (existing && existing.mtimeMs === stat.mtimeMs && existing.size === stat.size) {
-      return existing;
+      return existing ?? { mtimeMs: 0, size: 0, contentHash: '', entries: [], lineCount: 0, lastTotals: undefined };
     }
 
     let text: string;
     try {
       text = await fs.readFile(filePath, 'utf-8');
     } catch {
-      return existing ?? { mtimeMs: stat.mtimeMs, size: stat.size, entries: [] };
+      return existing ?? { mtimeMs: stat.mtimeMs, size: stat.size, contentHash: '', entries: [], lineCount: 0, lastTotals: undefined };
     }
 
-    const newEntries = this.parseText(text, stat.mtimeMs);
-    const fileState: FileState = { mtimeMs: stat.mtimeMs, size: stat.size, entries: newEntries };
+    const contentHash = this.quickHash(text);
+
+    if (existing && existing.mtimeMs === stat.mtimeMs && existing.size === stat.size && existing.contentHash === contentHash) {
+      return existing;
+    }
+
+    const lines = text.split(/\r?\n/);
+    let entries: UnifiedUsageEntry[];
+    let lineCount = lines.length;
+    let lastTotals: CodexTotals | undefined;
+
+    // Incremental parse: if the file grew and we have previous state, try to parse only new lines.
+    // This matches tokscale's approach of resuming from a cached offset.
+    if (existing && existing.size < stat.size && existing.lineCount > 0 && lineCount > existing.lineCount) {
+      const incrementalLines = lines.slice(existing.lineCount);
+      const parsed = this.parseLines(incrementalLines, stat.mtimeMs, existing.lastTotals, existing.lastTotals);
+      entries = [...existing.entries, ...parsed.entries];
+      lastTotals = parsed.lastTotals ?? existing.lastTotals;
+    } else {
+      const parsed = this.parseLines(lines, stat.mtimeMs, undefined, undefined);
+      entries = parsed.entries;
+      lastTotals = parsed.lastTotals;
+    }
+
+    const fileState: FileState = { mtimeMs: stat.mtimeMs, size: stat.size, contentHash, entries, lineCount, lastTotals };
     this.fileStates.set(filePath, fileState);
     return fileState;
   }
 
-  private parseText(text: string, fileMtimeMs: number): UnifiedUsageEntry[] {
+  private parseLines(
+    lines: string[],
+    fileMtimeMs: number,
+    previousTotals?: CodexTotals,
+    lastTotals?: CodexTotals,
+  ): { entries: UnifiedUsageEntry[]; lastTotals: CodexTotals | undefined } {
     const entries: UnifiedUsageEntry[] = [];
-    const lines = text.split(/\r?\n/);
-    let previousTotals: CodexTotals | undefined;
-    let lastTotals: CodexTotals | undefined;
-
     for (const line of lines) {
       if (!line.trim()) continue;
       const entry = this.parseLine(line, fileMtimeMs, previousTotals, lastTotals);
@@ -190,8 +222,11 @@ export class CodexLocalParser implements ILocalUsageProvider {
         lastTotals = entry.lastTotals;
       }
     }
+    return { entries, lastTotals: previousTotals };
+  }
 
-    return entries;
+  private parseText(text: string, fileMtimeMs: number): UnifiedUsageEntry[] {
+    return this.parseLines(text.split(/\r?\n/), fileMtimeMs, undefined, undefined).entries;
   }
 
   private parseLine(
@@ -219,8 +254,17 @@ export class CodexLocalParser implements ILocalUsageProvider {
       const payloadType = payload?.type ?? payload?.payload_type;
       if (payloadType !== 'token_count') return null;
 
+      // Extract rate_limits if present (available in both vscode and exec mode).
+      // Try payload.rate_limits first, then info.rate_limits, then top-level rate_limits.
+      const rateLimits = payload.rate_limits ?? payload.info?.rate_limits ?? json.rate_limits;
+      if (rateLimits) {
+        this.latestRateLimits = this.normalizeRateLimits(rateLimits);
+      }
+
       const info = payload.info;
-      if (!info) return null;
+      if (!info) {
+        return null;
+      }
 
       const totalUsage: CodexTokenUsage | undefined = info.total_token_usage;
       const lastUsage: CodexTokenUsage | undefined = info.last_token_usage;
@@ -297,7 +341,7 @@ export class CodexLocalParser implements ILocalUsageProvider {
         inputCacheRead: usage.cacheRead,
         inputCacheCreation: usage.cacheCreate,
         cost: 0, // cost computed later by pricing layer
-        messageId: this.makeDedupKey(timestamp, usage),
+        messageId: this.makeDedupKey(timestamp, usage, model),
         model,
       };
 
@@ -305,6 +349,25 @@ export class CodexLocalParser implements ILocalUsageProvider {
     } catch {
       return null;
     }
+  }
+
+  private normalizeRateLimits(raw: any): RateLimits {
+    const out: RateLimits = {};
+    if (raw.primary) {
+      out.primary = {
+        used_percent: typeof raw.primary.used_percent === 'number' ? raw.primary.used_percent : parseFloat(raw.primary.used_percent) || 0,
+        window_minutes: typeof raw.primary.window_minutes === 'number' ? raw.primary.window_minutes : parseInt(raw.primary.window_minutes, 10) || undefined,
+        resets_in_seconds: typeof raw.primary.resets_in_seconds === 'number' ? raw.primary.resets_in_seconds : parseInt(raw.primary.resets_in_seconds, 10) || undefined,
+      };
+    }
+    if (raw.secondary) {
+      out.secondary = {
+        used_percent: typeof raw.secondary.used_percent === 'number' ? raw.secondary.used_percent : parseFloat(raw.secondary.used_percent) || 0,
+        window_minutes: typeof raw.secondary.window_minutes === 'number' ? raw.secondary.window_minutes : parseInt(raw.secondary.window_minutes, 10) || undefined,
+        resets_in_seconds: typeof raw.secondary.resets_in_seconds === 'number' ? raw.secondary.resets_in_seconds : parseInt(raw.secondary.resets_in_seconds, 10) || undefined,
+      };
+    }
+    return out;
   }
 
   private extractModel(payload: any): string | undefined {
@@ -336,7 +399,11 @@ export class CodexLocalParser implements ILocalUsageProvider {
     return a.input === b.input && a.output === b.output && a.cached === b.cached && a.reasoning === b.reasoning;
   }
 
-  private makeDedupKey(timestamp: number, usage: { inputOther: number; output: number; cacheRead: number; cacheCreate: number; reasoning: number }): string {
-    return `codex:${timestamp}:${usage.inputOther}:${usage.output}:${usage.cacheRead}:${usage.cacheCreate}`;
+  private makeDedupKey(timestamp: number, usage: { inputOther: number; output: number; cacheRead: number; cacheCreate: number; reasoning: number }, model?: string): string {
+    return `codex:${timestamp}:${usage.inputOther}:${usage.output}:${usage.cacheRead}:${usage.cacheCreate}${model ? ':' + model : ''}`;
+  }
+
+  private quickHash(text: string): string {
+    return createHash('md5').update(text).digest('hex').slice(0, 16);
   }
 }
