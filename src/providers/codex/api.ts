@@ -1,18 +1,24 @@
 // DESIGN: v2-provider-abstraction.md#codex-api
 // AGENTS: err->try-catch | network-fallback
 // 🔀 Provider boundary: dummy POST to chatgpt.com/backend-api/codex/responses
+// Reference: codex-stats/src/codex-client.ts (axios stream approach ported to node-fetch)
 
 import fetch from 'node-fetch';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { IQuotaApiProvider, ApiResult, UnifiedQuota } from '../base/types';
 import { log } from '../../utils';
 
 const BASE_URL = 'https://chatgpt.com/backend-api';
 const ENDPOINT = '/codex/responses';
+const AUTH_FILE = path.join(os.homedir(), '.codex', 'auth.json');
 
 export class CodexApiProvider implements IQuotaApiProvider {
   async fetchQuota(token: string): Promise<ApiResult> {
     try {
-      const result = await this.sendMinimalRequest(token);
+      const accountId = await this.readAccountId();
+      const result = await this.sendMinimalRequest(token, accountId);
       if (result.rateLimits) {
         const data = this.mapToUnifiedQuota(result.rateLimits);
         return { ok: true, data };
@@ -20,16 +26,28 @@ export class CodexApiProvider implements IQuotaApiProvider {
       return { ok: false, error: 'No rate limit headers found', networkError: false };
     } catch (err) {
       const msg = (err as Error).message;
-      const isNetwork = /fetch|network|ECONN|ENOTFOUND|ETIMEDOUT/i.test(msg);
-      return { ok: false, error: msg, networkError: isNetwork };
+      const isNetwork = /fetch|network|ECONN|ENOTFOUND|ETIMEDOUT|abort/i.test(msg);
+      const authFailed = /401|403|Unauthorized| Forbidden/i.test(msg);
+      return { ok: false, error: msg, networkError: isNetwork, authFailed };
     }
   }
 
-  private async sendMinimalRequest(token: string): Promise<{ rateLimits: Record<string, string> | null }> {
+  private async readAccountId(): Promise<string | undefined> {
+    try {
+      const raw = await fs.readFile(AUTH_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return parsed.tokens?.account_id;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async sendMinimalRequest(token: string, accountId?: string): Promise<{ rateLimits: Record<string, string> | null }> {
     const sessionId = this.generateSessionId();
     const payload = {
       model: 'gpt-5',
-      instructions: 'You are a coding agent running in the Codex CLI.',
+      instructions:
+        'You are a coding agent running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI. You are expected to be precise, safe, and helpful.\n\nYour capabilities:\n\n- Receive user prompts and other context provided by the harness, such as files in the workspace.\n- Communicate with the user by streaming thinking & responses, and by making & updating plans.\n- Emit function calls to run terminal commands and apply patches. Depending on how this specific run is configured, you can request that these function calls be escalated to the user for approval before running. More on this in the "Sandbox and approvals" section.\n\nWithin this context, Codex refers to the open-source agentic coding interface (not the old Codex language model built by OpenAI).\n\n# How you work\n\n## Personality\n\nYour default personality and tone is concise, direct, and friendly. You communicate efficiently, always keeping the user clearly informed about ongoing actions without unnecessary detail. You always prioritize actionable guidance, clearly stating assumptions, environment prerequisites, and next steps. Unless explicitly asked, you avoid excessively verbose explanations about your work.',
       input: [
         {
           type: 'message',
@@ -59,31 +77,50 @@ export class CodexApiProvider implements IQuotaApiProvider {
       'Cache-Control': 'no-cache',
     };
 
+    if (accountId) {
+      headers['chatgpt-account-id'] = accountId;
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
+    let resp: any;
     try {
-      const resp = await fetch(`${BASE_URL}${ENDPOINT}`, {
+      resp = await fetch(`${BASE_URL}${ENDPOINT}`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
+    } catch (err) {
+      clearTimeout(timeout);
+      throw err;
+    }
 
-      // Consume body minimally to free connection
-      try {
-        const bodyText = await resp.text();
-        // We don't care about body; headers are what we need
-        void bodyText;
-      } catch {
-        // ignore body read errors
-      }
+    try {
+      // Extract headers immediately — do NOT wait for SSE body to finish.
+      // For stream responses the server keeps the connection open; resp.text()
+      // would hang until the body completes or the abort fires.
+      const rateLimits = this.extractHeaders(resp.headers.raw());
 
       if (resp.status === 401 || resp.status === 403) {
         throw new AuthError(`HTTP ${resp.status}`, true);
       }
 
-      const rateLimits = this.extractHeaders(resp.headers.raw());
+      // Drain / destroy the body stream so the connection is released.
+      if (resp.body) {
+        const body = resp.body as any;
+        if (typeof body.destroy === 'function') {
+          body.destroy();
+        } else if (typeof body.cancel === 'function') {
+          body.cancel().catch(() => {});
+        } else {
+          // Fallback: resume and ignore data
+          body.resume?.();
+          body.on?.('error', () => {});
+        }
+      }
+
       return { rateLimits };
     } finally {
       clearTimeout(timeout);

@@ -2,7 +2,7 @@
   "name": "codex-status-pro",
   "displayName": "CodexStatusPro",
   "description": "Monitor Codex token usage and rate limits in real-time",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -124,7 +124,7 @@
         },
         "codexStatusPro.refreshIntervalSeconds": {
           "type": "number",
-          "default": 60,
+          "default": 300,
           "minimum": 30,
           "order": 30,
           "description": "API refresh interval in seconds. Range: 30–∞. Long tick fetches quota from API."

@@ -36,7 +36,7 @@ export class ConfigService {
   }
 
   get refreshIntervalSeconds(): number {
-    return Math.max(30, this.cfg.get<number>('refreshIntervalSeconds', 60));
+    return Math.max(30, this.cfg.get<number>('refreshIntervalSeconds', 300));
   }
 
   get shortRefreshIntervalSeconds(): number {

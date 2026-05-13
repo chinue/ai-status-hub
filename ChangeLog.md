@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.3.4] - 2026-05-13
+
+### Bug 修复
+
+- **修复 Codex API 调用**：参考 `codex-stats` 实现进行多项改进：
+  - 添加缺失的 `chatgpt-account-id` header（从 `~/.codex/auth.json` 读取）。
+  - 不再调用 `resp.text()` 读取 SSE stream（会挂起），改为立即提取 headers 后销毁 body stream。
+  - 使用完整的 Codex CLI instructions payload。
+  - 错误响应也标记 `authFailed`（支持 401/403 检测）。
+- **延长默认刷新间隔**：60 秒 → 300 秒（5 分钟），与 Codex CLI 使用频率匹配，避免过于频繁的 API 探测。
+
 ## [0.3.3] - 2026-05-13
 
 ### 代码清理
