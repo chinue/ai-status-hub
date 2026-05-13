@@ -2,6 +2,7 @@
 // AGENTS: keep-minimal
 
 import { IPricingProvider, Currency, TokenPricing, TokenUsage } from '../base/types';
+import { ConfigService } from '../../config';
 
 const USD: Currency = { code: 'USD', symbol: '$' };
 
@@ -31,11 +32,17 @@ export class ClaudePricingProvider implements IPricingProvider {
   readonly defaultModelName = 'claude-sonnet-4';
 
   getPricing(modelName: string): TokenPricing {
+    // Read from config so users can customize; config.getPricing handles model family mapping
+    const cfgPricing = ConfigService.getInstance().getPricing(modelName);
     const m = modelName.toLowerCase();
-    if (m.includes('opus')) return DEFAULT_CLAUDE_PRICING.opus;
-    if (m.includes('haiku')) return DEFAULT_CLAUDE_PRICING.haiku;
+    if (m.includes('opus')) {
+      return { ...DEFAULT_CLAUDE_PRICING.opus, ...cfgPricing };
+    }
+    if (m.includes('haiku')) {
+      return { ...DEFAULT_CLAUDE_PRICING.haiku, ...cfgPricing };
+    }
     // Default to sonnet pricing for anything else (including 'sonnet' and unknown models)
-    return DEFAULT_CLAUDE_PRICING.sonnet;
+    return { ...DEFAULT_CLAUDE_PRICING.sonnet, ...cfgPricing };
   }
 
   calculateCost(usage: TokenUsage, pricing: TokenPricing): number {

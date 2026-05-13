@@ -17,6 +17,11 @@
 
 - **配额百分比映射一致性**：Codex / Claude API 只返回 used_percent（无绝对限额）。统一将 `weeklyLimit` / `windowLimit` 设为 100，`weeklyUsed` / `windowUsed` 设为实际百分比值，确保 Tooltip 和 Dashboard 配额表格始终有数据可显示。
 - **API 失败时本地数据回退**：当 Claude（或其他厂商）API 连接失败且本地 JSONL 不含 `rate_limits` 时，Scheduler 现在会主动扫描本地 session 文件并 dispatch `LOCAL_ESTIMATE`，确保状态栏至少显示本地用量数据（tokens、cost、entries），而不是一直显示加载动画。
+- **切换厂商时货币自动切换**：`currency` 设置默认改为 `auto`（原 `USD`）。`auto` 模式下根据当前厂商自动推断货币：Codex/Claude/Cursor → USD（$），Kimi/GLM → CNY（¥）。Dashboard 在厂商切换时重建 HTML，货币符号同步更新。
+- **修复 Kimi 默认模型名**：当本地 JSONL 中 usage entry 没有 model 字段时，原先 fallback 到全局 `defaultModelName`（`gpt-5`）。现在改为使用各厂商 pricing provider 的 `defaultModelName`（Kimi → `kimi-k2.6`）。
+- **厂商私有定价配置**：`config.getPricing()` 现在优先读取厂商私有配置路径（`pricing.{provider}.models.{model}`），再回退到全局路径（`pricing.models.{model}`）。为 Kimi 新增 `pricing.kimi.models.k2_6.*` 四项定价配置项；Kimi 和 Claude 的 pricing provider 改为从配置读取，支持用户自定义。
+- **官方定价链接按厂商切换**：`config.pricingOfficialUrl` 现在根据当前厂商返回对应链接（Kimi → moonshot.cn、Claude → anthropic.com、GLM → bigmodel.cn、Cursor → cursor.com、Codex → openai.com）。`package.json` 中 `pricing.officialUrl` 默认值改为空字符串，留空时自动使用厂商默认链接；用户仍可手动覆盖。
+- **修复状态栏动画期间联网状态图标消失**：`triggerUpdateAnimation()` 现在从当前 state 计算 `staleIndicator`（💤）和 `sourceIndicator`（🌐/⛓️‍💥），并在月亮动画帧中保持显示，动画结束后再恢复常规渲染。
 
 ## [0.4.0] - 2026-05-13
 

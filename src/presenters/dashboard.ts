@@ -302,6 +302,7 @@ export class DashboardPanel {
   }
 
   private getHtml(nonce: string, locale: string): string {
+    const config = ConfigService.getInstance();
     const isZh = locale === 'zh-CN';
     const i18n = makeT(locale as any);
     const activeProvider = this.store.getState().activeProvider;
@@ -631,7 +632,7 @@ export class DashboardPanel {
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
 
-    const CURRENCY_SYMBOL = '${this.currencySymbol}';
+    const CURRENCY_SYMBOL = '${config.currency.symbol}';
 
     const labels = {
       loading: '${i18n('dashboard.loading')}',

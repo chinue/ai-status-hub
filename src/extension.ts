@@ -39,6 +39,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       currentProvider = provider;
     }
 
+    // 2a. Update config provider context so currency / defaultModelName / pricing resolve correctly
+    config.setActiveProviderId(currentProvider.id);
+
     // 3. Update services
     cacheService.setProviderId(currentProvider.id);
     localUsageService.setProvider(currentProvider);

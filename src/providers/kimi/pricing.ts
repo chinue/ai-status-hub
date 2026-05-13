@@ -2,6 +2,7 @@
 // AGENTS: keep-minimal
 
 import { IPricingProvider, Currency, TokenPricing, TokenUsage } from '../base/types';
+import { ConfigService } from '../../config';
 
 const CNY: Currency = { code: 'CNY', symbol: '¥' };
 
@@ -16,9 +17,9 @@ export class KimiPricingProvider implements IPricingProvider {
   readonly currency = CNY;
   readonly defaultModelName = 'kimi-k2.6';
 
-  getPricing(modelName: string): TokenPricing {
-    // Kimi currently uses a single model pricing
-    return DEFAULT_KIMI_PRICING;
+  getPricing(_modelName: string): TokenPricing {
+    // Kimi currently uses a single model pricing; read from config so users can customize
+    return ConfigService.getInstance().getPricing('kimi-k2.6');
   }
 
   calculateCost(usage: TokenUsage, pricing: TokenPricing): number {

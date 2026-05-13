@@ -130,7 +130,7 @@ export class LocalUsageService {
       if (entry.timestamp < retentionStart) continue;
 
       // Calculate cost using provider pricing
-      const pricing = this.provider.pricing.getPricing(entry.model ?? config.defaultModelName);
+      const pricing = this.provider.pricing.getPricing(entry.model ?? this.provider.pricing.defaultModelName);
       const cost = this.provider.pricing.calculateCost({
         inputOther: entry.inputOther,
         output: entry.output,

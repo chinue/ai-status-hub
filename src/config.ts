@@ -7,6 +7,7 @@ const CFG_SECTION = 'codexStatusPro';
 
 export class ConfigService {
   private static instance: ConfigService;
+  private activeProviderId = 'codex';
 
   static getInstance(): ConfigService {
     if (!ConfigService.instance) {
@@ -17,6 +18,10 @@ export class ConfigService {
 
   private get cfg() {
     return vscode.workspace.getConfiguration(CFG_SECTION);
+  }
+
+  setActiveProviderId(id: string): void {
+    this.activeProviderId = id;
   }
 
   get provider(): string {
@@ -64,15 +69,31 @@ export class ConfigService {
   }
 
   get defaultModelName(): string {
-    return this.cfg.get<string>('defaultModelName', 'gpt-5');
+    // Provider-specific default model name
+    switch (this.activeProviderId) {
+      case 'kimi': return 'kimi-k2.6';
+      case 'claude': return 'claude-sonnet-4';
+      case 'glm': return 'glm-4';
+      case 'cursor': return 'cursor-fast';
+      case 'codex':
+      default: return 'gpt-5';
+    }
   }
 
   get currency(): { code: string; symbol: string } {
-    const raw = this.cfg.get<string>('currency', 'USD');
-    switch (raw) {
-      case 'CNY': return { code: 'CNY', symbol: '¥' };
-      case 'USD': return { code: 'USD', symbol: '$' };
-      default: return { code: 'USD', symbol: '$' };
+    const raw = this.cfg.get<string>('currency', 'auto');
+    if (raw === 'CNY') { return { code: 'CNY', symbol: '¥' }; }
+    if (raw === 'USD') { return { code: 'USD', symbol: '$' }; }
+    // auto: infer from provider
+    switch (this.activeProviderId) {
+      case 'kimi':
+      case 'glm':
+        return { code: 'CNY', symbol: '¥' };
+      case 'codex':
+      case 'claude':
+      case 'cursor':
+      default:
+        return { code: 'USD', symbol: '$' };
     }
   }
 
@@ -148,7 +169,17 @@ export class ConfigService {
   }
 
   get pricingOfficialUrl(): string {
-    return this.cfg.get<string>('pricing.officialUrl', 'https://openai.com/pricing');
+    const userUrl = this.cfg.get<string>('pricing.officialUrl', '');
+    if (userUrl) { return userUrl; }
+    // Provider defaults
+    switch (this.activeProviderId) {
+      case 'kimi': return 'https://www.moonshot.cn/pricing';
+      case 'claude': return 'https://www.anthropic.com/pricing';
+      case 'glm': return 'https://open.bigmodel.cn/pricing';
+      case 'cursor': return 'https://cursor.com/pricing';
+      case 'codex':
+      default: return 'https://openai.com/pricing';
+    }
   }
 
   get pricingOfficialDate(): string {
@@ -162,13 +193,22 @@ export class ConfigService {
     if (m.includes('opus')) { key = 'claudeopus'; }
     else if (m.includes('sonnet')) { key = 'claudesonnet'; }
     else if (m.includes('haiku')) { key = 'claudehaiku'; }
-    const prefix = `pricing.models.${key}`;
-    // Default pricing for gpt-5 in USD
-    return {
-      inputPerMillion: this.cfg.get<number>(`${prefix}.inputPerMillion`, 2.00),
-      outputPerMillion: this.cfg.get<number>(`${prefix}.outputPerMillion`, 10.00),
-      cacheReadPerMillion: this.cfg.get<number>(`${prefix}.cacheReadPerMillion`, 0.50),
-      cacheCreatePerMillion: this.cfg.get<number>(`${prefix}.cacheCreatePerMillion`, 2.00),
-    };
+    // Kimi family mapping
+    else if (m.includes('kimi')) { key = 'kimik2_6'; }
+
+    // Provider-private config takes priority: pricing.{provider}.models.{key}
+    const providerPrefix = `pricing.${this.activeProviderId}.models.${key}`;
+    const globalPrefix = `pricing.models.${key}`;
+
+    const input = this.cfg.get<number>(`${providerPrefix}.inputPerMillion`,
+      this.cfg.get<number>(`${globalPrefix}.inputPerMillion`, 2.00));
+    const output = this.cfg.get<number>(`${providerPrefix}.outputPerMillion`,
+      this.cfg.get<number>(`${globalPrefix}.outputPerMillion`, 10.00));
+    const cacheRead = this.cfg.get<number>(`${providerPrefix}.cacheReadPerMillion`,
+      this.cfg.get<number>(`${globalPrefix}.cacheReadPerMillion`, 0.50));
+    const cacheCreate = this.cfg.get<number>(`${providerPrefix}.cacheCreatePerMillion`,
+      this.cfg.get<number>(`${globalPrefix}.cacheCreatePerMillion`, 2.00));
+
+    return { inputPerMillion: input, outputPerMillion: output, cacheReadPerMillion: cacheRead, cacheCreatePerMillion: cacheCreate };
   }
 }

@@ -232,9 +232,9 @@
             "USD",
             "CNY"
           ],
-          "default": "USD",
+          "default": "auto",
           "order": 5,
-          "description": "Currency for cost display. auto: infer from provider. USD: US Dollar. CNY: Chinese Yuan."
+          "description": "Currency for cost display. auto: infer from provider (Codex/Claude/Cursor → USD, Kimi/GLM → CNY). USD: US Dollar. CNY: Chinese Yuan."
         },
         "codexStatusPro.pricing.models.gpt5.inputPerMillion": {
           "type": "number",
@@ -348,11 +348,39 @@
           "order": 101,
           "description": "Claude Haiku cache-write token price per million (USD)."
         },
+        "codexStatusPro.pricing.kimi.models.k2_6.inputPerMillion": {
+          "type": "number",
+          "default": 6.50,
+          "minimum": 0,
+          "order": 110,
+          "description": "Kimi k2.6 input token price per million (CNY)."
+        },
+        "codexStatusPro.pricing.kimi.models.k2_6.outputPerMillion": {
+          "type": "number",
+          "default": 27.00,
+          "minimum": 0,
+          "order": 111,
+          "description": "Kimi k2.6 output token price per million (CNY)."
+        },
+        "codexStatusPro.pricing.kimi.models.k2_6.cacheReadPerMillion": {
+          "type": "number",
+          "default": 1.10,
+          "minimum": 0,
+          "order": 112,
+          "description": "Kimi k2.6 cache-read token price per million (CNY)."
+        },
+        "codexStatusPro.pricing.kimi.models.k2_6.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 6.50,
+          "minimum": 0,
+          "order": 113,
+          "description": "Kimi k2.6 cache-write token price per million (CNY)."
+        },
         "codexStatusPro.pricing.officialUrl": {
           "type": "string",
-          "default": "https://openai.com/pricing",
+          "default": "",
           "order": 84,
-          "description": "Official pricing page URL shown in Dashboard."
+          "description": "Custom official pricing page URL shown in Dashboard. Leave empty to use provider default."
         },
         "codexStatusPro.pricing.officialDate": {
           "type": "string",

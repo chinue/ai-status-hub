@@ -320,6 +320,20 @@ export class StatusBarPresenter {
   private triggerUpdateAnimation(): void {
     const duration = this.config.updateAnimationDurationMs;
 
+    // Compute stale / source indicators so they remain visible during animation
+    const state = this.store.getState();
+    const hasApiData = !!state.quota;
+    const isStale = state.lastSuccessfulFetchAt
+      ? Date.now() - state.lastSuccessfulFetchAt > STALE_THRESHOLD_MS
+      : !hasApiData;
+    const staleIndicator = isStale ? ' \uD83D\uDCA4' : '';
+    const sourceIndicator = state.dataSource === 'api'
+      ? ' \uD83C\uDF10'
+      : state.dataSource === 'local-only'
+        ? ' \u26D3\uFE0F\u200D\uD83D\uDCA5'
+        : '';
+    const suffix = `${staleIndicator}${sourceIndicator}`;
+
     // If animation already running, just reset the end timer (debounce)
     if (this.updateAnimInterval) {
       if (this.updateAnimTimeout) {
@@ -335,13 +349,13 @@ export class StatusBarPresenter {
     // Start new animation — moon cycles while keeping the live percentage visible
     this.updateFrame = 0;
     const weeklyPct = this.lastSeenWeeklyPct ?? 0;
-    this.itemWeekly.text = `${UPDATE_FRAMES[0]} ${this.displayName}:${formatPercent(weeklyPct, 1)}`;
+    this.itemWeekly.text = `${UPDATE_FRAMES[0]} ${this.displayName}:${formatPercent(weeklyPct, 1)}${suffix}`;
     this.itemWeekly.show();
 
     this.updateAnimInterval = setInterval(() => {
       this.updateFrame = (this.updateFrame + 1) % UPDATE_FRAMES.length;
       const liveWeeklyPct = this.lastSeenWeeklyPct ?? 0;
-      this.itemWeekly.text = `${UPDATE_FRAMES[this.updateFrame]} ${this.displayName}:${formatPercent(liveWeeklyPct, 1)}`;
+      this.itemWeekly.text = `${UPDATE_FRAMES[this.updateFrame]} ${this.displayName}:${formatPercent(liveWeeklyPct, 1)}${suffix}`;
     }, this.config.updateAnimationIntervalMs);
 
     this.updateAnimTimeout = setTimeout(() => {
