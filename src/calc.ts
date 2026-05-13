@@ -395,6 +395,18 @@ export function formatMonthLocal(ms: number): string {
   return `${y}-${m}`;
 }
 
+/** Format a timestamp as YYYY-MM-DD HH:mm:ss in local time (24-hour). */
+export function fmtDateTime(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${y}-${m}-${day} ${hh}:${min}:${ss}`;
+}
+
 /** Format currency with given symbol and 2 decimals. */
 export function fmtCurrency(n: number, currencySymbol = '$'): string {
   const safe = isFinite(n) ? n : 0;

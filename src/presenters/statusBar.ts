@@ -6,7 +6,7 @@ import { ConfigService } from '../config';
 import { makeT } from '../i18n';
 import {
   computeUtilization, formatPercent, formatPercentPadded,
-  fmtHours, fmtTokens, fmtCost,
+  fmtHours, fmtTokens, fmtCost, fmtDateTime,
   buildBar, buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
 } from '../calc';
@@ -307,7 +307,7 @@ export class StatusBarPresenter {
       lines.push(...drawBorderTable(localHeader, localRows, ['l', 'r', 'r', 'r', 'r', 'r', 'r']));
     }
 
-    lines.push('', `${t('tooltip.lastUpdate')} ${state.lastFetchAt ? new Date(state.lastFetchAt).toLocaleString() : '—'}`);
+    lines.push('', `${t('tooltip.lastUpdate')} ${state.lastFetchAt ? fmtDateTime(state.lastFetchAt) : '—'}`);
 
     md.appendMarkdown(`\`\`\`text\n${lines.join('\n')}\n\`\`\``);
     return md;
