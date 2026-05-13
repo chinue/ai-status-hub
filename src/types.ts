@@ -279,4 +279,5 @@ export interface DashboardSettings {
   chartHeightRatio: number;
   officialUrl: string;
   officialDate: string;
+  currencySymbol: string;
 }

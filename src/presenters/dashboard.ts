@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatPercent, fmtRmb, fmtNumber } from '../calc';
+import { formatPercent, fmtCurrency, fmtNumber } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
   AppState, UsageEntry, DashboardMessage, KimiUsageData, DashboardAggregates,
@@ -18,10 +18,12 @@ export class DashboardPanel {
   private disposables: vscode.Disposable[] = [];
   private nonce: string;
   private historyService = HistoryService.getInstance();
+  private currencySymbol: string;
 
   private constructor(private store: Store) {
     this.nonce = crypto.randomBytes(16).toString('hex');
     const config = ConfigService.getInstance();
+    this.currencySymbol = config.currency.symbol;
     const locale = config.effectiveLanguage;
     const i18n = makeT(locale);
 
@@ -187,6 +189,7 @@ export class DashboardPanel {
         chartHeightRatio: config.chartHeightRatio,
         officialUrl: config.pricingOfficialUrl,
         officialDate: config.pricingOfficialDate,
+        currencySymbol: config.currency.symbol,
       },
       isLoading: state.isLoading,
     };
@@ -596,6 +599,8 @@ export class DashboardPanel {
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
 
+    const CURRENCY_SYMBOL = '${this.currencySymbol}';
+
     const labels = {
       loading: '${i18n('dashboard.loading')}',
       estimate: '${i18n('dashboard.estimate')}',
@@ -630,7 +635,7 @@ export class DashboardPanel {
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
     function fmtNum(n) { return (isFinite(n) ? Math.round(n) : 0).toLocaleString('en-US'); }
-    function fmtRmb(n) { return '¥' + (isFinite(n) ? n.toFixed(2) : '0.00'); }
+    function fmtCurrency(n) { return CURRENCY_SYMBOL + (isFinite(n) ? n.toFixed(2) : '0.00'); }
     function fmtDateShort(iso) { const d = new Date(iso); return (d.getMonth()+1) + '.' + d.getDate(); }
     function heatmapColdWarmColor(t) {
       t = Math.max(0, Math.min(1, t));
@@ -853,7 +858,7 @@ export class DashboardPanel {
     function renderCcuSummary(data) {
       if (!data) return '<div class="placeholder">${i18n('dashboard.noData')}</div>';
       const rows = [
-        ['${i18n('dashboard.tokenCost')}', fmtRmb(data.totalCost)],
+        ['${i18n('dashboard.tokenCost')}', fmtCurrency(data.totalCost)],
         ['${i18n('dashboard.messages')}', fmtNum(data.messageCount)],
         ['${i18n('dashboard.inputTokens')}', fmtNum(data.totalInputTokens)],
         ['${i18n('dashboard.outputTokens')}', fmtNum(data.totalOutputTokens)],
@@ -872,7 +877,7 @@ export class DashboardPanel {
       entries.sort((a, b) => (b[1].cost || 0) - (a[1].cost || 0));
       return '<div class="model-breakdown"><div class="section-title">${i18n('dashboard.modelBreakdown')}</div><div class="model-list">' +
         entries.map(([model, m]) => {
-          return '<div class="model-item"><div class="model-header"><span class="model-name">' + esc(model) + '</span><span class="model-cost">' + fmtRmb(m.cost) + '</span></div>' +
+          return '<div class="model-item"><div class="model-header"><span class="model-name">' + esc(model) + '</span><span class="model-cost">' + fmtCurrency(m.cost) + '</span></div>' +
             '<div class="model-metrics">' +
             '<div class="model-metric"><div class="model-metric-val">${i18n('dashboard.input')}: ' + fmtNum(m.inputTokens) + '</div><div class="model-metric-rate"></div></div>' +
             '<div class="model-metric"><div class="model-metric-val">${i18n('dashboard.output')}: ' + fmtNum(m.outputTokens) + '</div><div class="model-metric-rate"></div></div>' +
@@ -904,7 +909,7 @@ export class DashboardPanel {
           const attr = isHourly ? '' : (kind === 'daily' ? (' data-ccu-day="' + key + '"') : (' data-ccu-month="' + key + '"'));
           return '<tr class="ccu-row"' + attr + '>' +
             '<td class="ccu-key">' + esc(key) + '</td>' +
-            '<td class="ccu-cost">' + fmtRmb(r.data.totalCost) + '</td>' +
+            '<td class="ccu-cost">' + fmtCurrency(r.data.totalCost) + '</td>' +
             '<td class="ccu-num">' + fmtNum(r.data.totalInputTokens) + '</td>' +
             '<td class="ccu-num">' + fmtNum(r.data.totalOutputTokens) + '</td>' +
             '<td class="ccu-num">' + fmtNum(r.data.totalCacheCreationTokens) + '</td>' +
@@ -1063,7 +1068,7 @@ export class DashboardPanel {
       const costCal = buildHeatmapCalendarHtml(
         daily,
         d => d.cost,
-        (day, v) => day.date + ': ' + fmtRmb(v) + (day.sessionCount > 0 ? ' (' + day.sessionCount + ' ${i18n('dashboard.msgs')})' : ''),
+        (day, v) => day.date + ': ' + fmtCurrency(v) + (day.sessionCount > 0 ? ' (' + day.sessionCount + ' ${i18n('dashboard.msgs')})' : ''),
       );
 
       const coldWarmLegend =
@@ -1072,7 +1077,7 @@ export class DashboardPanel {
         '${i18n('dashboard.more')}</div>';
 
       const costs = daily.map(d => d.cost);
-      const costScalePlain = '${i18n('dashboard.heatmapScale')}: ' + fmtRmb(Math.min(...costs)) + ' \u2192 ' + fmtRmb(Math.max(...costs));
+      const costScalePlain = '${i18n('dashboard.heatmapScale')}: ' + fmtCurrency(Math.min(...costs)) + ' \u2192 ' + fmtCurrency(Math.max(...costs));
 
       const nextStatic =
         '<div class="heatmap-hint">${i18n('dashboard.heatmapColdWarmHint')} ${i18n('dashboard.heatmapLocalTzHint')}</div>' +
@@ -1201,7 +1206,7 @@ export class DashboardPanel {
                   tooltip: {
                     callbacks: {
                       title: items => { if (!items.length) return ''; return byModel[items[0].dataIndex].date; },
-                      label: ctx => { const v = ctx.parsed.y; return (ctx.dataset.label || '') + ': ' + fmtRmb(v); },
+                      label: ctx => { const v = ctx.parsed.y; return (ctx.dataset.label || '') + ': ' + fmtCurrency(v); },
                     },
                   },
                 },

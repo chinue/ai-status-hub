@@ -278,7 +278,7 @@ export class StatusBarPresenter {
           fmtTokens(lu.tokensCacheCreateToday),
           fmtTokens(lu.tokensCacheReadToday),
           String(lu.requestsToday),
-          fmtCost(lu.costToday),
+          fmtCost(lu.costToday, this.config.currency.symbol),
         ],
         [
           t('tooltip.table.row.5h'),
@@ -287,7 +287,7 @@ export class StatusBarPresenter {
           fmtTokens(lu.tokensCacheCreate5h),
           fmtTokens(lu.tokensCacheRead5h),
           String(lu.requests5h),
-          fmtCost(lu.cost5h),
+          fmtCost(lu.cost5h, this.config.currency.symbol),
         ],
         [
           t('tooltip.table.row.7d'),
@@ -296,7 +296,7 @@ export class StatusBarPresenter {
           fmtTokens(lu.tokensCacheCreate7d),
           fmtTokens(lu.tokensCacheRead7d),
           String(lu.requests7d),
-          fmtCost(lu.cost7d),
+          fmtCost(lu.cost7d, this.config.currency.symbol),
         ],
       ];
       lines.push(...drawBorderTable(localHeader, localRows, ['l', 'r', 'r', 'r', 'r', 'r', 'r']));

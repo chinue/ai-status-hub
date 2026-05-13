@@ -59,6 +59,15 @@ export class ConfigService {
     return this.cfg.get<string>('defaultModelName', 'gpt-5');
   }
 
+  get currency(): { code: string; symbol: string } {
+    const raw = this.cfg.get<string>('currency', 'USD');
+    switch (raw) {
+      case 'CNY': return { code: 'CNY', symbol: '¥' };
+      case 'USD': return { code: 'USD', symbol: '$' };
+      default: return { code: 'USD', symbol: '$' };
+    }
+  }
+
   get effectiveLanguage(): 'en' | 'zh-CN' {
     return ConfigService.resolveEffectiveLanguage(this.language);
   }
@@ -141,11 +150,12 @@ export class ConfigService {
   getPricing(modelName: string): TokenPricing {
     const key = modelName.toLowerCase().replace(/[^a-z0-9]/g, '');
     const prefix = `pricing.models.${key}`;
+    // Default pricing for gpt-5 in USD
     return {
-      inputPerMillion: this.cfg.get<number>(`${prefix}.inputPerMillion`, 6.50),
-      outputPerMillion: this.cfg.get<number>(`${prefix}.outputPerMillion`, 27.00),
-      cacheReadPerMillion: this.cfg.get<number>(`${prefix}.cacheReadPerMillion`, 1.10),
-      cacheCreatePerMillion: this.cfg.get<number>(`${prefix}.cacheCreatePerMillion`, 6.50),
+      inputPerMillion: this.cfg.get<number>(`${prefix}.inputPerMillion`, 2.00),
+      outputPerMillion: this.cfg.get<number>(`${prefix}.outputPerMillion`, 10.00),
+      cacheReadPerMillion: this.cfg.get<number>(`${prefix}.cacheReadPerMillion`, 0.50),
+      cacheCreatePerMillion: this.cfg.get<number>(`${prefix}.cacheCreatePerMillion`, 2.00),
     };
   }
 }
