@@ -2,7 +2,7 @@
   "name": "codex-status-pro",
   "displayName": "CodexStatusPro",
   "description": "Monitor Codex token usage and rate limits in real-time",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -65,6 +65,17 @@
           "default": "percent",
           "order": 1,
           "description": "Status bar display mode. percent: show percentage with mini bar. absolute: show used/limit count."
+        },
+        "codexStatusPro.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "en",
+            "zh-CN"
+          ],
+          "default": "auto",
+          "order": 2,
+          "description": "Display language. auto: follow VS Code locale. en: English. zh-CN: Simplified Chinese."
         },
         "codexStatusPro.statusBar.alignment": {
           "type": "string",

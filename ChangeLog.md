@@ -1,5 +1,15 @@
 # ChangeLog
 
+## [0.3.17] - 2026-05-13
+
+### 新增
+
+- **在 Settings UI 中恢复 `language` 配置项**：此前 `language` 的 setter 虽然保留在 `src/config.ts` 中，但已从 `package.json` 的 `contributes.configuration` 中移除，导致 Dashboard 语言切换按钮无法持久化到用户配置（fallback 到 store 内存）。现已将 `codexStatusPro.language` 重新加入 `package.json`，支持 `auto`/`en`/`zh-CN` 三档，与 VS Code 设置同步。
+
+### Bug 修复
+
+- **修复 Dashboard 设置按钮打开空设置面板**：`openSettings` 命令传入了错误的扩展 ID `@ext:codex-status-pro`（缺少 publisher 前缀）。VS Code 的 `@ext:` 过滤需要完整 ID（`publisher.name`），导致搜索不到任何配置项。已修正为 `@ext:kayuii.codex-status-pro`。
+
 ## [0.3.16] - 2026-05-13
 
 ### Bug 修复

@@ -74,7 +74,7 @@ export class DashboardPanel {
         break;
       }
       case 'openSettings':
-        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:codex-status-pro');
+        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.codex-status-pro');
         break;
       case 'getCostCurveOptions': {
         this.sendCostCurveOptions();
@@ -121,7 +121,7 @@ export class DashboardPanel {
     try {
       await cfg.setLanguage(nextLang);
     } catch {
-      // Setting removed from package.json; persist via store only
+      // ignore
     }
     this.store.dispatch({ type: 'UI_SET_LANGUAGE', payload: nextLang });
     this.panel.webview.html = this.getHtml(this.nonce, nextLang);
