@@ -15,7 +15,7 @@ import { IProvider } from '../providers/base/types';
 
 const STALE_THRESHOLD_MS = 120_000; // 2 minutes
 
-const UPDATE_FRAMES = ['\uD83C\uDF86', '\uD83C\uDF87', '\u2728'];
+const UPDATE_FRAMES = ['\uD83C\uDF11', '\uD83C\uDF12', '\uD83C\uDF13', '\uD83C\uDF14', '\uD83C\uDF15', '\uD83C\uDF16', '\uD83C\uDF17', '\uD83C\uDF18'];
 // MOON_ANIMATION_INTERVAL_MS is now read from config.updateAnimationIntervalMs (default 300ms)
 
 function alignmentFromString(raw: string): vscode.StatusBarAlignment {
