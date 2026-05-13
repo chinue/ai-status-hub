@@ -1,0 +1,23 @@
+# ChangeLog
+
+## [0.3.0] - 2026-05-13
+
+### 重大变更
+
+- **完整迁移**：从 `kimi-status-pro` 迁移至 `codex-status-pro`，全面支持 OpenAI Codex CLI 的用量监控与状态追踪。
+- **Provider 抽象层**：引入统一的 Provider 架构（`IProvider`），将认证、API 配额、本地用量解析、定价策略与 UI 表现完全解耦，为未来多 Provider 扩展奠定基础。
+
+### 功能
+
+- **Codex 认证**：自动读取 `~/.codex/auth.json`，解析 JWT `id_token` 获取账户信息，使用 `access_token` 作为 Bearer Token。
+- **API 配额监控**：通过向 Codex API 发送探测请求，从响应头中提取 `x-codex-primary-*`（5 小时窗口）与 `x-codex-secondary-*`（7 天窗口）的速率限制使用率与重置时间。
+- **本地 JSONL 用量解析**：扫描 `~/.codex/sessions/**/*.jsonl` 与 `archived_sessions`，基于 `last_token_usage` 增量（delta）逻辑精确计算每轮对话的 token 消耗，支持模型追踪与缓存 token 钳位。
+- **成本估算**：内置 USD 定价（默认 `gpt-5` 模型），支持通过 `codexStatusPro.currency` 配置币种符号（默认 `$`）。
+- **状态栏 UI**：使用 `$(openai)` Codex 图标，更新动画替换为 `['🎆','🎇','✨️']`，所有文案统一为 Codex 品牌。
+
+### 技术细节
+
+- **Delta 解析逻辑**：直接适配 tokscale Rust 实现，处理 `last_token_usage` 为增量、总用量 stale regression 防护、缓存 token 上限钳制。
+- **文件 I/O 隔离**：仅 `LocalUsageService` 与 `CacheService` 执行磁盘访问。
+- **国际化**：所有用户可见字符串通过 `makeT()` 管理，新增 Codex 专用词条。
+- **测试**：99 项测试全部通过，覆盖认证、API、缓存、计算、历史、调度与状态栏。
