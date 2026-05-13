@@ -21,6 +21,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const provider = createCodexProvider();
   const cacheService = CacheService.getInstance();
   const localUsageService = LocalUsageService.getInstance();
+  localUsageService.setProvider(provider);
 
   // 1. Restore pause state from globalState (cross-window sync)
   const pausedFromGlobal = context.globalState.get<boolean>(PAUSE_STATE_KEY, false);

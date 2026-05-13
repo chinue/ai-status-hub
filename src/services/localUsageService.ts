@@ -1,16 +1,11 @@
 // DESIGN: v2-local-estimation-design.md
 // AGENTS: err->try-catch | retention->dataRetentionDays | disk-OK
-// 🔀 Provider boundary: JSONL path and format are Kimi-specific.
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
-import { TokenPricing, UsageEntry } from '../types';
-import { calculateCost, TokenUsage } from '../calc';
+import { UsageEntry } from '../types';
+import { calculateCost } from '../calc';
 import { log } from '../utils';
 import { ConfigService } from '../config';
-
-const SESSIONS_DIR = path.join(os.homedir(), '.codex', 'sessions');
+import { IProvider, UnifiedUsageEntry } from '../providers/base/types';
 
 export interface LocalAggregatedUsage {
   tokensToday: number;
@@ -40,20 +35,18 @@ export interface LocalAggregatedUsage {
   entries: UsageEntry[];
 }
 
-interface FileState {
-  mtimeMs: number;
-  size: number;
-  entries: UsageEntry[];
-}
-
 export class LocalUsageService {
   private static instance: LocalUsageService;
-  private fileStates = new Map<string, FileState>();
   private aggregate: LocalAggregatedUsage | null = null;
+  private provider: IProvider | undefined;
 
   static getInstance(): LocalUsageService {
     if (!LocalUsageService.instance) { LocalUsageService.instance = new LocalUsageService(); }
     return LocalUsageService.instance;
+  }
+
+  setProvider(provider: IProvider): void {
+    this.provider = provider;
   }
 
   async getLocalUsage(opts?: {
@@ -63,8 +56,7 @@ export class LocalUsageService {
     dataRetentionDays?: number;
     force?: boolean;
   }): Promise<LocalAggregatedUsage> {
-    // Incremental scan: no TTL cache. Always check mtime/size.
-    this.aggregate = await this.scanAllFiles(opts);
+    this.aggregate = await this.aggregateFromProvider(opts);
     return this.aggregate;
   }
 
@@ -74,11 +66,11 @@ export class LocalUsageService {
   }
 
   invalidate(): void {
-    this.fileStates.clear();
+    this.provider?.localUsage.invalidate();
     this.aggregate = null;
   }
 
-  private async scanAllFiles(opts?: {
+  private async aggregateFromProvider(opts?: {
     cycleStartMs?: number;
     weeklyResetAtMs?: number;
     windowResetAtMs?: number;
@@ -97,20 +89,16 @@ export class LocalUsageService {
       entries: [],
     };
 
-    try {
-      await fs.access(SESSIONS_DIR);
-    } catch {
+    if (!this.provider) {
       return empty;
     }
 
-    const files = await this.enumerateWireJsonl(SESSIONS_DIR);
-
-    // Remove stale fileStates for deleted files
-    const currentFiles = new Set(files);
-    for (const [fp] of this.fileStates) {
-      if (!currentFiles.has(fp)) {
-        this.fileStates.delete(fp);
-      }
+    let unifiedEntries: UnifiedUsageEntry[];
+    try {
+      unifiedEntries = await this.provider.localUsage.scanSessions();
+    } catch (err) {
+      log(`Local usage scan error: ${(err as Error).message}`);
+      return empty;
     }
 
     const now = Date.now();
@@ -124,172 +112,77 @@ export class LocalUsageService {
 
     const entries: UsageEntry[] = [];
     const seenMessageIds = new Set<string>();
+    const config = ConfigService.getInstance();
 
-    for (const filePath of files) {
-      const fileState = await this.updateFileState(filePath);
-      for (const entry of fileState.entries) {
-        // Deduplicate by messageId (local to this scan)
-        if (entry.messageId) {
-          if (seenMessageIds.has(entry.messageId)) continue;
-          seenMessageIds.add(entry.messageId);
-        }
+    for (const entry of unifiedEntries) {
+      // Deduplicate by messageId
+      if (entry.messageId) {
+        if (seenMessageIds.has(entry.messageId)) continue;
+        seenMessageIds.add(entry.messageId);
+      }
 
-        // Discard entries older than retention period
-        if (entry.timestamp < retentionStart) continue;
+      // Discard entries older than retention period
+      if (entry.timestamp < retentionStart) continue;
 
-        entries.push(entry);
+      // Calculate cost using provider pricing
+      const pricing = this.provider.pricing.getPricing(entry.model ?? config.defaultModelName);
+      const cost = this.provider.pricing.calculateCost({
+        inputOther: entry.inputOther,
+        output: entry.output,
+        inputCacheRead: entry.inputCacheRead,
+        inputCacheCreation: entry.inputCacheCreation,
+      }, pricing);
 
-        // Aggregate by time windows
-        const ts = entry.timestamp;
-        if (ts >= todayStart) {
-          empty.tokensToday += entry.inputOther;
-          empty.tokensOutToday += entry.output;
-          empty.tokensCacheReadToday += entry.inputCacheRead;
-          empty.tokensCacheCreateToday += entry.inputCacheCreation;
-          empty.costToday += entry.cost;
-          empty.requestsToday++;
-        }
-        if (ts >= window5hStart) {
-          empty.tokensIn5h += entry.inputOther;
-          empty.tokensOut5h += entry.output;
-          empty.tokensCacheRead5h += entry.inputCacheRead;
-          empty.tokensCacheCreate5h += entry.inputCacheCreation;
-          empty.cost5h += entry.cost;
-          empty.requests5h++;
-        }
-        if (ts >= window7dStart) {
-          empty.tokensIn7d += entry.inputOther;
-          empty.tokensOut7d += entry.output;
-          empty.tokensCacheRead7d += entry.inputCacheRead;
-          empty.tokensCacheCreate7d += entry.inputCacheCreation;
-          empty.cost7d += entry.cost;
-          empty.requests7d++;
-        }
-        if (ts >= cycleStart) {
-          empty.tokensThisCycle += entry.inputOther;
-          empty.tokensOutThisCycle += entry.output;
-          empty.tokensCacheReadThisCycle += entry.inputCacheRead;
-          empty.tokensCacheCreateThisCycle += entry.inputCacheCreation;
-          empty.costThisCycle += entry.cost;
-          empty.requestsThisCycle++;
-        }
+      const usageEntry: UsageEntry = {
+        timestamp: entry.timestamp,
+        inputOther: entry.inputOther,
+        output: entry.output,
+        inputCacheRead: entry.inputCacheRead,
+        inputCacheCreation: entry.inputCacheCreation,
+        cost,
+        messageId: entry.messageId,
+        model: entry.model,
+      };
+
+      entries.push(usageEntry);
+
+      // Aggregate by time windows
+      const ts = entry.timestamp;
+      if (ts >= todayStart) {
+        empty.tokensToday += entry.inputOther;
+        empty.tokensOutToday += entry.output;
+        empty.tokensCacheReadToday += entry.inputCacheRead;
+        empty.tokensCacheCreateToday += entry.inputCacheCreation;
+        empty.costToday += cost;
+        empty.requestsToday++;
+      }
+      if (ts >= window5hStart) {
+        empty.tokensIn5h += entry.inputOther;
+        empty.tokensOut5h += entry.output;
+        empty.tokensCacheRead5h += entry.inputCacheRead;
+        empty.tokensCacheCreate5h += entry.inputCacheCreation;
+        empty.cost5h += cost;
+        empty.requests5h++;
+      }
+      if (ts >= window7dStart) {
+        empty.tokensIn7d += entry.inputOther;
+        empty.tokensOut7d += entry.output;
+        empty.tokensCacheRead7d += entry.inputCacheRead;
+        empty.tokensCacheCreate7d += entry.inputCacheCreation;
+        empty.cost7d += cost;
+        empty.requests7d++;
+      }
+      if (ts >= cycleStart) {
+        empty.tokensThisCycle += entry.inputOther;
+        empty.tokensOutThisCycle += entry.output;
+        empty.tokensCacheReadThisCycle += entry.inputCacheRead;
+        empty.tokensCacheCreateThisCycle += entry.inputCacheCreation;
+        empty.costThisCycle += cost;
+        empty.requestsThisCycle++;
       }
     }
 
     empty.entries = entries;
     return empty;
   }
-
-  private async updateFileState(filePath: string): Promise<FileState> {
-    const existing = this.fileStates.get(filePath);
-
-    let stat: { mtimeMs: number; size: number };
-    try {
-      const s = await fs.stat(filePath);
-      stat = { mtimeMs: s.mtimeMs, size: s.size };
-    } catch {
-      return existing ?? { mtimeMs: 0, size: 0, entries: [] };
-    }
-
-    if (existing && existing.mtimeMs === stat.mtimeMs && existing.size === stat.size) {
-      return existing;
-    }
-
-    // File changed or new: read entire file (data is small; simplicity over micro-optimisation)
-    let text: string;
-    try {
-      text = await fs.readFile(filePath, 'utf-8');
-    } catch {
-      return existing ?? { mtimeMs: stat.mtimeMs, size: stat.size, entries: [] };
-    }
-
-    const newEntries = this.parseText(text);
-
-
-
-    const fileState: FileState = { mtimeMs: stat.mtimeMs, size: stat.size, entries: newEntries };
-    this.fileStates.set(filePath, fileState);
-    return fileState;
-  }
-
-  private parseText(text: string): UsageEntry[] {
-    const entries: UsageEntry[] = [];
-    const lines = text.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const entry = this.parseLine(line);
-      if (entry) entries.push(entry);
-    }
-    return entries;
-  }
-
-  private async enumerateWireJsonl(dir: string): Promise<string[]> {
-    const results: string[] = [];
-    try {
-      const sessionDirs = await fs.readdir(dir, { withFileTypes: true });
-      for (const sessionDir of sessionDirs) {
-        if (!sessionDir.isDirectory()) continue;
-        const sessionPath = path.join(dir, sessionDir.name);
-        try {
-          const convDirs = await fs.readdir(sessionPath, { withFileTypes: true });
-          for (const convDir of convDirs) {
-            if (!convDir.isDirectory()) continue;
-            const wirePath = path.join(sessionPath, convDir.name, 'wire.jsonl');
-            try {
-              await fs.access(wirePath);
-              results.push(wirePath);
-            } catch { /* ignore missing */ }
-          }
-        } catch { /* ignore unreadable session dir */ }
-      }
-    } catch { /* ignore */ }
-    return results;
-  }
-
-  private parseLine(line: string): UsageEntry | null {
-    try {
-      const json = JSON.parse(line);
-      if (json.message?.type !== 'StatusUpdate') return null;
-      const payload = json.message.payload;
-      if (!payload?.token_usage) return null;
-
-      const tu = payload.token_usage;
-      const usage: TokenUsage = {
-        inputOther: toInt(tu.input_other),
-        output: toInt(tu.output),
-        inputCacheRead: toInt(tu.input_cache_read),
-        inputCacheCreation: toInt(tu.input_cache_creation),
-      };
-      const modelName = payload.model || ConfigService.getInstance().defaultModelName;
-      const pricing = ConfigService.getInstance().getPricing(modelName);
-      const cost = calculateCost(usage, pricing);
-      const timestamp = typeof json.timestamp === 'number' ? json.timestamp * 1000 : Date.now();
-
-      return {
-        timestamp,
-        inputOther: usage.inputOther,
-        output: usage.output,
-        inputCacheRead: usage.inputCacheRead,
-        inputCacheCreation: usage.inputCacheCreation,
-        cost,
-        messageId: payload.message_id ?? null,
-        model: modelName,
-      };
-    } catch {
-      return null;
-    }
-  }
 }
-
-function toInt(v: any): number {
-  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
-  return isNaN(n) ? 0 : n;
-}
-
-/** Default pricing for kimi-k2.6 (RMB). */
-export const DEFAULT_PRICING: TokenPricing = {
-  inputPerMillion: 6.50,
-  outputPerMillion: 27.00,
-  cacheReadPerMillion: 1.10,
-  cacheCreatePerMillion: 6.50,
-};
