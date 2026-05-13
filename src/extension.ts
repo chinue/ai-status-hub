@@ -3,8 +3,7 @@
 import * as vscode from 'vscode';
 import { Store } from './store';
 import { ConfigService } from './config';
-import { AuthService } from './services/authService';
-import { ApiService } from './services/apiService';
+import { createCodexProvider } from './providers/codex';
 import { CacheService } from './services/cacheService';
 import { LocalUsageService } from './services/localUsageService';
 import { Scheduler } from './services/scheduler';
@@ -19,12 +18,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const store = new Store();
   const config = ConfigService.getInstance();
-  const authService = AuthService.getInstance();
-  const apiService = ApiService.getInstance();
+  const provider = createCodexProvider();
   const cacheService = CacheService.getInstance();
   const localUsageService = LocalUsageService.getInstance();
-
-  authService.init(context.secrets);
 
   // 1. Restore pause state from globalState (cross-window sync)
   const pausedFromGlobal = context.globalState.get<boolean>(PAUSE_STATE_KEY, false);
@@ -53,10 +49,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   store.dispatch({ type: 'UI_SET_LANGUAGE', payload: config.language });
 
   // 4. Initialize Presenters
-  const statusBar = new StatusBarPresenter(store);
+  const statusBar = new StatusBarPresenter(store, provider);
 
-  // 4. Start scheduler
-  const scheduler = new Scheduler(store, authService, apiService, cacheService, localUsageService);
+  // 5. Start scheduler
+  const scheduler = new Scheduler(store, provider.auth, provider.api, cacheService, localUsageService);
   scheduler.start();
 
   // 5. Register commands
@@ -65,15 +61,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       scheduler.force();
     }),
     vscode.commands.registerCommand('codexStatusPro.signIn', async () => {
-      const success = await authService.startOAuthFlow();
-      if (success) {
-        scheduler.force();
-      }
+      void vscode.window.showInformationMessage('Please run "codex login" in your terminal to authenticate.');
     }),
     vscode.commands.registerCommand('codexStatusPro.signOut', async () => {
       await deleteApiKey(context.secrets);
       await deleteOAuth(context.secrets);
-      authService.invalidate();
+      provider.auth.invalidate();
       localUsageService.invalidate();
       store.dispatch({ type: 'SIGN_OUT' });
     }),

@@ -11,6 +11,7 @@ import {
   resolveWeeklyPct, resolveWindowPct,
 } from '../calc';
 import { AppState } from '../types';
+import { IProvider } from '../providers/base/types';
 
 const STALE_THRESHOLD_MS = 120_000; // 2 minutes
 
@@ -32,14 +33,16 @@ export class StatusBarPresenter {
   private moonFrame = 0;
   private lastSeenWeeklyPct: number | null = null;
   private lastSeenWindowPct: number | null = null;
+  private displayName: string;
 
-  constructor(private store: Store) {
+  constructor(private store: Store, private provider?: IProvider) {
     const alignment = this.config.statusBarAlignment;
+    this.displayName = provider?.ui.displayName ?? 'Codex';
 
     this.itemWeekly = vscode.window.createStatusBarItem(alignment, 104);
     this.itemWeekly.name = 'CodexStatusPro Weekly';
     this.itemWeekly.command = 'codexStatusPro.showDashboard';
-    this.itemWeekly.text = '$(sync~spin) Codex…';
+    this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
     this.itemWeekly.show();
 
     this.itemWindow = vscode.window.createStatusBarItem(alignment, 103);
@@ -78,7 +81,7 @@ export class StatusBarPresenter {
 
       if (state.authStatus === 'missing') {
         this.stopUpdateAnimation();
-        this.itemWeekly.text = '$(key) Codex: sign in';
+        this.itemWeekly.text = `$(key) ${this.displayName}: sign in`;
         this.itemWeekly.command = 'codexStatusPro.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWeekly.color = new vscode.ThemeColor('statusBarItem.errorForeground');
@@ -88,7 +91,7 @@ export class StatusBarPresenter {
 
       if (state.error && state.authStatus === 'failed') {
         this.stopUpdateAnimation();
-        this.itemWeekly.text = '$(warning) Codex: auth failed';
+        this.itemWeekly.text = `$(warning) ${this.displayName}: auth failed`;
         this.itemWeekly.command = 'codexStatusPro.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWindow.hide();
@@ -100,7 +103,7 @@ export class StatusBarPresenter {
 
       if (!hasApiData && !hasEstimate) {
         this.stopUpdateAnimation();
-        this.itemWeekly.text = '$(sync~spin) Codex…';
+        this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
         this.itemWeekly.backgroundColor = undefined;
         this.itemWindow.hide();
         return;
@@ -155,12 +158,12 @@ export class StatusBarPresenter {
 
       if (this.config.displayMode === 'absolute') {
         if (hasApiData) {
-          this.itemWeekly.text = `\uD83C\uDF18 Codex:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}${errorIndicator}`;
+          this.itemWeekly.text = `\uD83C\uDF18 ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}${errorIndicator}`;
         } else {
-          this.itemWeekly.text = `\uD83C\uDF18 Codex:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 1) : '—'}${estimateIndicator}${errorIndicator}`;
+          this.itemWeekly.text = `\uD83C\uDF18 ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 1) : '—'}${estimateIndicator}${errorIndicator}`;
         }
       } else {
-        this.itemWeekly.text = `\uD83C\uDF18 Codex:${formatPercent(weeklyPct, 1)}${estimateIndicator}${errorIndicator}`;
+        this.itemWeekly.text = `\uD83C\uDF18 ${this.displayName}:${formatPercent(weeklyPct, 1)}${estimateIndicator}${errorIndicator}`;
       }
 
       this.itemWeekly.command = 'codexStatusPro.showDashboard';
@@ -326,13 +329,13 @@ export class StatusBarPresenter {
     // Start new animation — moon cycles while keeping the live percentage visible
     this.moonFrame = 0;
     const weeklyPct = this.lastSeenWeeklyPct ?? 0;
-    this.itemWeekly.text = `${MOON_FRAMES[0]} Codex:${formatPercent(weeklyPct, 1)}`;
+    this.itemWeekly.text = `${MOON_FRAMES[0]} ${this.displayName}:${formatPercent(weeklyPct, 1)}`;
     this.itemWeekly.show();
 
     this.updateAnimInterval = setInterval(() => {
       this.moonFrame = (this.moonFrame + 1) % MOON_FRAMES.length;
       const liveWeeklyPct = this.lastSeenWeeklyPct ?? 0;
-      this.itemWeekly.text = `${MOON_FRAMES[this.moonFrame]} Codex:${formatPercent(liveWeeklyPct, 1)}`;
+      this.itemWeekly.text = `${MOON_FRAMES[this.moonFrame]} ${this.displayName}:${formatPercent(liveWeeklyPct, 1)}`;
     }, this.config.updateAnimationIntervalMs);
 
     this.updateAnimTimeout = setTimeout(() => {

@@ -3,8 +3,7 @@
 // 💠 Generic: scheduler logic is provider-agnostic.
 
 import { Store } from '../store';
-import { AuthService } from './authService';
-import { ApiService } from './apiService';
+import { IAuthProvider, IQuotaApiProvider } from '../providers/base/types';
 import { CacheService } from './cacheService';
 import { LocalUsageService } from './localUsageService';
 import { ConfigService } from '../config';
@@ -31,8 +30,8 @@ export class Scheduler {
 
   constructor(
     private store: Store,
-    private authService: AuthService,
-    private apiService: ApiService,
+    private authService: IAuthProvider,
+    private apiService: IQuotaApiProvider,
     private cacheService: CacheService,
     private localUsageService: LocalUsageService,
   ) {}
