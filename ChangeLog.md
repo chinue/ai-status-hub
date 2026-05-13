@@ -1,5 +1,11 @@
 # ChangeLog
 
+## [0.3.2] - 2026-05-13
+
+### Bug 修复
+
+- **修复百分比一直为 0**：`doShortTick()` 在校准容量（`tokenCapacity`/`windowCostCapacity`）无效时，会错误地将 API 百分比覆盖为 0。现已改为：仅当校准有效时才更新 `weeklyPct`/`windowPct`，保留 API 返回的真实使用率。
+
 ## [0.3.1] - 2026-05-13
 
 ### Bug 修复

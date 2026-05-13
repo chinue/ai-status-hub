@@ -126,37 +126,46 @@ export class Scheduler {
       ? calibration!.windowCostCapacity
       : null;
 
-    const weeklyPct = estimateWeeklyPct(localUsage.tokensThisCycle, tokenCapacity)
-      ?? fallbackWeeklyPct(localUsage.tokensThisCycle, quota?.weeklyLimit ?? null);
-    const windowPct = estimateWindowPct(localUsage.cost5h, windowCostCapacity)
-      ?? fallbackWindowPct(localUsage.cost5h, quota?.windowLimit ?? null);
+    // Only compute percentages when calibration is valid. Codex doesn't expose
+    // absolute limits, so fallback functions return 0 when capacity is missing.
+    // Avoid overwriting API percentages with zeros during short ticks.
+    const weeklyPct = tokenCapacity && tokenCapacity > 0
+      ? (estimateWeeklyPct(localUsage.tokensThisCycle, tokenCapacity)
+        ?? fallbackWeeklyPct(localUsage.tokensThisCycle, quota?.weeklyLimit ?? null))
+      : null;
+    const windowPct = windowCostCapacity && windowCostCapacity > 0
+      ? (estimateWindowPct(localUsage.cost5h, windowCostCapacity)
+        ?? fallbackWindowPct(localUsage.cost5h, quota?.windowLimit ?? null))
+      : null;
+
+    const payload: any = {
+      cost5h: localUsage.cost5h,
+      cost7d: localUsage.cost7d,
+      costToday: localUsage.costToday,
+      // Full detail for tooltip / dashboard (from memory, no disk access)
+      requestsToday: localUsage.requestsToday,
+      tokensToday: localUsage.tokensToday,
+      tokensIn5h: localUsage.tokensIn5h,
+      tokensOut5h: localUsage.tokensOut5h,
+      tokensCacheRead5h: localUsage.tokensCacheRead5h,
+      tokensCacheCreate5h: localUsage.tokensCacheCreate5h,
+      requests5h: localUsage.requests5h,
+      tokensIn7d: localUsage.tokensIn7d,
+      tokensOut7d: localUsage.tokensOut7d,
+      tokensCacheRead7d: localUsage.tokensCacheRead7d,
+      tokensCacheCreate7d: localUsage.tokensCacheCreate7d,
+      requests7d: localUsage.requests7d,
+      tokensThisCycle: localUsage.tokensThisCycle,
+      costThisCycle: localUsage.costThisCycle,
+      requestsThisCycle: localUsage.requestsThisCycle,
+      entries: localUsage.entries,
+    };
+    if (weeklyPct !== null) payload.weeklyPct = weeklyPct;
+    if (windowPct !== null) payload.windowPct = windowPct;
 
     this.store.dispatch({
       type: 'LOCAL_ESTIMATE',
-      payload: {
-        weeklyPct,
-        windowPct,
-        cost5h: localUsage.cost5h,
-        cost7d: localUsage.cost7d,
-        costToday: localUsage.costToday,
-        // Full detail for tooltip / dashboard (from memory, no disk access)
-        requestsToday: localUsage.requestsToday,
-        tokensToday: localUsage.tokensToday,
-        tokensIn5h: localUsage.tokensIn5h,
-        tokensOut5h: localUsage.tokensOut5h,
-        tokensCacheRead5h: localUsage.tokensCacheRead5h,
-        tokensCacheCreate5h: localUsage.tokensCacheCreate5h,
-        requests5h: localUsage.requests5h,
-        tokensIn7d: localUsage.tokensIn7d,
-        tokensOut7d: localUsage.tokensOut7d,
-        tokensCacheRead7d: localUsage.tokensCacheRead7d,
-        tokensCacheCreate7d: localUsage.tokensCacheCreate7d,
-        requests7d: localUsage.requests7d,
-        tokensThisCycle: localUsage.tokensThisCycle,
-        costThisCycle: localUsage.costThisCycle,
-        requestsThisCycle: localUsage.requestsThisCycle,
-        entries: localUsage.entries,
-      },
+      payload,
     });
   }
 
