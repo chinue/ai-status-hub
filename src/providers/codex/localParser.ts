@@ -94,6 +94,7 @@ export class CodexLocalParser implements ILocalUsageProvider {
   private fileStates = new Map<string, FileState>();
   private currentModel: string | undefined;
   private latestRateLimits: RateLimits | null = null;
+  private latestRateLimitsTimestamp = 0;
 
   async scanSessions(): Promise<UnifiedUsageEntry[]> {
     const allEntries: UnifiedUsageEntry[] = [];
@@ -119,13 +120,15 @@ export class CodexLocalParser implements ILocalUsageProvider {
     this.fileStates.clear();
     this.currentModel = undefined;
     this.latestRateLimits = null;
+    this.latestRateLimitsTimestamp = 0;
   }
 
   async getRateLimits(): Promise<RateLimits | null> {
     // Only scan active sessions (not archived) to avoid stale rate_limits from
     // old archived files overwriting the latest value.
-    // Reset latestRateLimits so we start fresh and pick the newest resets_at.
+    // Reset both fields so we start fresh and pick the newest timestamp.
     this.latestRateLimits = null;
+    this.latestRateLimitsTimestamp = 0;
     const files = await this.scanDir(SESSIONS_DIR);
     for (const filePath of files) {
       // Force re-parse to extract rate_limits regardless of fileStates cache.
@@ -262,8 +265,12 @@ export class CodexLocalParser implements ILocalUsageProvider {
       const rateLimits = payload.rate_limits ?? payload.info?.rate_limits ?? json.rate_limits;
       if (rateLimits) {
         const normalized = this.normalizeRateLimits(rateLimits);
-        if (this.isRateLimitsNewer(normalized, this.latestRateLimits)) {
+        const ts = this.parseTimestamp(json.timestamp) ?? fileMtimeMs;
+        // Prefer the record with the largest timestamp; same timestamp → larger resets_at wins.
+        if (ts > this.latestRateLimitsTimestamp ||
+            (ts === this.latestRateLimitsTimestamp && this.isRateLimitsNewer(normalized, this.latestRateLimits))) {
           this.latestRateLimits = normalized;
+          this.latestRateLimitsTimestamp = ts;
         }
       }
 
@@ -378,9 +385,9 @@ export class CodexLocalParser implements ILocalUsageProvider {
     return out;
   }
 
-  /** Compare two RateLimits by their resets_at timestamps.
-   *  Returns true if `a` is newer than `b` (larger resets_at means more recent).
-   *  Falls back to resets_in_seconds when resets_at is unavailable.
+  /** Tie-breaker when two RateLimits records have the same timestamp.
+   *  Compares resets_at (or resets_in_seconds fallback) to pick the one
+   *  with the larger reset time.
    */
   private isRateLimitsNewer(a: RateLimits, b: RateLimits | null): boolean {
     if (!b) return true;

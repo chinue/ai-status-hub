@@ -1,5 +1,14 @@
 # ChangeLog
 
+## [0.3.16] - 2026-05-13
+
+### Bug 修复
+
+- **彻底修复 `getRateLimits()` 返回错误值（P0）**：之前 `isRateLimitsNewer` 仅比较 `resets_at`，但同一个 window 内所有记录的 `resets_at` 完全相同。05/11 的 session 文件中，`resets_at=1778699210` 的记录有上百条，used_percent 从 1% → 2% → 21% → 26% 不断递增，但 `isRateLimitsNewer` 认为它们"相同"，只保留了**第一个遇到的**（2%）。
+  - 现已改为**按 `timestamp` 选择最新记录**：`parseLine` 中遇到 rate_limits 时，比较记录的 `timestamp`，timestamp 更大才更新。
+  - `resets_at` 降级为 tie-breaker：仅当两条记录 timestamp 完全相同时，才用 `resets_at` 打破平局。
+  - 这与 codex-ratelimit-vscode 的选择策略一致（它也按 `timestamp` 取最新）。
+
 ## [0.3.15] - 2026-05-13
 
 ### Bug 修复
