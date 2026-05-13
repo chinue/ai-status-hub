@@ -143,12 +143,12 @@ export class StatusBarPresenter {
       // Always render itemWindow (even during animation) so it stays visible
       if (this.config.displayMode === 'absolute') {
         if (hasApiData) {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${state.quota!.windowUsed}/${state.quota!.windowLimit}${staleIndicator}${sourceIndicator}`;
+          this.itemWindow.text = `5\uFE0F\u20E3 ${state.quota!.windowUsed}/${state.quota!.windowLimit}${staleIndicator}`;
         } else {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${windowPct > 0 ? '~' + formatPercent(windowPct, 1) : '—'}${staleIndicator}${sourceIndicator}`;
+          this.itemWindow.text = `5\uFE0F\u20E3 ${windowPct > 0 ? '~' + formatPercent(windowPct, 1) : '—'}${staleIndicator}`;
         }
       } else {
-        this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 1)}${staleIndicator}${sourceIndicator}`;
+        this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 1)}${staleIndicator}`;
       }
       this.itemWindow.color = this.utilizationToColor(windowUtil);
       this.itemWindow.show();
@@ -160,12 +160,12 @@ export class StatusBarPresenter {
 
       if (this.config.displayMode === 'absolute') {
         if (hasApiData) {
-          this.itemWeekly.text = `$(openai) ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}`;
+          this.itemWeekly.text = `$(openai) ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}${sourceIndicator}`;
         } else {
-          this.itemWeekly.text = `$(openai) ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 1) : '—'}`;
+          this.itemWeekly.text = `$(openai) ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 1) : '—'}${sourceIndicator}`;
         }
       } else {
-        this.itemWeekly.text = `$(openai) ${this.displayName}:${formatPercent(weeklyPct, 1)}`;
+        this.itemWeekly.text = `$(openai) ${this.displayName}:${formatPercent(weeklyPct, 1)}${sourceIndicator}`;
       }
 
       this.itemWeekly.command = 'codexStatusPro.showDashboard';
