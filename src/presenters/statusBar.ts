@@ -244,8 +244,8 @@ export class StatusBarPresenter {
       `${t('tooltip.window7d')}  ${formatPercentPadded(weeklyPct, 2)} [${weeklyBar}] ${t('tooltip.resetsIn')} ${weeklyReset}`,
     );
 
-    // Quota table via drawBorderTable
-    if (q) {
+    // Quota table via drawBorderTable (skip when API only returns percentages without absolute limits)
+    if (q && (q.windowLimit > 0 || q.weeklyLimit > 0)) {
       lines.push('');
       lines.push(t('tooltip.table.quotaSummary'));
       lines.push('─────────────────────────────');
