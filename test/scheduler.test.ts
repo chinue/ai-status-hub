@@ -2,8 +2,7 @@ import { expect } from 'chai';
 import * as sinon from 'sinon';
 import { Scheduler } from '../src/services/scheduler';
 import { Store } from '../src/store';
-import { AuthService } from '../src/services/authService';
-import { ApiService } from '../src/services/apiService';
+import { IAuthProvider, IQuotaApiProvider } from '../src/providers/base/types';
 import { CacheService } from '../src/services/cacheService';
 import { LocalUsageService } from '../src/services/localUsageService';
 import { ConfigService } from '../src/config';
@@ -12,16 +11,21 @@ import { makeContext } from './mocks/vscode';
 describe('Scheduler', () => {
   let clock: sinon.SinonFakeTimers;
   let store: Store;
-  let auth: AuthService;
-  let api: ApiService;
+  let auth: IAuthProvider;
+  let api: IQuotaApiProvider;
   let cache: CacheService;
   let scheduler: Scheduler;
 
   beforeEach(() => {
     clock = sinon.useFakeTimers();
     store = new Store();
-    auth = AuthService.getInstance();
-    api = ApiService.getInstance();
+    auth = {
+      resolveToken: async () => 'mock-token',
+      invalidate: () => {},
+    };
+    api = {
+      fetchQuota: async () => ({ ok: false, error: 'not stubbed' }),
+    };
     cache = new CacheService();
     const localUsage = LocalUsageService.getInstance();
     scheduler = new Scheduler(store, auth, api, cache, localUsage);
@@ -31,15 +35,13 @@ describe('Scheduler', () => {
     scheduler.stop();
     clock.restore();
     sinon.restore();
-    (AuthService as any).instance = undefined;
-    (ApiService as any).instance = undefined;
+
     (CacheService as any).instance = undefined;
     (LocalUsageService as any).instance = undefined;
   });
 
   it('tick dispatches LOADING_START -> API_SUCCESS -> LOADING_END', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     const quota = {
@@ -89,7 +91,6 @@ describe('Scheduler', () => {
 
   it('short tick updates local estimate with decimal precision', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     // API returns 62% with 25M tokens used
@@ -157,7 +158,6 @@ describe('Scheduler', () => {
 
   it('force() triggers a long tick (API fetch) even when short tick is due', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     const quota = {
@@ -206,7 +206,6 @@ describe('Scheduler', () => {
 
   it('short tick dispatches full usage detail in LOCAL_ESTIMATE', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     const quota = {
@@ -276,7 +275,6 @@ describe('Scheduler', () => {
 
   it('long tick preserves smooth estimate when rounded value matches API integer', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     // API returns integer 25, but local estimate is 25.3 (smooth)
@@ -342,7 +340,6 @@ describe('Scheduler', () => {
 
   it('long tick forces API integer when rounded estimate differs', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     // API returns integer 25, but local estimate drifted to 25.6 (rounds to 26)
@@ -408,7 +405,6 @@ describe('Scheduler', () => {
 
   it('preserves old quota decimal precision when API returns integer and no current estimate', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     // Seed old quota with 12.1% precision (e.g. from a previous API response)
@@ -462,7 +458,6 @@ describe('Scheduler', () => {
 
   it('smooth estimate preserved through short tick after long tick', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     // API returns integer 25
@@ -566,7 +561,6 @@ describe('Scheduler', () => {
     sinon.stub(ConfigService.prototype, 'refreshIntervalSeconds').value(120);
 
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     const quota = {
@@ -614,7 +608,6 @@ describe('Scheduler', () => {
 
   it('short tick skips dispatch when no local entries exist', async () => {
     const ctx = makeContext();
-    auth.init(ctx.secrets);
     await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
 
     const quota = {

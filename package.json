@@ -2,7 +2,7 @@
   "name": "codex-status-pro",
   "displayName": "CodexStatusPro",
   "description": "Monitor Codex token usage and rate limits in real-time",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
