@@ -134,6 +134,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const cfg = vscode.workspace.getConfiguration('codexStatusPro');
       await cfg.update('_pauseSignal', Date.now(), true);
     }),
+    vscode.commands.registerCommand('codexStatusPro.openSettings', () => {
+      void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.codex-status-pro');
+    }),
   );
 
   // Listen to configuration changes

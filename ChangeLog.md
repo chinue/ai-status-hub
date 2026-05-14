@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.4.6] - 2026-05-13
+
+### 变更
+
+- **Tooltip 底部操作按钮栏**：参考 `codex-ratelimit-vscode` 风格，在 tooltip 底部居中添加一行操作按钮（emoji 图标 + 蓝色命令链接）：
+  - 🔄 Refresh → `codexStatusPro.refresh`
+  - 📊 Show Details → `codexStatusPro.showDashboard`
+  - ⚙️ Settings → `codexStatusPro.openSettings`
+  - ⏸ Pause / ▶ Resume → `codexStatusPro.togglePause`
+- **状态栏版本号显示**：在原来暂停按钮的位置（priority 102）添加蓝色版本号 `vX.Y.Z`（`statusBarItem.prominentForeground`），点击打开 Dashboard。
+
 ## [0.4.5] - 2026-05-13
 
 ### 变更
