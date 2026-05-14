@@ -4,6 +4,7 @@ import {
   calibrateTokenCapacity, calibrateWindowCostCapacity, estimateWeeklyPct, estimateWindowPct,
   fallbackWeeklyPct, fallbackWindowPct, isCalibrationValid, fmtCurrency,
   resolveWeeklyPct, resolveWindowPct,
+  resolveResetTime, fmtResetTime,
 } from '../src/calc';
 import { QuotaData, TokenPricing, AppState } from '../src/types';
 
@@ -230,6 +231,72 @@ describe('calc', () => {
       });
       expect(resolveWeeklyPct(state)).to.equal(62);
       expect(resolveWindowPct(state)).to.equal(89);
+    });
+
+    it('returns 0 when resetAt has expired', () => {
+      const past = Date.now() - 3600 * 1000;
+      const state = makeState({
+        quota: { weeklyUsedPct: 62, windowUsedPct: 89, weeklyResetAt: past, windowResetAt: past },
+      });
+      expect(resolveWeeklyPct(state)).to.equal(0);
+      expect(resolveWindowPct(state)).to.equal(0);
+    });
+  });
+
+  describe('resolveResetTime', () => {
+    it('returns original resetAt when not expired', () => {
+      const now = 1000000;
+      const resetAt = now + 3600 * 1000;
+      const result = resolveResetTime(resetAt, 5 * 3600 * 1000, now);
+      expect(result.resetAt).to.equal(resetAt);
+      expect(result.isEstimated).to.be.false;
+    });
+
+    it('returns now + period for null/undefined/0', () => {
+      const now = 1000000;
+      const period = 5 * 3600 * 1000;
+      expect(resolveResetTime(null, period, now).resetAt).to.equal(now + period);
+      expect(resolveResetTime(undefined, period, now).resetAt).to.equal(now + period);
+      expect(resolveResetTime(0, period, now).resetAt).to.equal(now + period);
+      expect(resolveResetTime(null, period, now).isEstimated).to.be.true;
+    });
+
+    it('computes next cycle when just expired', () => {
+      const now = 10 * 3600 * 1000;
+      const period = 5 * 3600 * 1000;
+      const expired = now - 1000;
+      const result = resolveResetTime(expired, period, now);
+      expect(result.resetAt).to.equal(expired + period);
+      expect(result.isEstimated).to.be.true;
+    });
+
+    it('computes next cycle after multiple periods', () => {
+      const now = 50 * 3600 * 1000;
+      const period = 5 * 3600 * 1000;
+      const expired = 8 * 3600 * 1000;
+      const result = resolveResetTime(expired, period, now);
+      const periodsPassed = Math.ceil((now - expired) / period);
+      expect(result.resetAt).to.equal(expired + periodsPassed * period);
+      expect(result.isEstimated).to.be.true;
+    });
+  });
+
+  describe('fmtResetTime', () => {
+    it('formats future reset time with absolute and remaining', () => {
+      const now = new Date('2026-05-13T10:00:00').getTime();
+      const resetAt = new Date('2026-05-13T14:25:00').getTime();
+      const result = fmtResetTime(resetAt, 5 * 3600 * 1000, now);
+      expect(result).to.include('2026-05-13 14:25:00');
+      expect(result).to.include('4h25m');
+    });
+
+    it('estimates next cycle when expired', () => {
+      const now = new Date('2026-05-13T10:00:00').getTime();
+      const expired = new Date('2026-05-13T02:00:00').getTime();
+      const result = fmtResetTime(expired, 5 * 3600 * 1000, now);
+      // 过期 8h，周期 5h，需要前进 2 个周期 = 10h，nextResetAt = 12:00
+      expect(result).to.include('2026-05-13 12:00:00');
+      expect(result).to.include('2h00m');
     });
   });
 });

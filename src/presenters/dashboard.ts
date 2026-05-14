@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct } from '../calc';
+import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, fmtResetTime, resolveResetTime } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
   AppState, UsageEntry, DashboardMessage, KimiUsageData, DashboardAggregates,
@@ -164,8 +164,10 @@ export class DashboardPanel {
     try {
       if (entries.length > 0) {
         const quota = state.quota;
-        const window5hStart = quota?.windowResetAt ? quota.windowResetAt - 5 * 3600 * 1000 : now - 5 * 3600 * 1000;
-        const window7dStart = quota?.weeklyResetAt ? quota.weeklyResetAt - 7 * 24 * 3600 * 1000 : now - 7 * 24 * 3600 * 1000;
+        const effectiveWindowReset = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000, now).resetAt;
+        const effectiveWeeklyReset = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now).resetAt;
+        const window5hStart = effectiveWindowReset - 5 * 3600 * 1000;
+        const window7dStart = effectiveWeeklyReset - 7 * 24 * 3600 * 1000;
         dashboard = this.historyService.buildDashboardAggregates(entries, {
           todayStartMs: todayStart,
           window5hStartMs: window5hStart,
@@ -220,12 +222,16 @@ export class DashboardPanel {
     // Use the same resolution logic as statusBar/tooltip for consistency
     const weeklyPct = resolveWeeklyPct(state);
     const windowPct = resolveWindowPct(state);
+    const effectiveWindowReset = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000, now).resetAt;
+    const effectiveWeeklyReset = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now).resetAt;
 
     return {
       utilization5h: windowPct / 100,
       utilization7d: weeklyPct / 100,
-      resetIn5h: quota ? Math.max(0, Math.floor((quota.windowResetAt - now) / 1000)) : 0,
-      resetIn7d: quota ? Math.max(0, Math.floor((quota.weeklyResetAt - now) / 1000)) : 0,
+      resetIn5h: quota ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
+      resetIn7d: quota ? Math.max(0, Math.floor((effectiveWeeklyReset - now) / 1000)) : 0,
+      resetIn5hText: fmtResetTime(quota?.windowResetAt, 5 * 3600 * 1000, now),
+      resetIn7dText: fmtResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now),
       limitStatus: 'allowed',
       has7dLimit: !!quota,
       providerType: 'openai',
@@ -848,7 +854,7 @@ export class DashboardPanel {
         lbl5h.textContent = w5h.toFixed(2) + '%';
       }
       document.getElementById('badge-5h').textContent = isEstimate ? labels.estimate : '';
-      document.getElementById('meta-5h').textContent = usage.resetIn5h > 0 ? fmtReset(Date.now() + usage.resetIn5h * 1000) : '';
+      document.getElementById('meta-5h').textContent = usage.resetIn5hText || '';
       document.getElementById('cost-5h').textContent = usage.cost5h > 0 ? labels.cost + CURRENCY_SYMBOL + usage.cost5h.toFixed(2) : '';
 
       const fill7d = document.getElementById('fill-7d');
@@ -861,7 +867,7 @@ export class DashboardPanel {
         lbl7d.textContent = w7d.toFixed(2) + '%';
       }
       document.getElementById('badge-7d').textContent = isEstimate ? labels.estimate : '';
-      document.getElementById('meta-7d').textContent = usage.resetIn7d > 0 ? fmtReset(Date.now() + usage.resetIn7d * 1000) : '';
+      document.getElementById('meta-7d').textContent = usage.resetIn7dText || '';
       document.getElementById('cost-7d').textContent = usage.cost7d > 0 ? labels.cost + CURRENCY_SYMBOL + usage.cost7d.toFixed(2) : '';
     }
 

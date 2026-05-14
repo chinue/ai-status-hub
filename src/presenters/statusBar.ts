@@ -6,7 +6,7 @@ import { ConfigService } from '../config';
 import { makeT } from '../i18n';
 import {
   computeUtilization, formatPercent, formatPercentPadded,
-  fmtHours, fmtTokens, fmtCost, fmtDateTime,
+  fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime,
   buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
 } from '../calc';
@@ -252,12 +252,8 @@ export class StatusBarPresenter {
     const weeklyUtil = weeklyPct / 100;
     const windowUtil = windowPct / 100;
 
-    const weeklyReset = q && q.weeklyResetAt > Date.now()
-      ? fmtHours((q.weeklyResetAt - Date.now()) / 3600000)
-      : '?';
-    const windowReset = q && q.windowResetAt > Date.now()
-      ? fmtHours((q.windowResetAt - Date.now()) / 3600000)
-      : '?';
+    const weeklyResetText = fmtResetTime(q?.weeklyResetAt, 7 * 24 * 3600 * 1000);
+    const windowResetText = fmtResetTime(q?.windowResetAt, 5 * 3600 * 1000);
 
     let sourceLabel = '';
     if (state.dataSource === 'stale') { sourceLabel = '&nbsp;*' + t('tooltip.stale') + '*'; }
@@ -270,9 +266,9 @@ export class StatusBarPresenter {
     // Progress bars as HTML block (layout only)
     parts.push(`<table style="border-collapse:collapse;width:100%;font-size:12px;">`);
     parts.push(`<tr><td style="padding:2px 6px;width:80px;"><strong>${t('tooltip.window5h')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(windowUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(windowPct, 1)}</strong></td></tr>`);
-    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.resetsIn')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowReset}</td></tr>`);
+    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowResetText}</td></tr>`);
     parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('tooltip.window7d')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(weeklyUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(weeklyPct, 1)}</strong></td></tr>`);
-    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.resetsIn')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyReset}</td></tr>`);
+    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyResetText}</td></tr>`);
     parts.push(`</table>`);
     parts.push('');
 

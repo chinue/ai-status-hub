@@ -76,6 +76,43 @@ export function fmtHours(h: number): string {
   return fmtDuration(Math.round(h * 3600));
 }
 
+export interface ResetTimeInfo {
+  resetAt: number;
+  isEstimated: boolean;
+}
+
+/** 解析/推算重置时间。若 resetAt 已过期，按固定周期推算下一个重置点。 */
+export function resolveResetTime(
+  resetAtMs: number | null | undefined,
+  periodMs: number,
+  now = Date.now(),
+): ResetTimeInfo {
+  if (!resetAtMs || resetAtMs <= 0) {
+    return { resetAt: now + periodMs, isEstimated: true };
+  }
+  if (resetAtMs > now) {
+    return { resetAt: resetAtMs, isEstimated: false };
+  }
+  // 已过期：推算下一个周期
+  const periodsPassed = Math.ceil((now - resetAtMs) / periodMs);
+  const nextResetAt = resetAtMs + periodsPassed * periodMs;
+  return { resetAt: nextResetAt, isEstimated: true };
+}
+
+/** 格式化为 "YYYY-MM-DD HH:mm:ss (XdXh)"，过期时自动推算下一个周期。
+ *  示例："2026-05-17 02:25:00 ( 2d14h)"
+ */
+export function fmtResetTime(
+  resetAtMs: number | null | undefined,
+  periodMs: number,
+  now = Date.now(),
+): string {
+  const info = resolveResetTime(resetAtMs, periodMs, now);
+  const abs = fmtDateTime(info.resetAt);
+  const remaining = fmtDuration(Math.max(0, Math.round((info.resetAt - now) / 1000)));
+  return `${abs} (${remaining})`;
+}
+
 export interface TokenUsage {
   inputOther: number;
   output: number;
@@ -233,6 +270,8 @@ export function resolveWeeklyPct(state: AppState): number {
   const le = state.localEstimate;
   const q = state.quota;
   if (q) {
+    // 若 weeklyResetAt 已过期（且不是未设置的 0），周期用量应已归零
+    if (q.weeklyResetAt > 0 && q.weeklyResetAt <= Date.now()) return 0;
     if (le && le.calibratedAt !== null && Math.round(le.weeklyPct) === q.weeklyUsedPct) {
       return le.weeklyPct; // Preserve decimal precision from calibration
     }
@@ -249,6 +288,8 @@ export function resolveWindowPct(state: AppState): number {
   const le = state.localEstimate;
   const q = state.quota;
   if (q) {
+    // 若 windowResetAt 已过期（且不是未设置的 0），窗口用量应已归零
+    if (q.windowResetAt > 0 && q.windowResetAt <= Date.now()) return 0;
     if (le && le.calibratedAt !== null && Math.round(le.windowPct) === q.windowUsedPct) {
       return le.windowPct; // Preserve decimal precision from calibration
     }

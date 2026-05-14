@@ -154,6 +154,8 @@ export interface KimiUsageData {
   utilization7d: number;
   resetIn5h: number;
   resetIn7d: number;
+  resetIn5hText?: string;
+  resetIn7dText?: string;
   limitStatus: 'allowed' | 'allowed_warning' | 'denied';
   has7dLimit: boolean;
   providerType: 'openai' | 'api-key';

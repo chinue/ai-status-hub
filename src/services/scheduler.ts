@@ -16,6 +16,7 @@ import {
   fallbackWeeklyPct,
   fallbackWindowPct,
   isCalibrationValid,
+  resolveResetTime,
 } from '../calc';
 
 export class Scheduler {
@@ -95,9 +96,11 @@ export class Scheduler {
     const state = this.store.getState();
     const quota = state.quota;
 
+    const weeklyResetAtMs = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000).resetAt;
+    const windowResetAtMs = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000).resetAt;
     const localUsage = await this.localUsageService.getLocalUsage({
-      weeklyResetAtMs: quota?.weeklyResetAt,
-      windowResetAtMs: quota?.windowResetAt,
+      weeklyResetAtMs,
+      windowResetAtMs,
       dataRetentionDays: this.config.dataRetentionDays,
     });
 

@@ -1,5 +1,14 @@
 # ChangeLog
 
+## [0.4.8] - 2026-05-13
+
+### 修复
+
+- **Reset Time 过期后自动推算**：当 API 不可用时，cache 中的 `windowResetAt`/`weeklyResetAt` 过期后不再显示 `?` 或空字符串，而是根据周期（5h/7d）自动推算下一个重置时间点。
+- **新增绝对时间显示**：Tooltip 和 Dashboard 中的重置时间格式统一改为 `下次重置时间 2026-05-17 02:25:00 (2d14h)`，同时显示绝对时间和剩余时间。
+- **周期过期后用量归零**：`resolveWeeklyPct` / `resolveWindowPct` 在检测到 `resetAt` 过期后返回 0%，避免显示过期的旧用量。
+- **本地用量统计范围修正**：`doShortTick` 和 Dashboard 聚合使用推算后的有效 `resetAt` 计算窗口起始时间，避免跨周期数据混入。
+
 ## [0.4.7] - 2026-05-13
 
 ### 修复
