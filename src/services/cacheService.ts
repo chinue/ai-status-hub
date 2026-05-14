@@ -9,7 +9,7 @@ import { CachedData } from '../types';
 
 const CACHE_DIR = path.join(os.homedir(), '.codex');
 const SCHEMA = 'codex-status-pro-cache-v1';
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 function cacheFileFor(providerId?: string): string {
   const suffix = providerId && providerId !== 'codex' ? `-${providerId}` : '';

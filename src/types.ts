@@ -28,8 +28,15 @@ export interface TokenPricing {
 export interface LocalEstimate {
   weeklyPct: number;
   windowPct: number;
-  tokenCapacity: number | null;
-  windowCostCapacity: number | null;
+
+  // Linear incremental model state variables (5h / 7d windows)
+  weeklyP: number;            // 7d last API percentage snapshot
+  weeklyC: number;            // 7d last local cost snapshot
+  weeklyK: number;            // 7d ratio coefficient
+  windowP: number;            // 5h last API percentage snapshot
+  windowC: number;            // 5h last local cost snapshot
+  windowK: number;            // 5h ratio coefficient
+
   calibratedAt: number | null;
   cost5h: number;
   cost7d: number;
@@ -59,8 +66,12 @@ export interface LocalEstimate {
 }
 
 export interface CalibrationData {
-  tokenCapacity: number | null;
-  windowCostCapacity: number | null;
+  weeklyP: number;
+  weeklyC: number;
+  weeklyK: number;
+  windowP: number;
+  windowC: number;
+  windowK: number;
   calibratedAt: number;
   reset5hAt: number;
   reset7dAt: number;

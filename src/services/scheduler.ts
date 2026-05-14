@@ -9,13 +9,8 @@ import { LocalUsageService } from './localUsageService';
 import { ConfigService } from '../config';
 import { log } from '../utils';
 import {
-  calibrateTokenCapacity,
-  calibrateWindowCostCapacity,
-  estimateWeeklyPct,
-  estimateWindowPct,
-  fallbackWeeklyPct,
-  fallbackWindowPct,
-  isCalibrationValid,
+  createLinearEstimator,
+  ILinearEstimator,
   resolveResetTime,
 } from '../calc';
 
@@ -110,36 +105,40 @@ export class Scheduler {
       return;
     }
 
-    const calibration = state.localEstimate
+    // Build linear estimators from stored state
+    const weeklyEstimator: ILinearEstimator = state.localEstimate
       ? {
-          tokenCapacity: state.localEstimate.tokenCapacity,
-          windowCostCapacity: state.localEstimate.windowCostCapacity,
-          calibratedAt: state.localEstimate.calibratedAt ?? 0,
-          resetAt: quota?.weeklyResetAt ?? 0,
+          P: state.localEstimate.weeklyP ?? 0,
+          C: state.localEstimate.weeklyC ?? 0,
+          k: state.localEstimate.weeklyK ?? 0,
+          update() {},
+          estimate(currentCost: number) {
+            if (this.k <= 0 || !isFinite(this.k)) {
+              return Math.max(0, Math.min(100, currentCost));
+            }
+            const p = this.P + this.k * (currentCost - this.C);
+            return Math.max(0, Math.min(100, p));
+          },
         }
-      : null;
+      : createLinearEstimator();
+    const windowEstimator: ILinearEstimator = state.localEstimate
+      ? {
+          P: state.localEstimate.windowP ?? 0,
+          C: state.localEstimate.windowC ?? 0,
+          k: state.localEstimate.windowK ?? 0,
+          update() {},
+          estimate(currentCost: number) {
+            if (this.k <= 0 || !isFinite(this.k)) {
+              return Math.max(0, Math.min(100, currentCost));
+            }
+            const p = this.P + this.k * (currentCost - this.C);
+            return Math.max(0, Math.min(100, p));
+          },
+        }
+      : createLinearEstimator();
 
-    const tokenCapacity = isCalibrationValid(calibration, quota?.weeklyResetAt ?? null)
-      ? calibration!.tokenCapacity
-      : null;
-    const windowCostCapacity = isCalibrationValid(
-      calibration ? { ...calibration, resetAt: quota?.windowResetAt ?? 0 } : null,
-      quota?.windowResetAt ?? null,
-    )
-      ? calibration!.windowCostCapacity
-      : null;
-
-    // Only compute percentages when calibration is valid. Codex doesn't expose
-    // absolute limits, so fallback functions return 0 when capacity is missing.
-    // Avoid overwriting API percentages with zeros during short ticks.
-    const weeklyPct = tokenCapacity && tokenCapacity > 0
-      ? (estimateWeeklyPct(localUsage.tokensThisCycle, tokenCapacity)
-        ?? fallbackWeeklyPct(localUsage.tokensThisCycle, quota?.weeklyLimit ?? null))
-      : null;
-    const windowPct = windowCostCapacity && windowCostCapacity > 0
-      ? (estimateWindowPct(localUsage.cost5h, windowCostCapacity)
-        ?? fallbackWindowPct(localUsage.cost5h, quota?.windowLimit ?? null))
-      : null;
+    const weeklyPct = weeklyEstimator.estimate(localUsage.costThisCycle);
+    const windowPct = windowEstimator.estimate(localUsage.cost5h);
 
     // When calibration is unavailable and there is no API quota at all,
     // fall back to real-time rate limits from local session files.
@@ -306,8 +305,12 @@ export class Scheduler {
         this.store.dispatch({
           type: 'LOCAL_ESTIMATE',
           payload: {
-            tokenCapacity: cached.calibration.tokenCapacity,
-            windowCostCapacity: cached.calibration.windowCostCapacity,
+            weeklyP: cached.calibration.weeklyP ?? 0,
+            weeklyC: cached.calibration.weeklyC ?? 0,
+            weeklyK: cached.calibration.weeklyK ?? 0,
+            windowP: cached.calibration.windowP ?? 0,
+            windowC: cached.calibration.windowC ?? 0,
+            windowK: cached.calibration.windowK ?? 0,
             calibratedAt: cached.calibration.calibratedAt,
           },
         });
@@ -350,16 +353,22 @@ export class Scheduler {
       windowPct = oldQuota.windowUsedPct;
     }
 
-    const tokenCapacity = calibrateTokenCapacity(weeklyPct, localUsage.tokensThisCycle);
-    const windowCostCapacity = calibrateWindowCostCapacity(windowPct, localUsage.cost5h);
+    const weeklyEstimator = createLinearEstimator();
+    const windowEstimator = createLinearEstimator();
+    weeklyEstimator.update(weeklyPct, localUsage.costThisCycle);
+    windowEstimator.update(windowPct, localUsage.cost5h);
 
     if (persistToCache) {
       await this.cacheService.write({
         quota: quotaData,
         fetchedAt: now,
         calibration: {
-          tokenCapacity,
-          windowCostCapacity,
+          weeklyP: weeklyEstimator.P,
+          weeklyC: weeklyEstimator.C,
+          weeklyK: weeklyEstimator.k,
+          windowP: windowEstimator.P,
+          windowC: windowEstimator.C,
+          windowK: windowEstimator.k,
           calibratedAt: now,
           reset5hAt: quotaData.windowResetAt,
           reset7dAt: quotaData.weeklyResetAt,
@@ -373,8 +382,12 @@ export class Scheduler {
       payload: {
         weeklyPct,
         windowPct,
-        tokenCapacity,
-        windowCostCapacity,
+        weeklyP: weeklyEstimator.P,
+        weeklyC: weeklyEstimator.C,
+        weeklyK: weeklyEstimator.k,
+        windowP: windowEstimator.P,
+        windowC: windowEstimator.C,
+        windowK: windowEstimator.k,
         calibratedAt: now,
         cost5h: localUsage.cost5h,
         cost7d: localUsage.cost7d,

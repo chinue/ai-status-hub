@@ -148,96 +148,47 @@ export function fmtCost(cost: number, currencySymbol = '$'): string {
 // Phase 2: Calibration & Estimation
 // ---------------------------------------------------------------------------
 
-export interface Calibration {
-  tokenCapacity: number | null;
-  windowCostCapacity: number | null;
-  calibratedAt: number;
-  resetAt: number;
+// DESIGN: v2-local-estimation-design.md
+// ---------------------------------------------------------------------------
+// Linear Incremental Estimator (unified cost-based model for 5h/7d)
+// ---------------------------------------------------------------------------
+
+export interface ILinearEstimator {
+  /** Snapshot of last API official percentage */
+  P: number;
+  /** Snapshot of last local cost at the same API moment */
+  C: number;
+  /** Ratio coefficient k = P / C (updated only when P > 5% and C > 0) */
+  k: number;
+
+  /** Update state on API success */
+  update(apiPct: number, localCost: number): void;
+  /** Estimate current percentage from current local cost */
+  estimate(currentCost: number): number;
 }
 
-/** Calibrate token capacity from API weeklyUsedPct and local tokens. */
-export function calibrateTokenCapacity(
-  apiWeeklyUsedPct: number,
-  localTokensThisCycle: number,
-): number | null {
-  if (!apiWeeklyUsedPct || apiWeeklyUsedPct <= 0) return null;
-  if (localTokensThisCycle <= 0) return null;
-  const capacity = localTokensThisCycle / (apiWeeklyUsedPct / 100);
-  return isFinite(capacity) && capacity > 0 ? capacity : null;
-}
+export function createLinearEstimator(): ILinearEstimator {
+  return {
+    P: 0,
+    C: 0,
+    k: 0,
 
-/** Calibrate window cost capacity from API windowUsedPct and local cost. */
-export function calibrateWindowCostCapacity(
-  apiWindowUsedPct: number,
-  localCost5h: number,
-): number | null {
-  if (!apiWindowUsedPct || apiWindowUsedPct <= 0) return null;
-  if (localCost5h <= 0) return null;
-  const capacity = localCost5h / (apiWindowUsedPct / 100);
-  return isFinite(capacity) && capacity > 0 ? capacity : null;
-}
+    update(apiPct: number, localCost: number): void {
+      if (apiPct > 5 && localCost > 0) {
+        this.k = apiPct / localCost;
+      }
+      this.P = apiPct;
+      this.C = localCost;
+    },
 
-/** Heuristic estimate when API returns 0% but local has cost. */
-export function estimateWindowCostCapacityHeuristic(
-  localCost5h: number,
-  windowLimit: number | null,
-): number | null {
-  if (localCost5h <= 0) return null;
-  if (!windowLimit || windowLimit <= 0) return null;
-  const capacity = localCost5h * windowLimit;
-  return isFinite(capacity) && capacity > 0 ? capacity : null;
-}
-
-/** Estimate weekly percentage from local tokens and calibrated capacity. */
-export function estimateWeeklyPct(
-  localTokensThisCycle: number,
-  tokenCapacity: number | null,
-): number | null {
-  if (!tokenCapacity || tokenCapacity <= 0) return null;
-  if (localTokensThisCycle < 0) return null;
-  const pct = (localTokensThisCycle / tokenCapacity) * 100;
-  return Math.min(100, Math.max(0, pct));
-}
-
-/** Fallback weekly percentage when calibration is unavailable. */
-export function fallbackWeeklyPct(
-  localTokensThisCycle: number,
-  weeklyLimit: number | null,
-): number {
-  if (!weeklyLimit || weeklyLimit <= 0) return 0;
-  return Math.min(100, (localTokensThisCycle / weeklyLimit) * 100);
-}
-
-/** Estimate window percentage from local cost and calibrated capacity. */
-export function estimateWindowPct(
-  localCost5h: number,
-  windowCostCapacity: number | null,
-): number | null {
-  if (!windowCostCapacity || windowCostCapacity <= 0) return null;
-  if (localCost5h < 0) return null;
-  const pct = (localCost5h / windowCostCapacity) * 100;
-  return Math.min(100, Math.max(0, pct));
-}
-
-/** Fallback window percentage when calibration is unavailable. */
-export function fallbackWindowPct(
-  localCost5h: number,
-  windowLimit: number | null,
-): number {
-  if (!windowLimit || windowLimit <= 0) return 0;
-  return Math.min(100, (localCost5h / windowLimit) * 100);
-}
-
-/** Check if calibration is still valid for the current reset cycle. */
-export function isCalibrationValid(
-  calibration: Calibration | null,
-  currentResetAt: number | null,
-): boolean {
-  if (!calibration || calibration.calibratedAt == null) return false;
-  if (!currentResetAt) return false;
-  if (calibration.resetAt !== currentResetAt) return false;
-  if (Date.now() - calibration.calibratedAt > 7 * 24 * 3600 * 1000) return false;
-  return true;
+    estimate(currentCost: number): number {
+      if (this.k <= 0 || !isFinite(this.k)) {
+        return Math.max(0, Math.min(100, currentCost));
+      }
+      const p = this.P + this.k * (currentCost - this.C);
+      return Math.max(0, Math.min(100, p));
+    },
+  };
 }
 
 /** Safe estimate wrapper: tries estimateFn, falls back to fallbackFn. */

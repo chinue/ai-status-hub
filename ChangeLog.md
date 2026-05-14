@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.5.0] - 2026-05-13
+
+### 重构
+
+- **统一 5h/7d 本地估算为线性增量模型**：
+  - 删除旧的 capacity-based 校准（`tokenCapacity`、`windowCostCapacity`），替换为线性增量估算器 `ILinearEstimator`。
+  - 每个窗口独立维护 `(P, C, k)`：P = 最近一次 API 百分比，C = 同一时刻本地费用，k = P / C（仅在 P > 5% 且 C > 0 时更新）。
+  - Short tick 估算公式：`p = P + k * (c - C)`，实现 5h/7d 双窗口的平滑小数变化。
+  - 7d 窗口本地度量从 `tokensThisCycle` 统一为 `costThisCycle`，与 5h 窗口同为 cost-based，跨厂商更通用。
+- **缓存 schema 升级至 v3**：旧缓存自动失效，首次启动时使用 fallback 模式（k = 0），等待下次 API 成功后建立新的 k 值。
+
 ## [0.4.9] - 2026-05-13
 
 ### 修复

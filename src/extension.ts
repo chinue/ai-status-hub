@@ -65,8 +65,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         store.dispatch({
           type: 'LOCAL_ESTIMATE',
           payload: {
-            tokenCapacity: cached.calibration.tokenCapacity,
-            windowCostCapacity: cached.calibration.windowCostCapacity,
+            weeklyP: cached.calibration.weeklyP ?? 0,
+            weeklyC: cached.calibration.weeklyC ?? 0,
+            weeklyK: cached.calibration.weeklyK ?? 0,
+            windowP: cached.calibration.windowP ?? 0,
+            windowC: cached.calibration.windowC ?? 0,
+            windowK: cached.calibration.windowK ?? 0,
             calibratedAt: cached.calibration.calibratedAt,
           },
         });

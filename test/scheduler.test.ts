@@ -101,7 +101,7 @@ describe('Scheduler', () => {
     const rlStub = sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
     sinon.stub(cache, 'write').resolves();
 
-    // Initial local usage: 25M tokens
+    // Initial local usage: costThisCycle=10, cost5h=5
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
     getUsageStub.onFirstCall().resolves({
       tokensToday: 25_000_000, costToday: 10, requestsToday: 5,
@@ -113,7 +113,7 @@ describe('Scheduler', () => {
       tokensThisCycle: 25_000_000, costThisCycle: 10, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
     });
-    // After 5s: 26M tokens (1M increase)
+    // After 5s: cost increases slightly (costThisCycle=10.4, cost5h=5.2)
     getUsageStub.onSecondCall().resolves({
       tokensToday: 26_000_000, costToday: 10.4, requestsToday: 6,
       tokensIn5h: 26_000_000, tokensOut5h: 5_200_000, tokensCacheRead5h: 1_100, tokensCacheCreate5h: 520,
@@ -144,8 +144,8 @@ describe('Scheduler', () => {
 
     const stateAfterShort = store.getState();
     expect(stateAfterShort.localEstimate).to.not.be.null;
-    // Calibrated capacity = 25M / 0.62 = 40322580.65
-    // New estimate = 26M / capacity * 100 = 64.48...% -> not an integer
+    // Linear model: k = 62 / 10 = 6.2
+    // New estimate = 62 + 6.2 * (10.4 - 10) = 64.48% -> not an integer
     expect(stateAfterShort.localEstimate!.weeklyPct).to.be.greaterThan(62);
     expect(stateAfterShort.localEstimate!.weeklyPct).to.be.lessThan(65);
     // Verify it has decimal precision (not exactly an integer)
@@ -463,7 +463,7 @@ describe('Scheduler', () => {
     sinon.stub(cache, 'write').resolves();
 
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
-    // First long tick: 25M tokens
+    // First long tick: costThisCycle=10, cost5h=5
     getUsageStub.onCall(0).resolves({
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 25_000_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
@@ -474,26 +474,26 @@ describe('Scheduler', () => {
       tokensThisCycle: 25_000_000, costThisCycle: 10, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
     });
-    // Short tick: 25.3M tokens -> creates smooth estimate 25.3%
+    // Short tick: cost increases slightly -> creates smooth estimate
     getUsageStub.onCall(1).resolves({
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 25_300_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
       requests5h: 5,
       tokensIn7d: 25_300_000, tokensOut7d: 5_000_000, tokensCacheRead7d: 1_000, tokensCacheCreate7d: 500,
       cost7d: 10, requests7d: 5,
-      cost5h: 5,
-      tokensThisCycle: 25_300_000, costThisCycle: 10, requestsThisCycle: 5,
+      cost5h: 5.06,
+      tokensThisCycle: 25_300_000, costThisCycle: 10.12, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
     });
-    // Second long tick: API still 25%, local usage 25.3M
+    // Second long tick: API still 25%, local cost same as short tick
     getUsageStub.onCall(2).resolves({
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 25_300_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
       requests5h: 5,
       tokensIn7d: 25_300_000, tokensOut7d: 5_000_000, tokensCacheRead7d: 1_000, tokensCacheCreate7d: 500,
       cost7d: 10, requests7d: 5,
-      cost5h: 5,
-      tokensThisCycle: 25_300_000, costThisCycle: 10, requestsThisCycle: 5,
+      cost5h: 5.06,
+      tokensThisCycle: 25_300_000, costThisCycle: 10.12, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
     });
     // Short tick after second long tick: same usage
@@ -503,8 +503,8 @@ describe('Scheduler', () => {
       requests5h: 5,
       tokensIn7d: 25_300_000, tokensOut7d: 5_000_000, tokensCacheRead7d: 1_000, tokensCacheCreate7d: 500,
       cost7d: 10, requests7d: 5,
-      cost5h: 5,
-      tokensThisCycle: 25_300_000, costThisCycle: 10, requestsThisCycle: 5,
+      cost5h: 5.06,
+      tokensThisCycle: 25_300_000, costThisCycle: 10.12, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
     });
 
@@ -516,7 +516,7 @@ describe('Scheduler', () => {
 
     expect(store.getState().localEstimate!.weeklyPct).to.equal(25);
 
-    // Short tick -> smooth estimate 25.3%
+    // Short tick -> smooth estimate (k = 25 / 10 = 2.5; 25 + 2.5 * 0.12 = 25.3)
     await clock.tickAsync(5000);
     await Promise.resolve();
     await Promise.resolve();

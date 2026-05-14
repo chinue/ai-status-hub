@@ -195,206 +195,122 @@ function calculateCost(tokens: {
 
 ---
 
-## 4. 容量校准（Calibration）
+## 4. 线性增量估算器（Linear Incremental Estimator）
 
-### 4.1 为什么需要校准
+### 4.1 为什么需要新模型
 
-API 返回的 `weeklyUsedPct` 是**整数**，例如 `62%`。但本地实际使用了 `12345678` tokens。我们无法直接知道 "62% 对应多少 tokens"，因为 Kimi 的百分比计算可能包含了其他因素（如不同模型的权重、费用上限等）。
+旧模型使用**容量校准**（capacity-based）：在 API 成功时计算 `capacity = localTokens / (apiPct / 100)`，之后用 `currentTokens / capacity * 100` 估算。这存在三个问题：
 
-**校准**就是在 API 返回精确百分比的那一刻，记录 "当前本地 tokens / API 百分比"，得到一个**容量系数**。之后没有 API 数据时，用 "当前本地 tokens / 容量系数" 来估算百分比。
+1. **度量不统一**：7d 用 token 数，5h 用金额，跨厂商切换时需要重新校准。
+2. **5h 小数不跳动**：`cost5h` 只在完整请求完成后变化，5 秒 short tick 间通常不变。
+3. **低百分比误差大**：当 `apiPct < 5%` 时校准值极不稳定。
 
-### 4.2 7d Token 容量校准
+新模型改用**线性增量外推**：维护 `(P, C, k)` 三个变量，基于费用增量估算百分比变化。
+
+### 4.2 状态变量
+
+每个窗口（5h 和 7d）独立维护一组状态：
 
 ```typescript
-function calibrateTokenCapacity(
-  apiWeeklyUsedPct: number,      // API 返回的整数，如 62
-  localTokensThisCycle: number   // 当前周期本地 tokens
-): number | null {
-  if (!apiWeeklyUsedPct || apiWeeklyUsedPct <= 0) return null;
-  if (localTokensThisCycle <= 0) return null;
+interface ILinearEstimator {
+  P: number;   // 最近一次 API 成功时的官方百分比
+  C: number;   // 同一时刻的本地费用
+  k: number;   // 比例系数，k = P / C
 
-  // capacity = localTokens / (apiPct / 100)
-  // 例如：localTokens = 10,000,000, apiPct = 62
-  // capacity = 10,000,000 / 0.62 = 16,129,032
-  const capacity = localTokensThisCycle / (apiWeeklyUsedPct / 100);
-  return isFinite(capacity) && capacity > 0 ? capacity : null;
+  update(apiPct: number, localCost: number): void;
+  estimate(currentCost: number): number;
 }
 ```
 
-**校准时机**：每次 API 调用成功时立即校准。
+### 4.3 更新规则（API 成功时）
 
-**校准值存储**：写入 `ApiCache` 持久化：
-```json
-{
-  "calibration": {
-    "tokenCapacity": 16129032,
-    "calibratedAt": 1715355600000
+```typescript
+function update(apiPct: number, localCost: number): void {
+  if (apiPct > 5 && localCost > 0) {
+    this.k = apiPct / localCost;
   }
+  this.P = apiPct;       // P 总是更新
+  this.C = localCost;    // C 总是更新
 }
 ```
 
-### 4.3 5h 成本容量校准
+**关键设计**：
+- `P` 和 `C` **总是更新**，无论百分比高低。
+- `k` **仅在 `P > 5%` 且 `C > 0` 时更新**；否则保持上一次有效值。
+- 当 `P < 5%` 时，使用旧的可靠 `k` 配合最新的 `P` 作为基准，避免低百分比时的巨大误差。
 
-5h 窗口的限制是基于**成本**（RMB）而非 token 数。API 返回 `windowUsedPct`，本地计算 `cost5h`。
+### 4.4 估算规则（Short Tick）
 
 ```typescript
-function calibrateWindowCostCapacity(
-  apiWindowUsedPct: number,   // API 返回的整数
-  localCost5h: number         // 本地 5h 成本
-): number | null {
-  if (!apiWindowUsedPct || apiWindowUsedPct <= 0) return null;
-  if (localCost5h <= 0) return null;
-
-  // capacity = cost5h / (apiPct / 100)
-  // 例如：cost5h = ¥45.67, apiPct = 30
-  // capacity = 45.67 / 0.30 = ¥152.23
-  const capacity = localCost5h / (apiWindowUsedPct / 100);
-  return isFinite(capacity) && capacity > 0 ? capacity : null;
+function estimate(currentCost: number): number {
+  if (this.k <= 0 || !isFinite(this.k)) {
+    return Math.max(0, Math.min(100, currentCost));
+  }
+  const p = this.P + this.k * (currentCost - this.C);
+  return Math.max(0, Math.min(100, p));
 }
 ```
 
-**特殊情况：API 返回 0%**
-
-当 API `windowUsedPct = 0` 但本地 `cost5h > 0` 时，无法直接校准。使用启发式估算：
-
-```typescript
-function estimateWindowCostCapacityHeuristic(
-  localCost5h: number,
-  windowLimit: number | null
-): number | null {
-  if (localCost5h <= 0) return null;
-  if (!windowLimit || windowLimit <= 0) return null;
-
-  // 假设当前成本对应 1 个最小请求单位
-  // capacity = cost5h * windowLimit
-  const capacity = localCost5h * windowLimit;
-  return isFinite(capacity) && capacity > 0 ? capacity : null;
-}
-```
-
-### 4.4 校准值过期处理
-
-校准值不是永久有效的。以下情况应视为过期：
-
-1. **周期重置**：`weeklyResetAt` 或 `windowResetAt` 变化时，上一周期的校准值失效
-2. **长时间未校准**：超过 `7d` 未更新（用户可能更换了模型或定价策略）
-3. **百分比跳变**：API 返回的百分比与估算值偏差 > 10%（说明容量模型已不准确）
-
-```typescript
-function isCalibrationValid(
-  calibration: Calibration,
-  currentResetAt: number | null
-): boolean {
-  if (!calibration.calibratedAt) return false;
-  if (!currentResetAt) return false;
-
-  // 如果 resetAt 变了，校准值失效
-  if (calibration.resetAt !== currentResetAt) return false;
-
-  // 超过 7 天未校准
-  if (Date.now() - calibration.calibratedAt > 7 * 24 * 3600 * 1000) return false;
-
-  return true;
-}
-```
+**公式说明**：
+- `p = P + k * (c - C)` = 基准百分比 + 比例系数 × 费用增量
+- 边界处理：`p < 0` 截断为 `0`，`p > 100` 截断为 `100`
+- Fallback：`k = 0` 时返回 `currentCost`（费用值本身作为粗略百分比）
 
 ---
 
 ## 5. 估算逻辑（Estimation）
 
-### 5.1 7d 百分比估算
+### 5.1 统一公式
 
-```typescript
-function estimateWeeklyPct(
-  localTokensThisCycle: number,
-  tokenCapacity: number | null
-): number | null {
-  if (!tokenCapacity || tokenCapacity <= 0) return null;
-  if (localTokensThisCycle < 0) return null;
+| 维度 | 7d 周期 | 5h 窗口 |
+|------|---------|---------|
+| **官方百分比 P** | `weeklyP` | `windowP` |
+| **基准费用 C** | `weeklyC` | `windowC` |
+| **比例系数 k** | `weeklyK` | `windowK` |
+| **本地度量 c** | `costThisCycle` | `cost5h` |
+| **估算公式** | `p7d = weeklyP + weeklyK * (costThisCycle - weeklyC)` | `p5h = windowP + windowK * (cost5h - windowC)` |
 
-  const pct = (localTokensThisCycle / tokenCapacity) * 100;
-  return Math.min(100, Math.max(0, pct));
-}
-```
-
-**Fallback**：如果没有校准值，回退到 `used / limit`：
-```typescript
-function fallbackWeeklyPct(
-  localTokensThisCycle: number,
-  weeklyLimit: number | null
-): number {
-  if (!weeklyLimit || weeklyLimit <= 0) return 0;
-  return Math.min(100, (localTokensThisCycle / weeklyLimit) * 100);
-}
-```
-
-### 5.2 5h 百分比估算
-
-```typescript
-function estimateWindowPct(
-  localCost5h: number,
-  windowCostCapacity: number | null
-): number | null {
-  if (!windowCostCapacity || windowCostCapacity <= 0) return null;
-  if (localCost5h < 0) return null;
-
-  const pct = (localCost5h / windowCostCapacity) * 100;
-  return Math.min(100, Math.max(0, pct));
-}
-```
-
-**Fallback**：如果没有校准值，回退到 `used / limit`：
-```typescript
-function fallbackWindowPct(
-  localCost5h: number,
-  windowLimit: number | null
-): number {
-  if (!windowLimit || windowLimit <= 0) return 0;
-  return Math.min(100, (localCost5h / windowLimit) * 100);
-}
-```
-
-### 5.3 估算 vs API 的优先级
+### 5.2 估算 vs API 的优先级
 
 ```
 API 可用且有效
   → 使用 API 返回的百分比（精确）
-  → 同时进行校准
+  → 同时更新线性估算器 (P, C, k)
   → **百分数平稳化**：若本地估算值四舍五入后的整数与 API 返回的整数一致，保留更精细的估算值；不一致时强制更新为 API 值
 
 API 不可用（限流/网络错误）
   → 使用本地估算
-  → 如果校准值有效：用校准容量估算
-  → 如果校准值无效：用 fallback（used/limit）
+  → 如果 k > 0：用线性增量公式估算
+  → 如果 k = 0：fallback 到 currentCost
 
 从未调过 API（首次使用）
-  → 使用 fallback（used/limit）
+  → fallback 到 currentCost
   → 显示提示：数据基于本地日志估算
 ```
 
-### 5.4 状态流转
+### 5.3 状态流转
 
 ```
 API_SUCCESS
   → state.weeklyUsedPct = apiWeeklyUsedPct（经平稳化后可能保留本地小数估算）
   → state.windowUsedPct = apiWindowUsedPct（经平稳化后可能保留本地小数估算）
   → state.dataSource = 'api'
-  → 触发校准：tokenCapacity, windowCostCapacity
+  → 触发线性模型更新：weeklyP/weeklyC/weeklyK, windowP/windowC/windowK
 
 API_ERROR (非 401/403)
-  → state.weeklyUsedPct = estimateWeeklyPct(localTokens, tokenCapacity)
-  → state.windowUsedPct = estimateWindowPct(localCost5h, windowCostCapacity)
+  → state.weeklyUsedPct = weeklyEstimator.estimate(costThisCycle)
+  → state.windowUsedPct = windowEstimator.estimate(cost5h)
   → state.dataSource = 'stale'
   → state.error = errorMessage
 
 NO_CREDENTIALS
-  → state.weeklyUsedPct = null
-  → state.windowUsedPct = null
+  → state.weeklyUsedPct = 0
+  → state.windowUsedPct = 0
   → state.dataSource = 'no-credentials'
 
 FIRST_LAUNCH (无缓存)
-  → state.weeklyUsedPct = fallbackWeeklyPct(localTokens, weeklyLimit)
-  → state.windowUsedPct = fallbackWindowPct(localCost5h, windowLimit)
+  → state.weeklyUsedPct = costThisCycle (fallback)
+  → state.windowUsedPct = cost5h (fallback)
   → state.dataSource = 'local-only'
 ```
 
@@ -412,17 +328,39 @@ async function onShortTick(store: Store): Promise<void> {
     windowResetAtMs: store.getState().quota?.windowResetAt,
   });
 
-  // 2. 估算百分比
-  const tokenCapacity = store.getState().localEstimate?.tokenCapacity;
-  const windowCostCapacity = store.getState().localEstimate?.windowCostCapacity;
+  // 2. 构建线性估算器
+  const weeklyEstimator: ILinearEstimator = {
+    P: store.getState().localEstimate?.weeklyP ?? 0,
+    C: store.getState().localEstimate?.weeklyC ?? 0,
+    k: store.getState().localEstimate?.weeklyK ?? 0,
+    update() {},
+    estimate(currentCost: number) {
+      if (this.k <= 0 || !isFinite(this.k)) {
+        return Math.max(0, Math.min(100, currentCost));
+      }
+      const p = this.P + this.k * (currentCost - this.C);
+      return Math.max(0, Math.min(100, p));
+    },
+  };
+  const windowEstimator: ILinearEstimator = {
+    P: store.getState().localEstimate?.windowP ?? 0,
+    C: store.getState().localEstimate?.windowC ?? 0,
+    k: store.getState().localEstimate?.windowK ?? 0,
+    update() {},
+    estimate(currentCost: number) {
+      if (this.k <= 0 || !isFinite(this.k)) {
+        return Math.max(0, Math.min(100, currentCost));
+      }
+      const p = this.P + this.k * (currentCost - this.C);
+      return Math.max(0, Math.min(100, p));
+    },
+  };
 
-  const weeklyPct = estimateWeeklyPct(localUsage.tokensThisCycle, tokenCapacity)
-    ?? fallbackWeeklyPct(localUsage.tokensThisCycle, store.getState().quota?.weeklyLimit);
+  // 3. 估算百分比
+  const weeklyPct = weeklyEstimator.estimate(localUsage.costThisCycle);
+  const windowPct = windowEstimator.estimate(localUsage.cost5h);
 
-  const windowPct = estimateWindowPct(localUsage.cost5h, windowCostCapacity)
-    ?? fallbackWindowPct(localUsage.cost5h, store.getState().quota?.windowLimit);
-
-  // 3. 更新状态
+  // 4. 更新状态
   store.dispatch({
     type: 'LOCAL_ESTIMATE',
     payload: {
@@ -434,7 +372,7 @@ async function onShortTick(store: Store): Promise<void> {
 }
 ```
 
-**注意**：Short tick **不调 API**，只做本地估算。如果当前没有校准值，百分比可能不准确，但这是预期行为（用户会看到一个"估算中"的提示）。
+**注意**：Short tick **不调 API**，只做本地估算。如果当前 `k = 0`（从未满足 `P > 5%` 条件），fallback 到 `currentCost`，百分比可能不准确，但这是预期行为。
 
 ### 6.2 Long Tick（60 秒）
 
@@ -455,29 +393,6 @@ async function onLongTick(store: Store, authService: AuthService): Promise<void>
       windowResetAtMs: apiData.windowResetAt,
     });
 
-    // 校准
-    const tokenCapacity = calibrateTokenCapacity(
-      apiData.weeklyUsedPct,
-      localUsage.tokensThisCycle
-    );
-    const windowCostCapacity = calibrateWindowCostCapacity(
-      apiData.windowUsedPct,
-      localUsage.cost5h
-    );
-
-    // 写入缓存
-    await cacheService.write({
-      quota: apiData,
-      fetchedAt: Date.now(),
-      calibration: {
-        tokenCapacity,
-        windowCostCapacity,
-        calibratedAt: Date.now(),
-        reset5hAt: apiData.windowResetAt,
-        reset7dAt: apiData.weeklyResetAt,
-      },
-    });
-
     // 百分数平稳化
     const currentEstimate = store.getState().localEstimate;
     let weeklyPct = apiData.weeklyUsedPct;
@@ -491,6 +406,29 @@ async function onLongTick(store: Store, authService: AuthService): Promise<void>
       }
     }
 
+    // 更新线性估算器
+    const weeklyEstimator = createLinearEstimator();
+    const windowEstimator = createLinearEstimator();
+    weeklyEstimator.update(weeklyPct, localUsage.costThisCycle);
+    windowEstimator.update(windowPct, localUsage.cost5h);
+
+    // 写入缓存
+    await cacheService.write({
+      quota: apiData,
+      fetchedAt: Date.now(),
+      calibration: {
+        weeklyP: weeklyEstimator.P,
+        weeklyC: weeklyEstimator.C,
+        weeklyK: weeklyEstimator.k,
+        windowP: windowEstimator.P,
+        windowC: windowEstimator.C,
+        windowK: windowEstimator.k,
+        calibratedAt: Date.now(),
+        reset5hAt: apiData.windowResetAt,
+        reset7dAt: apiData.weeklyResetAt,
+      },
+    });
+
     // 更新状态
     store.dispatch({ type: 'API_SUCCESS', payload: apiData });
     store.dispatch({
@@ -498,8 +436,12 @@ async function onLongTick(store: Store, authService: AuthService): Promise<void>
       payload: {
         weeklyPct,
         windowPct,
-        tokenCapacity,
-        windowCostCapacity,
+        weeklyP: weeklyEstimator.P,
+        weeklyC: weeklyEstimator.C,
+        weeklyK: weeklyEstimator.k,
+        windowP: windowEstimator.P,
+        windowC: windowEstimator.C,
+        windowK: windowEstimator.k,
         calibratedAt: Date.now(),
       },
     });
@@ -525,9 +467,9 @@ async function onLongTick(store: Store, authService: AuthService): Promise<void>
 
 ```json
 {
-  "version": 2,
-  "schema": "kimi-status-pro-cache-v2",
-  "writtenAt": "2026-05-10T21:00:00.000Z",
+  "version": 3,
+  "schema": "codex-status-pro-cache-v1",
+  "writtenAt": "2026-05-13T18:00:00.000Z",
   "data": {
     "quota": {
       "weeklyLimit": 100000000,
@@ -542,8 +484,12 @@ async function onLongTick(store: Store, authService: AuthService): Promise<void>
       "parallelLimit": 10
     },
     "calibration": {
-      "tokenCapacity": 100000000,
-      "windowCostCapacity": 152.23,
+      "weeklyP": 62,
+      "weeklyC": 10,
+      "weeklyK": 6.2,
+      "windowP": 30,
+      "windowC": 3,
+      "windowK": 10,
       "calibratedAt": 1715355600000,
       "reset5hAt": 1715374800,
       "reset7dAt": 1715960400
@@ -552,7 +498,11 @@ async function onLongTick(store: Store, authService: AuthService): Promise<void>
 }
 ```
 
-### 7.2 启动时恢复
+### 7.2 向后兼容
+
+旧缓存（version < 3）中的 `tokenCapacity`/`windowCostCapacity` 无法直接转换为线性模型状态（缺少费用快照 C）。**策略**：升级 schema version 至 3，旧缓存自动失效。首次启动时 `k = 0`，使用 fallback 模式，等待下一次 API 成功后自然建立新的 k 值。
+
+### 7.3 启动时恢复
 
 ```typescript
 async function init(store: Store): Promise<void> {
@@ -561,13 +511,17 @@ async function init(store: Store): Promise<void> {
     // 恢复配额数据
     store.dispatch({ type: 'CACHE_LOADED', payload: cached.quota });
 
-    // 恢复校准值
+    // 恢复线性估算器状态
     if (cached.calibration) {
       store.dispatch({
         type: 'LOCAL_ESTIMATE',
         payload: {
-          tokenCapacity: cached.calibration.tokenCapacity,
-          windowCostCapacity: cached.calibration.windowCostCapacity,
+          weeklyP: cached.calibration.weeklyP ?? 0,
+          weeklyC: cached.calibration.weeklyC ?? 0,
+          weeklyK: cached.calibration.weeklyK ?? 0,
+          windowP: cached.calibration.windowP ?? 0,
+          windowC: cached.calibration.windowC ?? 0,
+          windowK: cached.calibration.windowK ?? 0,
           calibratedAt: cached.calibration.calibratedAt,
         },
       });
@@ -577,7 +531,7 @@ async function init(store: Store): Promise<void> {
     const age = Date.now() - cached.quota.lastUpdated;
     const isFresh = age < config.cacheTtlSeconds * 1000;
     store.dispatch({
-      type: 'API_SUCCESS', // 或 CACHE_LOADED 单独处理
+      type: 'API_SUCCESS',
       payload: { ...cached.quota, dataSource: isFresh ? 'cache' : 'stale' },
     });
   }
@@ -627,7 +581,9 @@ function safeEstimate(
 |---|---|---|
 | **文件扫描** | 同步 `fs.readSync`，阻塞主线程 | 异步 `fs.readFile`，并行读取 |
 | **缓存 TTL** | 无（每次 tooltip 都重新扫描） | 30 秒内存缓存 |
-| **校准持久化** | 只存 `tokenCapacity`，不存 `windowCostCapacity` | 完整校准对象持久化 |
+| **校准模型** | Capacity-based（`tokenCapacity`/`windowCostCapacity`） | **Linear incremental（`P/C/k`）** |
+| **度量统一** | 7d 用 token 数，5h 用金额 | **统一为 cost-based** |
+| **低百分比处理** | 容量校准在 `P < 5%` 时误差极大 | k 保持旧值，P 更新为最新基准，误差可控 |
 | **校准过期** | 无过期检测 | 基于 `resetAt` 和时间双重检测 |
 | **估算 Fallback** | fallback 逻辑散落在多处 | 统一的 `safeEstimate` 包装 |
 | **错误处理** | 局部 try/catch，可能漏捕获 | 每个 Service 边界独立捕获 |

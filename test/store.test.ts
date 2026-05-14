@@ -105,11 +105,12 @@ describe('Store', () => {
 
   it('LOCAL_ESTIMATE merges with existing estimate', () => {
     const store = new Store();
-    store.dispatch({ type: 'LOCAL_ESTIMATE', payload: { weeklyPct: 50, windowPct: 20, tokenCapacity: 1000 } });
+    store.dispatch({ type: 'LOCAL_ESTIMATE', payload: { weeklyPct: 50, windowPct: 20, weeklyK: 6.2, windowK: 3.1 } });
     store.dispatch({ type: 'LOCAL_ESTIMATE', payload: { windowPct: 25 } });
     expect(store.getState().localEstimate!.weeklyPct).to.equal(50);
     expect(store.getState().localEstimate!.windowPct).to.equal(25);
-    expect(store.getState().localEstimate!.tokenCapacity).to.equal(1000);
+    expect(store.getState().localEstimate!.weeklyK).to.equal(6.2);
+    expect(store.getState().localEstimate!.windowK).to.equal(3.1);
   });
 
   it('LOCAL_ESTIMATE does not change dataSource when quota exists', () => {

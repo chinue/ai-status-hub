@@ -1,8 +1,7 @@
 import { expect } from 'chai';
 import {
   computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost,
-  calibrateTokenCapacity, calibrateWindowCostCapacity, estimateWeeklyPct, estimateWindowPct,
-  fallbackWeeklyPct, fallbackWindowPct, isCalibrationValid, fmtCurrency,
+  createLinearEstimator, ILinearEstimator, fmtCurrency,
   resolveWeeklyPct, resolveWindowPct,
   resolveResetTime, fmtResetTime,
 } from '../src/calc';
@@ -94,99 +93,66 @@ describe('calc', () => {
     });
   });
 
-  describe('calibrateTokenCapacity', () => {
-    it('calculates capacity from API pct and local tokens', () => {
-      // 10M tokens at 62% -> capacity = 10M / 0.62 = ~16.13M
-      const cap = calibrateTokenCapacity(62, 10_000_000);
-      expect(cap).to.be.closeTo(16_129_032, 1);
+  describe('createLinearEstimator', () => {
+    it('updates k when apiPct > 5% and localCost > 0', () => {
+      const est = createLinearEstimator();
+      est.update(62, 10);
+      expect(est.k).to.be.closeTo(6.2, 0.001);
+      expect(est.P).to.equal(62);
+      expect(est.C).to.equal(10);
     });
-    it('returns null for zero API pct', () => {
-      expect(calibrateTokenCapacity(0, 10_000_000)).to.be.null;
-    });
-    it('returns null for zero local tokens', () => {
-      expect(calibrateTokenCapacity(62, 0)).to.be.null;
-    });
-  });
 
-  describe('calibrateWindowCostCapacity', () => {
-    it('calculates capacity from API pct and local cost', () => {
-      // ¥45.67 at 30% -> capacity = 45.67 / 0.30 = ~152.23
-      const cap = calibrateWindowCostCapacity(30, 45.67);
-      expect(cap).to.be.closeTo(152.23, 0.01);
+    it('does not update k when apiPct <= 5%', () => {
+      const est = createLinearEstimator();
+      est.update(62, 10); // establish initial k
+      const oldK = est.k;
+      est.update(3, 5);
+      expect(est.k).to.equal(oldK); // k unchanged
+      expect(est.P).to.equal(3);    // P always updated
+      expect(est.C).to.equal(5);    // C always updated
     });
-    it('returns null for zero API pct', () => {
-      expect(calibrateWindowCostCapacity(0, 45.67)).to.be.null;
-    });
-  });
 
-  describe('estimateWeeklyPct', () => {
-    it('estimates percentage from local tokens and capacity', () => {
-      // 10M tokens / 16.13M capacity = ~62%
-      const pct = estimateWeeklyPct(10_000_000, 16_129_032);
-      expect(pct).to.be.closeTo(62, 0.1);
+    it('does not update k when localCost <= 0', () => {
+      const est = createLinearEstimator();
+      est.update(62, 10);
+      const oldK = est.k;
+      est.update(10, 0);
+      expect(est.k).to.equal(oldK);
     });
-    it('caps at 100%', () => {
-      expect(estimateWeeklyPct(20_000_000, 16_129_032)).to.equal(100);
-    });
-    it('returns null without capacity', () => {
-      expect(estimateWeeklyPct(10_000_000, null)).to.be.null;
-    });
-  });
 
-  describe('estimateWindowPct', () => {
-    it('estimates percentage from local cost and capacity', () => {
-      const pct = estimateWindowPct(45.67, 152.23);
-      expect(pct).to.be.closeTo(30, 0.1);
+    it('estimates correctly with valid k', () => {
+      const est = createLinearEstimator();
+      est.update(62, 10); // k = 6.2
+      // cost increases by 2 -> pct increases by 6.2 * 2 = 12.4
+      expect(est.estimate(12)).to.be.closeTo(74.4, 0.001);
     });
-    it('returns null without capacity', () => {
-      expect(estimateWindowPct(45.67, null)).to.be.null;
-    });
-  });
 
-  describe('fallbackWeeklyPct', () => {
-    it('falls back to used/limit ratio', () => {
-      expect(fallbackWeeklyPct(250_000, 1_000_000)).to.equal(25);
+    it('falls back to currentCost when k = 0', () => {
+      const est = createLinearEstimator();
+      expect(est.estimate(5)).to.equal(5);
+      expect(est.estimate(0)).to.equal(0);
     });
-    it('returns 0 when limit is null', () => {
-      expect(fallbackWeeklyPct(250_000, null)).to.equal(0);
-    });
-  });
 
-  describe('fallbackWindowPct', () => {
-    it('falls back to used/limit ratio', () => {
-      expect(fallbackWindowPct(50, 200)).to.equal(25);
+    it('clamps estimate to [0, 100]', () => {
+      const est = createLinearEstimator();
+      est.update(62, 10); // k = 6.2
+      expect(est.estimate(-100)).to.equal(0);
+      expect(est.estimate(200)).to.equal(100);
     });
-    it('returns 0 when limit is null', () => {
-      expect(fallbackWindowPct(50, null)).to.equal(0);
-    });
-  });
 
-  describe('isCalibrationValid', () => {
-    it('returns true for fresh calibration matching resetAt', () => {
-      const resetAt = Date.now();
-      const valid = isCalibrationValid(
-        { tokenCapacity: 100, windowCostCapacity: 50, calibratedAt: Date.now(), resetAt },
-        resetAt,
-      );
-      expect(valid).to.be.true;
+    it('preserves k when P <= 5% and estimates with old k', () => {
+      const est = createLinearEstimator();
+      est.update(62, 10); // k = 6.2
+      est.update(3, 5);   // P=3, C=5, k stays 6.2
+      // p = 3 + 6.2 * (7 - 5) = 3 + 12.4 = 15.4
+      expect(est.estimate(7)).to.be.closeTo(15.4, 0.001);
     });
-    it('returns false when resetAt mismatches', () => {
-      const valid = isCalibrationValid(
-        { tokenCapacity: 100, windowCostCapacity: 50, calibratedAt: Date.now(), resetAt: 1000 },
-        2000,
-      );
-      expect(valid).to.be.false;
-    });
-    it('returns false when calibration is too old', () => {
-      const old = Date.now() - 8 * 24 * 3600 * 1000; // 8 days ago
-      const valid = isCalibrationValid(
-        { tokenCapacity: 100, windowCostCapacity: 50, calibratedAt: old, resetAt: 1000 },
-        1000,
-      );
-      expect(valid).to.be.false;
-    });
-    it('returns false for null calibration', () => {
-      expect(isCalibrationValid(null, 1000)).to.be.false;
+
+    it('handles cost decrease gracefully', () => {
+      const est = createLinearEstimator();
+      est.update(62, 10); // k = 6.2
+      // cost decreases by 3 -> pct decreases by 18.6
+      expect(est.estimate(7)).to.be.closeTo(43.4, 0.001);
     });
   });
 
@@ -332,8 +298,12 @@ function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?:
     base.localEstimate = {
       weeklyPct: 0,
       windowPct: 0,
-      tokenCapacity: null,
-      windowCostCapacity: null,
+      weeklyP: 0,
+      weeklyC: 0,
+      weeklyK: 0,
+      windowP: 0,
+      windowC: 0,
+      windowK: 0,
       calibratedAt: null,
       cost5h: 0,
       cost7d: 0,
