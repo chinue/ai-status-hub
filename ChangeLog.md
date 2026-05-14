@@ -1,12 +1,22 @@
 # ChangeLog
 
+## [0.4.3] - 2026-05-13
+
+### 修复
+
+- **Tooltip 表格最终稳定化**：
+  - 配额汇总和本地用量表从 HTML `<table>` 改为 **Markdown 原生表格**，确保 VS Code tooltip 内正确显示边框和列对齐。
+  - 本地用量表从 7 列精简为 4 列（Period / Input / Output / Cost），避免 tooltip 宽度过窄导致列挤压变形。
+  - 全部 tooltip 内容合并为单次 `appendMarkdown` 调用，避免多次追加导致 markdown-it 块级解析边界错误。
+  - 修复模板字符串中 `\\n` 字面量被显示为文本 `\n` 的问题。
+
 ## [0.4.2] - 2026-05-13
 
 ### 新增
 
 - **Tooltip 全面彩色图像化**：参考 `codex-ratelimit-vscode` 的实现：
   - 进度条改为 SVG base64 data URI 彩色图像（`createSvgBar()`），颜色跟随利用率变化（白→黄→绿→粉→红），使用用户在设置中自定义的阈值颜色。
-  - 配额汇总表和本地用量表改为 HTML `<table>`（`htmlTable()`），带表头底边和右对齐数字列。
+  - 配额汇总表和本地用量表改为 Markdown 表格，带边框和右对齐数字列。
   - Tooltip 启用 `supportHtml = true` 和 `isTrusted = true`，整体布局从 ASCII 代码块升级为 Markdown + HTML 混合渲染。
 - **厂商私有定价配置**：`config.getPricing()` 现在优先读取厂商私有配置路径（`pricing.{provider}.models.{model}`），再回退到全局路径（`pricing.models.{model}`）。为 Kimi 新增 `pricing.kimi.models.k2_6.*` 四项定价配置项；Kimi 和 Claude 的 pricing provider 改为从配置读取，支持用户自定义。
 - **官方定价链接按厂商切换**：`config.pricingOfficialUrl` 现在根据当前厂商返回对应链接（Kimi → moonshot.cn、Claude → anthropic.com、GLM → bigmodel.cn、Cursor → cursor.com、Codex → openai.com）。`package.json` 中 `pricing.officialUrl` 默认值改为空字符串，留空时自动使用厂商默认链接；用户仍可手动覆盖。
