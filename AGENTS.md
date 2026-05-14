@@ -6,7 +6,11 @@
 每次修复/功能完成后，**必须**按以下顺序执行：
 1. 类型检查：`node node_modules/typescript/bin/tsc --noEmit`
 2. 运行测试：`node node_modules/mocha/bin/mocha --config .mocharc.json`
-3. 升级版本号（`package.json`）— 参考 `.kimi/skills/version-bump-rules/SKILL.md`
+3. 升级版本号（`package.json`）— 规则如下：
+   - **PATCH +1**：Bug 修复、重构、当前阶段内的单个新功能
+   - **MINOR +1, PATCH = 0**：新阶段 / 重大功能模块完成
+   - **MAJOR +1**：破坏性 API 变更 / 完全重建（v0.x 中极少）
+   - 示例：dashboard 添加成本曲线 → 0.1.0→0.1.1；修复 scheduler 竞态 → 0.1.1→0.1.2
 4. Production 编译：`node esbuild.js --production`
 5. 打包 VSIX：`node node_modules/@vscode/vsce/vsce package --no-dependencies --out bin/`
 6. 更新 `ChangeLog.md`
