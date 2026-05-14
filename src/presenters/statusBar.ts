@@ -269,73 +269,63 @@ export class StatusBarPresenter {
       : '?';
 
     let sourceLabel = '';
-    if (state.dataSource === 'stale') { sourceLabel = ' &nbsp;*' + t('tooltip.stale') + '*'; }
-    else if (state.dataSource === 'local-only') { sourceLabel = ' &nbsp;*' + t('dashboard.estimate') + '*'; }
+    if (state.dataSource === 'stale') { sourceLabel = '&nbsp;*' + t('tooltip.stale') + '*'; }
+    else if (state.dataSource === 'local-only') { sourceLabel = '&nbsp;*' + t('dashboard.estimate') + '*'; }
 
-    md.appendMarkdown(`### ${this.provider?.ui.mainIcon ?? ''} ${t('tooltip.title')}${sourceLabel}\n\n`);
+    const parts: string[] = [];
+    parts.push(`### ${this.provider?.ui.mainIcon ?? ''} ${t('tooltip.title')}${sourceLabel}`);
+    parts.push('');
 
-    // Window / Weekly progress bars
-    md.appendMarkdown(`<table style="border-collapse:collapse;width:100%;font-size:12px;">`);
-    md.appendMarkdown(`<tr><td style="padding:2px 6px;width:80px;"><strong>${t('tooltip.window5h')}</strong></td>`);
-    md.appendMarkdown(`<td style="padding:2px 6px;">${this.createSvgBar(windowUtil)}</td>`);
-    md.appendMarkdown(`<td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(windowPct, 1)}</strong></td></tr>`);
-    md.appendMarkdown(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.resetsIn')}</td>`);
-    md.appendMarkdown(`<td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowReset}</td></tr>`);
-    md.appendMarkdown(`<tr><td style="padding:2px 6px;"><strong>${t('tooltip.window7d')}</strong></td>`);
-    md.appendMarkdown(`<td style="padding:2px 6px;">${this.createSvgBar(weeklyUtil)}</td>`);
-    md.appendMarkdown(`<td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(weeklyPct, 1)}</strong></td></tr>`);
-    md.appendMarkdown(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.resetsIn')}</td>`);
-    md.appendMarkdown(`<td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyReset}</td></tr>`);
-    md.appendMarkdown(`</table>\n\n`);
+    // Progress bars as HTML block (layout only)
+    parts.push(`<table style="border-collapse:collapse;width:100%;font-size:12px;">`);
+    parts.push(`<tr><td style="padding:2px 6px;width:80px;"><strong>${t('tooltip.window5h')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(windowUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(windowPct, 1)}</strong></td></tr>`);
+    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.resetsIn')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowReset}</td></tr>`);
+    parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('tooltip.window7d')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(weeklyUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(weeklyPct, 1)}</strong></td></tr>`);
+    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.resetsIn')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyReset}</td></tr>`);
+    parts.push(`</table>`);
+    parts.push('');
 
-    // Quota Summary table
+    // Quota Summary — Markdown table
     if (q) {
-      md.appendMarkdown(`**${t('tooltip.table.quotaSummary')}**\n\n`);
-      const quotaHeader = ['', t('tooltip.table.col.used'), t('tooltip.table.col.limit'), t('tooltip.table.col.remaining')];
-      const quotaRows = [
-        [t('tooltip.window5h'), String(q.windowUsed), String(q.windowLimit), String(q.windowRemaining)],
-        [t('tooltip.window7d'), String(q.weeklyUsed), String(q.weeklyLimit), String(q.weeklyLimit - q.weeklyUsed)],
-      ];
-      md.appendMarkdown(this.markdownTable(quotaHeader, quotaRows, ['l', 'r', 'r', 'r']));
+      parts.push(`**${t('tooltip.table.quotaSummary')}**`);
+      parts.push('');
+      parts.push(this.markdownTable(
+        ['', t('tooltip.table.col.used'), t('tooltip.table.col.limit'), t('tooltip.table.col.remaining')],
+        [
+          [t('tooltip.window5h'), String(q.windowUsed), String(q.windowLimit), String(q.windowRemaining)],
+          [t('tooltip.window7d'), String(q.weeklyUsed), String(q.weeklyLimit), String(q.weeklyLimit - q.weeklyUsed)],
+        ],
+        ['l', 'r', 'r', 'r']
+      ));
       if (q.parallelLimit) {
-        md.appendMarkdown(`\n${t('tooltip.table.col.parallel')}: **${q.parallelLimit}**\n`);
+        parts.push('');
+        parts.push(`${t('tooltip.table.col.parallel')}: **${q.parallelLimit}**`);
       }
-      md.appendMarkdown('\n');
+      parts.push('');
     }
 
-    // Local Usage table
+    // Local Usage — Markdown table (trimmed to 4 columns for tooltip width)
     const lu = state.localEstimate;
     if (lu && (lu.requests5h > 0 || lu.requests7d > 0 || lu.requestsThisCycle > 0)) {
-      md.appendMarkdown(`**${t('tooltip.localUsage')}**\n\n`);
-      const localHeader = [
-        '', t('tooltip.table.col.input'), t('tooltip.table.col.output'),
-        t('tooltip.table.col.cacheCreate'), t('tooltip.table.col.cacheRead'),
-        t('tooltip.table.col.requests'), t('tooltip.table.col.cost'),
-      ];
-      const localRows = [
+      parts.push(`**${t('tooltip.localUsage')}**`);
+      parts.push('');
+      parts.push(this.markdownTable(
+        ['', t('tooltip.table.col.input'), t('tooltip.table.col.output'), t('tooltip.table.col.cost')],
         [
-          t('tooltip.table.row.today'), fmtTokens(lu.tokensToday), fmtTokens(lu.tokensOutToday),
-          fmtTokens(lu.tokensCacheCreateToday), fmtTokens(lu.tokensCacheReadToday),
-          String(lu.requestsToday), fmtCost(lu.costToday, this.config.currency.symbol),
+          [t('tooltip.table.row.today'), fmtTokens(lu.tokensToday), fmtTokens(lu.tokensOutToday), fmtCost(lu.costToday, this.config.currency.symbol)],
+          [t('tooltip.table.row.5h'), fmtTokens(lu.tokensIn5h), fmtTokens(lu.tokensOut5h), fmtCost(lu.cost5h, this.config.currency.symbol)],
+          [t('tooltip.table.row.7d'), fmtTokens(lu.tokensIn7d), fmtTokens(lu.tokensOut7d), fmtCost(lu.cost7d, this.config.currency.symbol)],
         ],
-        [
-          t('tooltip.table.row.5h'), fmtTokens(lu.tokensIn5h), fmtTokens(lu.tokensOut5h),
-          fmtTokens(lu.tokensCacheCreate5h), fmtTokens(lu.tokensCacheRead5h),
-          String(lu.requests5h), fmtCost(lu.cost5h, this.config.currency.symbol),
-        ],
-        [
-          t('tooltip.table.row.7d'), fmtTokens(lu.tokensIn7d), fmtTokens(lu.tokensOut7d),
-          fmtTokens(lu.tokensCacheCreate7d), fmtTokens(lu.tokensCacheRead7d),
-          String(lu.requests7d), fmtCost(lu.cost7d, this.config.currency.symbol),
-        ],
-      ];
-      md.appendMarkdown(this.markdownTable(localHeader, localRows, ['l', 'r', 'r', 'r', 'r', 'r', 'r']));
-      md.appendMarkdown('\n');
+        ['l', 'r', 'r', 'r']
+      ));
+      parts.push('');
     }
 
-    md.appendMarkdown(`---\n\n`);
-    md.appendMarkdown(`<span style="color:var(--vscode-descriptionForeground);font-size:11px;">${t('tooltip.lastUpdate')} ${state.lastFetchAt ? fmtDateTime(state.lastFetchAt) : '—'}</span>`);
+    parts.push('---');
+    parts.push('');
+    parts.push(`<span style="color:var(--vscode-descriptionForeground);font-size:11px;">${t('tooltip.lastUpdate')} ${state.lastFetchAt ? fmtDateTime(state.lastFetchAt) : '—'}</span>`);
 
+    md.appendMarkdown(parts.join('\n'));
     return md;
   }
 
