@@ -4,6 +4,7 @@ import {
   createLinearEstimator, ILinearEstimator, fmtCurrency,
   resolveWeeklyPct, resolveWindowPct,
   resolveResetTime, fmtResetTime,
+  estimateStateMemory, formatMemorySize,
 } from '../src/calc';
 import { QuotaData, TokenPricing, AppState } from '../src/types';
 
@@ -276,7 +277,7 @@ function makeQuota(partial: Partial<QuotaData> = {}): QuotaData {
   };
 }
 
-function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null }): AppState {
+function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null; usageEntries?: import('../src/types').UsageEntry[] }): AppState {
   const base: AppState = {
     quota: null,
     lastFetchAt: null,
@@ -332,9 +333,74 @@ function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?:
       ...partial.localEstimate,
     };
   }
+  if (partial.usageEntries) {
+    base.usageEntries = partial.usageEntries;
+  }
   return base;
 }
 
+describe('estimateStateMemory', () => {
+  it('returns empty breakdown for null state', () => {
+    const result = estimateStateMemory(null);
+    expect(result.totalBytes).to.equal(0);
+    expect(result.items).to.have.length(0);
+  });
+
+  it('returns only storeOverhead for empty state', () => {
+    const state = makeState({ quota: null, localEstimate: null });
+    const result = estimateStateMemory(state);
+    expect(result.totalBytes).to.be.greaterThan(0);
+    expect(result.items).to.have.length(1);
+    expect(result.items[0].name).to.equal('storeOverhead');
+  });
+
+  it('estimates usageEntries memory', () => {
+    const entries = Array.from({ length: 1000 }, (_, i) => ({
+      timestamp: Date.now(),
+      inputOther: 1000,
+      output: 500,
+      inputCacheRead: 100,
+      inputCacheCreation: 50,
+      cost: 0.01,
+      messageId: 'msg_' + i,
+      model: 'gpt-4',
+    }));
+    const state = makeState({ usageEntries: entries });
+    const result = estimateStateMemory(state);
+    const entryItem = result.items.find((i) => i.name === 'usageEntries');
+    expect(entryItem).to.exist;
+    expect(entryItem!.bytes).to.be.greaterThan(0);
+    expect(result.totalBytes).to.be.greaterThan(entryItem!.bytes);
+  });
+
+  it('sorts items by bytes descending', () => {
+    const entries = Array.from({ length: 100 }, (_, i) => ({
+      timestamp: Date.now(),
+      inputOther: 1000, output: 500, inputCacheRead: 100, inputCacheCreation: 50,
+      cost: 0.01, messageId: 'msg_' + i, model: 'gpt-4',
+    }));
+    const state = makeState({ usageEntries: entries, quota: { weeklyUsedPct: 25, windowUsedPct: 10 } });
+    const result = estimateStateMemory(state);
+    for (let i = 1; i < result.items.length; i++) {
+      expect(result.items[i - 1].bytes).to.be.at.least(result.items[i].bytes);
+    }
+  });
+});
+
+describe('formatMemorySize', () => {
+  it('formats bytes', () => {
+    expect(formatMemorySize(512)).to.equal('512 B');
+  });
+  it('formats KB', () => {
+    expect(formatMemorySize(1536)).to.equal('1.50 KB');
+  });
+  it('formats MB', () => {
+    expect(formatMemorySize(2 * 1024 * 1024)).to.equal('2.00 MB');
+  });
+  it('formats GB', () => {
+    expect(formatMemorySize(3 * 1024 * 1024 * 1024)).to.equal('3.00 GB');
+  });
+});
 
 import {
   buildDailyBuckets, buildHourlyBuckets, formatDateLocal, formatMonthLocal,

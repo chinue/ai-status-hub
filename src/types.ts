@@ -198,6 +198,16 @@ export interface KimiUsageData {
   lastUpdated: number;
   cacheAge: number;
   dataSource: DataSource;
+
+  // Memory breakdown (optional)
+  memoryBreakdown?: MemoryBreakdownItem[];
+  memoryTotalBytes?: number;
+}
+
+export interface MemoryBreakdownItem {
+  name: string;
+  bytes: number;
+  description: string;
 }
 
 export interface DashboardUsageData {

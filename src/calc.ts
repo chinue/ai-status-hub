@@ -1,5 +1,5 @@
 // AGENTS: pure-fn | fmt-here | no-side-effect
-import { QuotaData, TokenPricing, AppState } from './types';
+import { QuotaData, TokenPricing, AppState, UsageEntry } from './types';
 
 export interface UtilizationResult {
   weeklyPct: number;
@@ -446,4 +446,96 @@ export function heatmapColor(t: number): string {
   const g = Math.round(c0[1] + (c1[1] - c0[1]) * t);
   const b = Math.round(c0[2] + (c1[2] - c0[2]) * t);
   return `rgb(${r},${g},${b})`;
+}
+
+// ---------------------------------------------------------------------------
+// Memory Estimation
+// ---------------------------------------------------------------------------
+
+export interface MemoryBreakdownItem {
+  name: string;
+  bytes: number;
+  description: string;
+}
+
+export interface MemoryBreakdown {
+  totalBytes: number;
+  items: MemoryBreakdownItem[];
+}
+
+function estimateStringBytes(s: string | null | undefined): number {
+  if (s == null) return 4;
+  return 24 + s.length * 2;
+}
+
+function estimateEntryBytes(entry: UsageEntry): number {
+  // V8 JSObject header + 6 number properties + 2 string properties
+  return 64
+    + 6 * 8
+    + estimateStringBytes(entry.messageId)
+    + estimateStringBytes(entry.model);
+}
+
+/** Estimate memory footprint of the given AppState. */
+export function estimateStateMemory(state: AppState | null): MemoryBreakdown {
+  if (!state) {
+    return { totalBytes: 0, items: [] };
+  }
+
+  const items: MemoryBreakdownItem[] = [];
+
+  // 1. usageEntries — biggest contributor
+  const usageEntriesBytes = state.usageEntries.reduce(
+    (sum, e) => sum + estimateEntryBytes(e),
+    0,
+  );
+  if (usageEntriesBytes > 0) {
+    items.push({
+      name: 'usageEntries',
+      bytes: usageEntriesBytes,
+      description: 'Retention-period usage entries for heatmap / detail',
+    });
+  }
+
+  // 2. localEstimate
+  const localEstimateBytes = state.localEstimate ? 1024 : 0;
+  if (localEstimateBytes > 0) {
+    items.push({
+      name: 'localEstimate',
+      bytes: localEstimateBytes,
+      description: 'Local estimate state (P/C/k + aggregated costs/tokens)',
+    });
+  }
+
+  // 3. quota
+  const quotaBytes = state.quota ? 512 : 0;
+  if (quotaBytes > 0) {
+    items.push({
+      name: 'quota',
+      bytes: quotaBytes,
+      description: 'API quota data (limits / used / reset times)',
+    });
+  }
+
+  // 4. Store overhead (listeners, UI state, etc.)
+  items.push({
+    name: 'storeOverhead',
+    bytes: 2048,
+    description: 'Store listeners, UI state, provider refs',
+  });
+
+  // Sort by bytes descending
+  items.sort((a, b) => b.bytes - a.bytes);
+
+  const totalBytes = items.reduce((sum, item) => sum + item.bytes, 0);
+
+  return { totalBytes, items };
+}
+
+/** Format a byte count into human-readable string. */
+export function formatMemorySize(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+  if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+  if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
+  return bytes + ' B';
 }

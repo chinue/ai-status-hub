@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, fmtResetTime, resolveResetTime } from '../calc';
+import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, fmtResetTime, resolveResetTime, estimateStateMemory, formatMemorySize } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
   AppState, UsageEntry, DashboardMessage, KimiUsageData, DashboardAggregates,
@@ -225,6 +225,8 @@ export class DashboardPanel {
     const effectiveWindowReset = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000, now).resetAt;
     const effectiveWeeklyReset = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now).resetAt;
 
+    const mem = estimateStateMemory(state);
+
     return {
       utilization5h: windowPct / 100,
       utilization7d: weeklyPct / 100,
@@ -257,6 +259,8 @@ export class DashboardPanel {
       lastUpdated: state.lastFetchAt ?? now,
       cacheAge,
       dataSource: state.dataSource,
+      memoryBreakdown: mem.items,
+      memoryTotalBytes: mem.totalBytes,
     };
   }
 
@@ -570,6 +574,18 @@ export class DashboardPanel {
         <span class="progress-cost" id="cost-7d"></span>
       </div>
     </div>
+    <div class="memory-section" style="margin-top:10px;">
+      <button class="detail-toggle" id="memory-toggle" style="font-size:0.85em;">🧠 内存占用</button>
+      <div id="memory-body" style="display:none;margin-top:8px;">
+        <table class="ccu-table" id="memory-table">
+          <thead><tr><th>模块</th><th>内存大小</th><th>说明</th></tr></thead>
+          <tbody id="memory-tbody"></tbody>
+        </table>
+        <div style="margin-top:6px;font-size:0.85em;color:var(--vscode-descriptionForeground);text-align:right;">
+          总计: <span id="memory-total">—</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Cost Curve -->
@@ -661,6 +677,7 @@ export class DashboardPanel {
     let detailsOpen = true;
     let historyOpen = true;
     let costCurveOpen = true;
+    let memoryOpen = false;
     let chartHeightRatio = 0.4;
     let ccuTab = 'w5h';
     let historyRange = '5h';
@@ -746,6 +763,7 @@ export class DashboardPanel {
     document.getElementById('details-toggle').addEventListener('click', toggleDetails);
     document.getElementById('history-toggle').addEventListener('click', toggleHistory);
     document.getElementById('costcurve-toggle').addEventListener('click', toggleCostCurve);
+    document.getElementById('memory-toggle').addEventListener('click', toggleMemory);
 
     document.getElementById('ccu-tabs').addEventListener('click', (e) => {
       const btn = e.target && e.target.closest && e.target.closest('button.ccu-tab');
@@ -839,6 +857,25 @@ export class DashboardPanel {
       if (btn) btn.textContent = pricingOpen ? '${i18n('dashboard.hide')}' : '${i18n('dashboard.show')}';
     }
 
+    function toggleMemory() {
+      memoryOpen = !memoryOpen;
+      const el = document.getElementById('memory-body');
+      const btn = document.getElementById('memory-toggle');
+      if (el) el.style.display = memoryOpen ? '' : 'none';
+      if (btn) {
+        const totalText = lastData && lastData.usage && lastData.usage.memoryTotalBytes
+          ? ' (' + fmtMemSize(lastData.usage.memoryTotalBytes) + ')'
+          : '';
+        btn.textContent = (memoryOpen ? '🔽 ' : '🧠 ') + '内存占用' + totalText;
+      }
+    }
+
+    function fmtMemSize(bytes) {
+      if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+      if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
+      return bytes + ' B';
+    }
+
     function renderCurrentUsage(usage, mode) {
       const w5h = Math.min(100, usage.utilization5h * 100 || 0);
       const w7d = Math.min(100, usage.utilization7d * 100 || 0);
@@ -869,6 +906,30 @@ export class DashboardPanel {
       document.getElementById('badge-7d').textContent = isEstimate ? labels.estimate : '';
       document.getElementById('meta-7d').textContent = usage.resetIn7dText || '';
       document.getElementById('cost-7d').textContent = usage.cost7d > 0 ? labels.cost + CURRENCY_SYMBOL + usage.cost7d.toFixed(2) : '';
+
+      // Memory breakdown
+      const memBtn = document.getElementById('memory-toggle');
+      const memBody = document.getElementById('memory-body');
+      const memTbody = document.getElementById('memory-tbody');
+      const memTotal = document.getElementById('memory-total');
+      if (memBtn && usage.memoryTotalBytes != null) {
+        memBtn.textContent = (memoryOpen ? '🔽 ' : '🧠 ') + '内存占用 (' + fmtMemSize(usage.memoryTotalBytes) + ')';
+      }
+      if (memTbody && usage.memoryBreakdown) {
+        memTbody.innerHTML = usage.memoryBreakdown.map(item =>
+          '<tr>' +
+          '<td class="ccu-key">' + esc(item.name) + '</td>' +
+          '<td class="ccu-num">' + fmtMemSize(item.bytes) + '</td>' +
+          '<td style="text-align:left;font-size:0.85em;color:var(--vscode-descriptionForeground);">' + esc(item.description) + '</td>' +
+          '</tr>'
+        ).join('');
+      }
+      if (memTotal && usage.memoryTotalBytes != null) {
+        memTotal.textContent = fmtMemSize(usage.memoryTotalBytes);
+      }
+      if (memBody) {
+        memBody.style.display = memoryOpen ? '' : 'none';
+      }
     }
 
     // ---- Pricing & Settings ----
