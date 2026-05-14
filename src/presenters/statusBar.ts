@@ -7,7 +7,7 @@ import { makeT } from '../i18n';
 import {
   computeUtilization, formatPercent, formatPercentPadded,
   fmtHours, fmtTokens, fmtCost, fmtDateTime,
-  buildMiniBar,
+  buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
 } from '../calc';
 import { AppState } from '../types';
@@ -217,17 +217,14 @@ export class StatusBarPresenter {
     return `<img src="data:image/svg+xml;base64,${encoded}" alt="${Math.round(safe * 100)}%" style="vertical-align:middle;"/>`;
   }
 
-  private markdownTable(header: string[], rows: string[][], aligns: string[] = []): string {
-    const alignChar = (a?: string) => {
-      if (a === 'r') return '---:';
-      if (a === 'c') return ':---:';
-      return ':---';
+  private preTable(header: string[], rows: string[][], aligns: string[]): string {
+    const mapAlign = (a?: string): 'l' | 'r' | 'm' => {
+      if (a === 'r') return 'r';
+      if (a === 'c') return 'm';
+      return 'l';
     };
-    const line = header.map((_, i) => alignChar(aligns[i])).join('|');
-    const headerLine = '|' + header.join('|') + '|';
-    const sepLine = '|' + line + '|';
-    const rowLines = rows.map(row => '|' + row.join('|') + '|').join('\n');
-    return [headerLine, sepLine, rowLines].join('\n');
+    const lines = drawBorderTable(header, rows, aligns.map(mapAlign));
+    return '<pre style="margin:0;padding:4px 0;line-height:1.4;">' + lines.join('\n') + '</pre>';
   }
 
   private async buildTooltip(state: AppState): Promise<vscode.MarkdownString> {
@@ -289,7 +286,7 @@ export class StatusBarPresenter {
     if (q) {
       parts.push(`**${t('tooltip.table.quotaSummary')}**`);
       parts.push('');
-      parts.push(this.markdownTable(
+      parts.push(this.preTable(
         ['', t('tooltip.table.col.used'), t('tooltip.table.col.limit'), t('tooltip.table.col.remaining')],
         [
           [t('tooltip.window5h'), String(q.windowUsed), String(q.windowLimit), String(q.windowRemaining)],
@@ -309,7 +306,7 @@ export class StatusBarPresenter {
     if (lu && (lu.requests5h > 0 || lu.requests7d > 0 || lu.requestsThisCycle > 0)) {
       parts.push(`**${t('tooltip.localUsage')}**`);
       parts.push('');
-      parts.push(this.markdownTable(
+      parts.push(this.preTable(
         ['', t('tooltip.table.col.input'), t('tooltip.table.col.output'), t('tooltip.table.col.cost')],
         [
           [t('tooltip.table.row.today'), fmtTokens(lu.tokensToday), fmtTokens(lu.tokensOutToday), fmtCost(lu.costToday, this.config.currency.symbol)],
