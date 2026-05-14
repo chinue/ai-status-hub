@@ -122,6 +122,7 @@ export const dict: Record<Locale, Record<string, string>> = {
     'dashboard.memoryDetail.quota': 'Quota fields',
     'dashboard.memoryDetail.storeOverhead': 'Store overhead (listeners, UI state, provider refs)',
     'dashboard.memoryDetail.estHistory': 'Estimator History',
+    'dashboard.saveAll': 'Save All',
     'provider.auto': 'Auto',
   },
   'zh-CN': {
@@ -243,6 +244,7 @@ export const dict: Record<Locale, Record<string, string>> = {
     'dashboard.memoryDetail.quota': '\u914d\u989d\u5b57\u6bb5',
     'dashboard.memoryDetail.storeOverhead': 'Store \u5f00\u9500\uff08\u76d1\u542c\u5668\u3001UI\u72b6\u6001\u3001Provider\u5f15\u7528\uff09',
     'dashboard.memoryDetail.estHistory': '\u4f30\u7b97\u5668\u5386\u53f2',
+    'dashboard.saveAll': '\u4e00\u952e\u4fdd\u5b58',
     'provider.auto': '\u81ea\u52a8\u68c0\u6d4b',
   },
 };

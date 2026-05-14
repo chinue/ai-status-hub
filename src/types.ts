@@ -244,6 +244,10 @@ export interface KimiUsageData {
   // Estimator history
   estHistory?: EstHistoryEntry[];
   estHistoryCount?: number;
+
+  // Display settings passed to webview
+  memoryDetailDisplayMaxRows?: number;
+  memoryDetailCellMaxChars?: number;
 }
 
 export interface MemoryBreakdownItem {
@@ -348,6 +352,8 @@ export interface DashboardSettings {
   officialDate: string;
   currencySymbol: string;
   memoryDetailMaxRows: number;
+  memoryDetailDisplayMaxRows: number;
+  memoryDetailCellMaxChars: number;
   apiHistoryMaxEntries: number;
   apiHistoryPersistOnExit: boolean;
 }

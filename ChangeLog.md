@@ -1,5 +1,26 @@
 # ChangeLog
 
+## [0.5.8] - 2026-05-13
+
+### 新增
+
+- **Memory Usage 一键保存全部数据**：
+  - 新增 `💾 Save All` / `💾 一键保存` 按钮，点击后弹出选择文件夹对话框
+  - 在用户选中的文件夹下自动创建子目录（命名格式 `YYYYMMDD_HHMMSS`，如 `20260515_021115`）
+  - 将所有有数据的模块（usageEntries / localEstimate / quota / estHistory）分别保存为各自 CSV 文件到该子目录
+- **单独保存文件名添加时间戳后缀**：点击单个模块的 💾 保存按钮时，默认文件名后附加 `_YYYYMMDD_HHMMSS` 后缀，方便区分不同时间保存的数据
+
+## [0.5.7] - 2026-05-13
+
+### 改进
+
+- **Dashboard 时间格式去掉毫秒**：`fmtTimestamp` 从 `YYYY-MM-DD HH:mm:ss.SSS` 改为 `YYYY-MM-DD HH:mm:ss`
+- **详情表格滚动条**：展开表格（usageEntries / estHistory / localEstimate / quota）超出可见行数时显示垂直滚动条
+- **`memoryDetailMaxRows` 扩容**：默认值 50 → 500，最大值 200 → 1000（控制传给 Webview 的最大数据条数）
+- **新增 `memoryDetailDisplayMaxRows`**：默认值 40，范围 1–200，控制详情表格可见区域最大行数（滚动条阈值）
+- **新增 `memoryDetailCellMaxChars`**：默认值 64，范围 8–256，控制详情表格每个单元格最大字符数
+- **messageId 不再硬编码截断**：统一受 `memoryDetailCellMaxChars` 控制
+
 ## [0.5.6] - 2026-05-13
 
 ### 改进

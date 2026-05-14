@@ -123,7 +123,15 @@ export class ConfigService {
   }
 
   get memoryDetailMaxRows(): number {
-    return Math.max(1, Math.min(200, this.cfg.get<number>('dashboard.memoryDetailMaxRows', 50)));
+    return Math.max(1, Math.min(1000, this.cfg.get<number>('dashboard.memoryDetailMaxRows', 500)));
+  }
+
+  get memoryDetailDisplayMaxRows(): number {
+    return Math.max(1, Math.min(200, this.cfg.get<number>('dashboard.memoryDetailDisplayMaxRows', 40)));
+  }
+
+  get memoryDetailCellMaxChars(): number {
+    return Math.max(8, Math.min(256, this.cfg.get<number>('dashboard.memoryDetailCellMaxChars', 64)));
   }
 
   get apiHistoryMaxEntries(): number {

@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
@@ -129,6 +130,10 @@ export class DashboardPanel {
         void this.saveMemoryDetailToCsv(moduleName);
         break;
       }
+      case 'saveAllMemoryDetail': {
+        void this.saveAllMemoryDetailToFolder();
+        break;
+      }
     }
   }
 
@@ -216,6 +221,8 @@ export class DashboardPanel {
         officialDate: config.pricingOfficialDate,
         currencySymbol: config.currency.symbol,
         memoryDetailMaxRows: config.memoryDetailMaxRows,
+        memoryDetailDisplayMaxRows: config.memoryDetailDisplayMaxRows,
+        memoryDetailCellMaxChars: config.memoryDetailCellMaxChars,
         apiHistoryMaxEntries: config.apiHistoryMaxEntries,
         apiHistoryPersistOnExit: config.apiHistoryPersistOnExit,
       },
@@ -306,6 +313,8 @@ export class DashboardPanel {
       memoryQuota,
       estHistory: state.estHistory.slice(-config.memoryDetailMaxRows),
       estHistoryCount: state.estHistory.length,
+      memoryDetailDisplayMaxRows: config.memoryDetailDisplayMaxRows,
+      memoryDetailCellMaxChars: config.memoryDetailCellMaxChars,
     };
   }
 
@@ -350,59 +359,115 @@ export class DashboardPanel {
     }
   }
 
-  private async saveMemoryDetailToCsv(moduleName: string): Promise<void> {
+  private formatTimestampSuffix(): string {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${yyyy}${mm}${dd}_${hh}${min}${ss}`;
+  }
+
+  private buildMemoryDetailCsv(moduleName: string): { csv: string; defaultName: string } | null {
     const state = this.store.getState();
     let csv = '';
     let defaultName = '';
 
+    if (moduleName === 'Store.usageEntries') {
+      const entries = state.usageEntries ?? [];
+      if (entries.length === 0) return null;
+      const header = ['timestamp', 'inputOther', 'output', 'inputCacheRead', 'inputCacheCreation', 'cost', 'messageId', 'model'];
+      csv = header.join(',') + '\n' + entries.map(e =>
+        [Math.round(e.timestamp), e.inputOther, e.output, e.inputCacheRead, e.inputCacheCreation, e.cost,
+          e.messageId ? '"' + e.messageId.replace(/"/g, '""') + '"' : '',
+          e.model ? '"' + e.model.replace(/"/g, '""') + '"' : ''].join(','),
+      ).join('\n');
+      defaultName = 'usage-entries.csv';
+    } else if (moduleName === 'Store.localEstimate' && state.localEstimate) {
+      const header = ['key', 'value'];
+      csv = header.join(',') + '\n' + Object.entries(state.localEstimate)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
+        .join('\n');
+      defaultName = 'local-estimate.csv';
+    } else if (moduleName === 'Store.quota' && state.quota) {
+      const header = ['key', 'value'];
+      csv = header.join(',') + '\n' + Object.entries(state.quota)
+        .filter(([, v]) => v != null && v !== 0)
+        .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
+        .join('\n');
+      defaultName = 'quota.csv';
+    } else if (moduleName === 'Store.estHistory' && state.estHistory.length > 0) {
+      const header = ['timestamp', 'source', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyP', 'weeklyC', 'weeklyK', 'windowP', 'windowC', 'windowK', 'windowStartMs', 'weeklyStartMs'];
+      csv = header.join(',') + '\n' + state.estHistory.map(h =>
+        [Math.round(h.timestamp),
+          h.source,
+          h.apiWeeklyPct ?? '', h.apiWindowPct ?? '',
+          h.estimatedWeeklyPct, h.estimatedWindowPct,
+          h.localCost7d, h.localCost5h,
+          h.weeklyP, h.weeklyC, h.weeklyK,
+          h.windowP, h.windowC, h.windowK,
+          h.windowStartMs, h.weeklyStartMs].join(','),
+      ).join('\n');
+      defaultName = 'est-history.csv';
+    } else {
+      return null;
+    }
+
+    return { csv, defaultName };
+  }
+
+  private async saveMemoryDetailToCsv(moduleName: string): Promise<void> {
     try {
-      if (moduleName === 'Store.usageEntries') {
-        const entries = state.usageEntries ?? [];
-        if (entries.length === 0) return;
-        const header = ['timestamp', 'inputOther', 'output', 'inputCacheRead', 'inputCacheCreation', 'cost', 'messageId', 'model'];
-        csv = header.join(',') + '\n' + entries.map(e =>
-          [Math.round(e.timestamp), e.inputOther, e.output, e.inputCacheRead, e.inputCacheCreation, e.cost,
-            e.messageId ? '"' + e.messageId.replace(/"/g, '""') + '"' : '',
-            e.model ? '"' + e.model.replace(/"/g, '""') + '"' : ''].join(','),
-        ).join('\n');
-        defaultName = 'usage-entries.csv';
-      } else if (moduleName === 'Store.localEstimate' && state.localEstimate) {
-        const header = ['key', 'value'];
-        csv = header.join(',') + '\n' + Object.entries(state.localEstimate)
-          .filter(([, v]) => v != null)
-          .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
-          .join('\n');
-        defaultName = 'local-estimate.csv';
-      } else if (moduleName === 'Store.quota' && state.quota) {
-        const header = ['key', 'value'];
-        csv = header.join(',') + '\n' + Object.entries(state.quota)
-          .filter(([, v]) => v != null && v !== 0)
-          .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
-          .join('\n');
-        defaultName = 'quota.csv';
-      } else if (moduleName === 'Store.estHistory' && state.estHistory.length > 0) {
-        const header = ['timestamp', 'source', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyP', 'weeklyC', 'weeklyK', 'windowP', 'windowC', 'windowK', 'windowStartMs', 'weeklyStartMs'];
-        csv = header.join(',') + '\n' + state.estHistory.map(h =>
-          [Math.round(h.timestamp),
-            h.source,
-            h.apiWeeklyPct ?? '', h.apiWindowPct ?? '',
-            h.estimatedWeeklyPct, h.estimatedWindowPct,
-            h.localCost7d, h.localCost5h,
-            h.weeklyP, h.weeklyC, h.weeklyK,
-            h.windowP, h.windowC, h.windowK,
-            h.windowStartMs, h.weeklyStartMs].join(','),
-        ).join('\n');
-        defaultName = 'est-history.csv';
-      } else {
-        return;
-      }
+      const result = this.buildMemoryDetailCsv(moduleName);
+      if (!result) return;
+      const ts = this.formatTimestampSuffix();
+      const defaultUri = vscode.Uri.file(result.defaultName.replace('.csv', '_' + ts + '.csv'));
 
       const uri = await vscode.window.showSaveDialog({
-        defaultUri: vscode.Uri.file(defaultName),
+        defaultUri,
         filters: { 'CSV': ['csv'] },
       });
       if (!uri) return;
-      fs.writeFileSync(uri.fsPath, '\uFEFF' + csv, { encoding: 'utf-8' });
+      fs.writeFileSync(uri.fsPath, '\uFEFF' + result.csv, { encoding: 'utf-8' });
+    } catch {
+      // ignore
+    }
+  }
+
+  private async saveAllMemoryDetailToFolder(): Promise<void> {
+    const state = this.store.getState();
+    const modules: string[] = [];
+
+    if (state.usageEntries && state.usageEntries.length > 0) modules.push('Store.usageEntries');
+    if (state.localEstimate) modules.push('Store.localEstimate');
+    if (state.quota) modules.push('Store.quota');
+    if (state.estHistory.length > 0) modules.push('Store.estHistory');
+
+    if (modules.length === 0) return;
+
+    try {
+      const folderUris = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'Select Folder',
+      });
+      if (!folderUris || folderUris.length === 0) return;
+
+      const parentPath = folderUris[0].fsPath;
+      const ts = this.formatTimestampSuffix();
+      const subDir = path.join(parentPath, ts);
+      fs.mkdirSync(subDir, { recursive: true });
+
+      for (const moduleName of modules) {
+        const result = this.buildMemoryDetailCsv(moduleName);
+        if (!result) continue;
+        const filePath = path.join(subDir, result.defaultName);
+        fs.writeFileSync(filePath, '\uFEFF' + result.csv, { encoding: 'utf-8' });
+      }
     } catch {
       // ignore
     }
@@ -681,6 +746,7 @@ export class DashboardPanel {
       <span style="display:flex;align-items:center;gap:8px;">
         <button class="detail-toggle" id="memory-toggle" style="font-size:0.85em;">🔺🖥️${i18n('dashboard.memoryUsage')}</button>
         <button class="detail-toggle" id="memory-save" style="font-size:0.85em;display:none;">💾</button>
+        <button class="detail-toggle" id="memory-save-all" style="font-size:0.85em;display:none;">💾 ${i18n('dashboard.saveAll')}</button>
       </span>
       <div id="memory-body" style="display:none;margin-top:8px;">
         <table class="ccu-table" id="memory-table">
@@ -876,6 +942,9 @@ export class DashboardPanel {
         vscode.postMessage({ type: 'saveMemoryDetail', payload: expandedMemoryRow });
       }
     });
+    document.getElementById('memory-save-all').addEventListener('click', () => {
+      vscode.postMessage({ type: 'saveAllMemoryDetail' });
+    });
     document.getElementById('memory-tbody').addEventListener('click', (e) => {
       const row = e.target && e.target.closest && e.target.closest('tr[data-memory-row]');
       if (!row) return;
@@ -982,6 +1051,7 @@ export class DashboardPanel {
       const el = document.getElementById('memory-body');
       const btn = document.getElementById('memory-toggle');
       const saveBtn = document.getElementById('memory-save');
+      const saveAllBtn = document.getElementById('memory-save-all');
       if (el) el.style.display = memoryOpen ? '' : 'none';
       if (btn) {
         const totalText = lastData && lastData.usage && lastData.usage.memoryTotalBytes
@@ -990,6 +1060,7 @@ export class DashboardPanel {
         btn.textContent = (memoryOpen ? '🔻🖥️' : '🔺🖥️') + '${i18n('dashboard.memoryUsage')}' + totalText;
       }
       if (saveBtn) saveBtn.style.display = (memoryOpen && expandedMemoryRow) ? '' : 'none';
+      if (saveAllBtn) saveAllBtn.style.display = memoryOpen ? '' : 'none';
     }
 
     function renderMemoryDetail(name, usage) {
@@ -1009,11 +1080,12 @@ export class DashboardPanel {
         const y = usage.memoryEntryTotalCount || x;
         title = baseTitle + ' (' + x + '/' + y + ')';
         const headers = ['timestamp', 'inputOther', 'output', 'inputCacheRead', 'inputCacheCreation', 'cost', 'messageId', 'model'];
-        body += '<div style="overflow-x:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:640px;"><thead><tr>' +
+        const maxH = (usage.memoryDetailDisplayMaxRows || 40) * 22;
+        body += '<div style="overflow-x:auto; max-height:' + maxH + 'px; overflow-y:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:640px;"><thead><tr>' +
           headers.map(h => '<th>' + esc(h) + '</th>').join('') +
           '</tr></thead><tbody>';
+        const cellMax = usage.memoryDetailCellMaxChars || 64;
         for (const s of usage.memoryEntrySamples) {
-          const msgId = s.messageId ? (s.messageId.length > 12 ? s.messageId.slice(0, 12) + '…' : s.messageId) : '';
           body += '<tr>' +
             '<td class="ccu-key">' + fmtTimestamp(s.timestamp) + '</td>' +
             '<td class="ccu-num">' + fmtNum(s.inputOther) + '</td>' +
@@ -1021,24 +1093,28 @@ export class DashboardPanel {
             '<td class="ccu-num">' + fmtNum(s.inputCacheRead) + '</td>' +
             '<td class="ccu-num">' + fmtNum(s.inputCacheCreation) + '</td>' +
             '<td class="ccu-num">' + (isFinite(s.cost) ? s.cost.toFixed(4) : '0.0000') + '</td>' +
-            '<td class="ccu-key" title="' + esc(s.messageId || '') + '">' + esc(msgId) + '</td>' +
-            '<td class="ccu-key">' + esc(s.model || '') + '</td>' +
+            '<td class="ccu-key" title="' + esc(s.messageId || '') + '">' + esc(fmtCell(s.messageId, cellMax)) + '</td>' +
+            '<td class="ccu-key">' + esc(fmtCell(s.model, cellMax)) + '</td>' +
             '</tr>';
         }
         body += '</tbody></table></div>';
       } else if (name === 'Store.localEstimate' && usage.memoryLocalEstimate) {
-        body += '<table class="ccu-table" style="margin:6px 0;font-size:0.82em;"><tbody>';
+        const maxH = (usage.memoryDetailDisplayMaxRows || 40) * 22;
+        const cellMax = usage.memoryDetailCellMaxChars || 64;
+        body += '<div style="overflow-x:auto; max-height:' + maxH + 'px; overflow-y:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.82em;"><tbody>';
         for (const [k, v] of Object.entries(usage.memoryLocalEstimate)) {
           const t = typeof v;
           if (t !== 'number' && t !== 'string' && t !== 'boolean') continue;
           const display = t === 'number'
             ? (Number.isInteger(v) ? fmtNum(v) : (isFinite(v) ? Number(v).toFixed(4) : '0.0000'))
             : String(v);
-          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(display) + '</td></tr>';
+          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(fmtCell(display, cellMax)) + '</td></tr>';
         }
-        body += '</tbody></table>';
+        body += '</tbody></table></div>';
       } else if (name === 'Store.quota' && usage.memoryQuota) {
-        body += '<table class="ccu-table" style="margin:6px 0;font-size:0.82em;"><tbody>';
+        const maxH = (usage.memoryDetailDisplayMaxRows || 40) * 22;
+        const cellMax = usage.memoryDetailCellMaxChars || 64;
+        body += '<div style="overflow-x:auto; max-height:' + maxH + 'px; overflow-y:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.82em;"><tbody>';
         for (const [k, v] of Object.entries(usage.memoryQuota)) {
           const t = typeof v;
           if (t !== 'number' && t !== 'string' && t !== 'boolean') continue;
@@ -1054,21 +1130,23 @@ export class DashboardPanel {
           } else {
             display = String(v);
           }
-          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(display) + '</td></tr>';
+          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(fmtCell(display, cellMax)) + '</td></tr>';
         }
-        body += '</tbody></table>';
+        body += '</tbody></table></div>';
       } else if (name === 'Store.estHistory' && usage.estHistory && usage.estHistory.length > 0) {
         const x = usage.estHistory.length;
         const y = usage.estHistoryCount || x;
         title = baseTitle + ' (' + x + '/' + y + ')';
         const headers = ['timestamp', 'source', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyP', 'weeklyC', 'weeklyK', 'windowP', 'windowC', 'windowK', 'windowStartMs', 'weeklyStartMs'];
-        body += '<div style="overflow-x:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:1400px;"><thead><tr>' +
+        const maxH = (usage.memoryDetailDisplayMaxRows || 40) * 22;
+        const cellMax = usage.memoryDetailCellMaxChars || 64;
+        body += '<div style="overflow-x:auto; max-height:' + maxH + 'px; overflow-y:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:1400px;"><thead><tr>' +
           headers.map(h => '<th>' + esc(h) + '</th>').join('') +
           '</tr></thead><tbody>';
         for (const h of usage.estHistory) {
           body += '<tr>' +
             '<td class="ccu-key">' + fmtTimestamp(h.timestamp) + '</td>' +
-            '<td class="ccu-key">' + esc(h.source) + '</td>' +
+            '<td class="ccu-key">' + esc(fmtCell(h.source, cellMax)) + '</td>' +
             '<td class="ccu-num">' + (h.apiWeeklyPct != null ? h.apiWeeklyPct.toFixed(4) : '-') + '</td>' +
             '<td class="ccu-num">' + (h.apiWindowPct != null ? h.apiWindowPct.toFixed(4) : '-') + '</td>' +
             '<td class="ccu-num">' + (isFinite(h.estimatedWeeklyPct) ? h.estimatedWeeklyPct.toFixed(4) : '0.0000') + '</td>' +
@@ -1105,8 +1183,13 @@ export class DashboardPanel {
       const hh = String(d.getHours()).padStart(2, '0');
       const min = String(d.getMinutes()).padStart(2, '0');
       const ss = String(d.getSeconds()).padStart(2, '0');
-      const mss = String(d.getMilliseconds()).padStart(3, '0');
-      return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min + ':' + ss + '.' + mss;
+      return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min + ':' + ss;
+    }
+    function fmtCell(str, maxChars) {
+      if (!str) return '';
+      const s = String(str);
+      if (s.length <= maxChars) return s;
+      return s.slice(0, maxChars) + '\u2026';
     }
 
     function fmtMemSize(bytes) {
@@ -1178,6 +1261,10 @@ export class DashboardPanel {
       }
       if (memSave) {
         memSave.style.display = (memoryOpen && expandedMemoryRow) ? '' : 'none';
+      }
+      const memSaveAll = document.getElementById('memory-save-all');
+      if (memSaveAll) {
+        memSaveAll.style.display = memoryOpen ? '' : 'none';
       }
     }
 
