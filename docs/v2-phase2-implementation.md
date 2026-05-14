@@ -2467,34 +2467,39 @@ it('LOCAL_ESTIMATE does not change dataSource when quota exists', () => {
 
 ### 14.1 目的
 
-保存最近 N 次 API 调用结果，用于离线评估线性增量模型 (`ILinearEstimator`) 的估算准确性。
+保存最近 N 次 API 调用和短周期估算结果，用于离线评估线性增量模型 (`ILinearEstimator`) 的估算准确性。
 
-### 14.2 数据模型 (`ApiHistoryEntry`)
+### 14.2 数据模型 (`EstHistoryEntry`)
 
 ```typescript
-interface ApiHistoryEntry {
-  timestamp: number;           // 原始整数时间戳（ms）
-  apiWeeklyPct: number;        // API 返回的 7d 百分比（ground truth）
-  apiWindowPct: number;        // API 返回的 5h 百分比（ground truth）
-  estimatedWeeklyPct: number;  // 本地估算的 7d 百分比
-  estimatedWindowPct: number;  // 本地估算的 5h 百分比
-  localCost7d: number;         // 当前 7d 本地费用（c）
-  localCost5h: number;         // 当前 5h 本地费用（c）
-  weeklyK: number;             // 7d 模型 k 值
-  windowK: number;             // 5h 模型 k 值
+interface EstHistoryEntry {
+  timestamp: number;            // 原始整数时间戳（ms）
+  source: 'api' | 'short';      // 数据来源
+  apiWeeklyPct: number | null;  // API 返回的 7d 百分比（ground truth；short 时为 null）
+  apiWindowPct: number | null;  // API 返回的 5h 百分比（ground truth；short 时为 null）
+  estimatedWeeklyPct: number;   // 本地估算的 7d 百分比
+  estimatedWindowPct: number;   // 本地估算的 5h 百分比
+  localCost7d: number;          // 当前 7d 本地费用（c）
+  localCost5h: number;          // 当前 5h 本地费用（c）
+  weeklyP: number;              // 校准快照 P
+  weeklyC: number;              // 校准快照 C
+  weeklyK: number;              // 7d 模型 k 值
+  windowP: number;
+  windowC: number;
+  windowK: number;              // 5h 模型 k 值
 }
 ```
 
 ### 14.3 状态管理
 
-- `AppState.apiHistory: ApiHistoryEntry[]` — 内存滑动窗口（FIFO）
+- `AppState.estHistory: EstHistoryEntry[]` — 内存滑动窗口（FIFO）
 - `API_HISTORY` action：追加单条，reducer 内根据 `maxEntries` 淘汰最早
 - `API_HISTORY_LOAD` action：启动时从磁盘批量加载
 
 ### 14.4 磁盘持久化 (`ApiHistoryService`)
 
-- 文件：`~/.codex/codex-status-pro-api-history-{provider}.jsonl`
-- 格式：每行一个 `JSON.stringify(ApiHistoryEntry)`
+- 文件：`~/.codex/codex-status-pro-est-history-{provider}.jsonl`
+- 格式：每行一个 `JSON.stringify(EstHistoryEntry)`
 - 写入时机：`extension.ts` `deactivate()` 时（当 `apiHistoryPersistOnExit` 为 true）
 - 读取时机：`extension.ts` `activate()` 时，加载后通过 `API_HISTORY_LOAD` 注入 store
 - `SIGN_OUT` 保留 `apiHistory`（切换 provider 时历史应保留）
@@ -2503,12 +2508,12 @@ interface ApiHistoryEntry {
 
 | 配置键 | 类型 | 默认值 | 范围 |
 |---|---|---|---|
-| `codexStatusPro.apiHistoryMaxEntries` | number | 1000 | 1–10000 |
+| `codexStatusPro.apiHistoryMaxEntries` | number | 10000 | 1–100000 |
 | `codexStatusPro.apiHistoryPersistOnExit` | boolean | false | — |
 
 ### 14.6 数据来源
 
-`Scheduler.doLongTick()` API 成功分支末尾，在 `API_SUCCESS` + `LOCAL_ESTIMATE` dispatch 之后追加：
+`Scheduler.doLongTick()` API 成功分支末尾和 `doShortTick()` 末尾均追加：
 
 ```typescript
 this.store.dispatch({

@@ -203,6 +203,32 @@ export class Scheduler {
       type: 'LOCAL_ESTIMATE',
       payload,
     });
+
+    // Record short-tick estimator history
+    const le = state.localEstimate;
+    const cfg = this.config;
+    this.store.dispatch({
+      type: 'API_HISTORY',
+      payload: {
+        maxEntries: cfg.apiHistoryMaxEntries,
+        entry: {
+          timestamp: Math.round(Date.now()),
+          source: 'short',
+          apiWeeklyPct: null,
+          apiWindowPct: null,
+          estimatedWeeklyPct: payload.weeklyPct ?? le?.weeklyPct ?? 0,
+          estimatedWindowPct: payload.windowPct ?? le?.windowPct ?? 0,
+          localCost7d: localUsage.cost7d,
+          localCost5h: localUsage.cost5h,
+          weeklyP: le?.weeklyP ?? 0,
+          weeklyC: le?.weeklyC ?? 0,
+          weeklyK: le?.weeklyK ?? 0,
+          windowP: le?.windowP ?? 0,
+          windowC: le?.windowC ?? 0,
+          windowK: le?.windowK ?? 0,
+        },
+      },
+    });
   }
 
   private async doLongTick(): Promise<void> {
@@ -417,7 +443,7 @@ export class Scheduler {
       },
     });
 
-    // Record API history for estimator accuracy evaluation
+    // Record estimator history for accuracy evaluation
     const cfg = this.config;
     this.store.dispatch({
       type: 'API_HISTORY',
@@ -425,13 +451,18 @@ export class Scheduler {
         maxEntries: cfg.apiHistoryMaxEntries,
         entry: {
           timestamp: Math.round(now),
+          source: 'api',
           apiWeeklyPct: quotaData.weeklyUsedPct,
           apiWindowPct: quotaData.windowUsedPct,
           estimatedWeeklyPct: weeklyPct,
           estimatedWindowPct: windowPct,
           localCost7d: localUsage.cost7d,
           localCost5h: localUsage.cost5h,
+          weeklyP: weeklyEstimator.P,
+          weeklyC: weeklyEstimator.C,
           weeklyK: weeklyEstimator.k,
+          windowP: windowEstimator.P,
+          windowC: windowEstimator.C,
           windowK: windowEstimator.k,
         },
       },

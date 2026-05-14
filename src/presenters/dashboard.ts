@@ -242,7 +242,7 @@ export class DashboardPanel {
     // Build memory detail samples for expandable rows
     const memoryEntrySamples = state.usageEntries && state.usageEntries.length > 0
       ? state.usageEntries.slice(-maxRows).reverse().map(e => ({
-          timestamp: e.timestamp,
+          timestamp: Math.round(e.timestamp),
           inputOther: e.inputOther,
           output: e.output,
           inputCacheRead: e.inputCacheRead,
@@ -304,8 +304,8 @@ export class DashboardPanel {
       memoryEntryTotalCount: state.usageEntries?.length,
       memoryLocalEstimate,
       memoryQuota,
-      apiHistory: state.apiHistory.slice(-config.memoryDetailMaxRows),
-      apiHistoryCount: state.apiHistory.length,
+      estHistory: state.estHistory.slice(-config.memoryDetailMaxRows),
+      estHistoryCount: state.estHistory.length,
     };
   }
 
@@ -361,7 +361,7 @@ export class DashboardPanel {
         if (entries.length === 0) return;
         const header = ['timestamp', 'inputOther', 'output', 'inputCacheRead', 'inputCacheCreation', 'cost', 'messageId', 'model'];
         csv = header.join(',') + '\n' + entries.map(e =>
-          [e.timestamp, e.inputOther, e.output, e.inputCacheRead, e.inputCacheCreation, e.cost,
+          [Math.round(e.timestamp), e.inputOther, e.output, e.inputCacheRead, e.inputCacheCreation, e.cost,
             e.messageId ? '"' + e.messageId.replace(/"/g, '""') + '"' : '',
             e.model ? '"' + e.model.replace(/"/g, '""') + '"' : ''].join(','),
         ).join('\n');
@@ -380,16 +380,18 @@ export class DashboardPanel {
           .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
           .join('\n');
         defaultName = 'quota.csv';
-      } else if (moduleName === 'Store.apiHistory' && state.apiHistory.length > 0) {
-        const header = ['timestamp', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyK', 'windowK'];
-        csv = header.join(',') + '\n' + state.apiHistory.map(h =>
+      } else if (moduleName === 'Store.estHistory' && state.estHistory.length > 0) {
+        const header = ['timestamp', 'source', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyP', 'weeklyC', 'weeklyK', 'windowP', 'windowC', 'windowK'];
+        csv = header.join(',') + '\n' + state.estHistory.map(h =>
           [Math.round(h.timestamp),
-            h.apiWeeklyPct, h.apiWindowPct,
+            h.source,
+            h.apiWeeklyPct ?? '', h.apiWindowPct ?? '',
             h.estimatedWeeklyPct, h.estimatedWindowPct,
             h.localCost7d, h.localCost5h,
-            h.weeklyK, h.windowK].join(','),
+            h.weeklyP, h.weeklyC, h.weeklyK,
+            h.windowP, h.windowC, h.windowK].join(','),
         ).join('\n');
-        defaultName = 'api-history.csv';
+        defaultName = 'est-history.csv';
       } else {
         return;
       }
@@ -995,7 +997,7 @@ export class DashboardPanel {
         'Store.localEstimate': '${i18n('dashboard.memoryDetail.localEstimate')}',
         'Store.quota': '${i18n('dashboard.memoryDetail.quota')}',
         'Store.storeOverhead': '${i18n('dashboard.memoryDetail.storeOverhead')}',
-        'Store.apiHistory': '${i18n('dashboard.memoryDetail.apiHistory')}',
+        'Store.estHistory': '${i18n('dashboard.memoryDetail.estHistory')}',
       };
       const baseTitle = detailLabels[name] || name;
       let title = baseTitle;
@@ -1012,7 +1014,7 @@ export class DashboardPanel {
         for (const s of usage.memoryEntrySamples) {
           const msgId = s.messageId ? (s.messageId.length > 12 ? s.messageId.slice(0, 12) + '…' : s.messageId) : '';
           body += '<tr>' +
-            '<td class="ccu-key">' + s.timestamp + '</td>' +
+            '<td class="ccu-key">' + Math.round(s.timestamp) + '</td>' +
             '<td class="ccu-num">' + fmtNum(s.inputOther) + '</td>' +
             '<td class="ccu-num">' + fmtNum(s.output) + '</td>' +
             '<td class="ccu-num">' + fmtNum(s.inputCacheRead) + '</td>' +
@@ -1045,24 +1047,29 @@ export class DashboardPanel {
           body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(display) + '</td></tr>';
         }
         body += '</tbody></table>';
-      } else if (name === 'Store.apiHistory' && usage.apiHistory && usage.apiHistory.length > 0) {
-        const x = usage.apiHistory.length;
-        const y = usage.apiHistoryCount || x;
+      } else if (name === 'Store.estHistory' && usage.estHistory && usage.estHistory.length > 0) {
+        const x = usage.estHistory.length;
+        const y = usage.estHistoryCount || x;
         title = baseTitle + ' (' + x + '/' + y + ')';
-        const headers = ['timestamp', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyK', 'windowK'];
-        body += '<div style="overflow-x:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:720px;"><thead><tr>' +
+        const headers = ['timestamp', 'source', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyP', 'weeklyC', 'weeklyK', 'windowP', 'windowC', 'windowK'];
+        body += '<div style="overflow-x:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:1200px;"><thead><tr>' +
           headers.map(h => '<th>' + esc(h) + '</th>').join('') +
           '</tr></thead><tbody>';
-        for (const h of usage.apiHistory) {
+        for (const h of usage.estHistory) {
           body += '<tr>' +
             '<td class="ccu-key">' + Math.round(h.timestamp) + '</td>' +
-            '<td class="ccu-num">' + (isFinite(h.apiWeeklyPct) ? h.apiWeeklyPct.toFixed(4) : '0.0000') + '</td>' +
-            '<td class="ccu-num">' + (isFinite(h.apiWindowPct) ? h.apiWindowPct.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-key">' + esc(h.source) + '</td>' +
+            '<td class="ccu-num">' + (h.apiWeeklyPct != null ? h.apiWeeklyPct.toFixed(4) : '-') + '</td>' +
+            '<td class="ccu-num">' + (h.apiWindowPct != null ? h.apiWindowPct.toFixed(4) : '-') + '</td>' +
             '<td class="ccu-num">' + (isFinite(h.estimatedWeeklyPct) ? h.estimatedWeeklyPct.toFixed(4) : '0.0000') + '</td>' +
             '<td class="ccu-num">' + (isFinite(h.estimatedWindowPct) ? h.estimatedWindowPct.toFixed(4) : '0.0000') + '</td>' +
             '<td class="ccu-num">' + (isFinite(h.localCost7d) ? h.localCost7d.toFixed(4) : '0.0000') + '</td>' +
             '<td class="ccu-num">' + (isFinite(h.localCost5h) ? h.localCost5h.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.weeklyP) ? h.weeklyP.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.weeklyC) ? h.weeklyC.toFixed(4) : '0.0000') + '</td>' +
             '<td class="ccu-num">' + (isFinite(h.weeklyK) ? h.weeklyK.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.windowP) ? h.windowP.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.windowC) ? h.windowC.toFixed(4) : '0.0000') + '</td>' +
             '<td class="ccu-num">' + (isFinite(h.windowK) ? h.windowK.toFixed(4) : '0.0000') + '</td>' +
             '</tr>';
         }

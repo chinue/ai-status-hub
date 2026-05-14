@@ -517,13 +517,13 @@ export function estimateStateMemory(state: AppState | null): MemoryBreakdown {
     });
   }
 
-  // 4. apiHistory
-  const apiHistoryBytes = state.apiHistory.length * (9 * 8);
-  if (apiHistoryBytes > 0) {
+  // 4. estHistory
+  const estHistoryBytes = state.estHistory.length * (15 * 8);
+  if (estHistoryBytes > 0) {
     items.push({
-      name: 'Store.apiHistory',
-      bytes: apiHistoryBytes,
-      description: 'API call history for estimator accuracy evaluation',
+      name: 'Store.estHistory',
+      bytes: estHistoryBytes,
+      description: 'Estimator history (api + short tick) for accuracy evaluation',
     });
   }
 

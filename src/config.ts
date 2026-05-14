@@ -127,7 +127,7 @@ export class ConfigService {
   }
 
   get apiHistoryMaxEntries(): number {
-    return Math.max(1, Math.min(10000, this.cfg.get<number>('apiHistoryMaxEntries', 1000)));
+    return Math.max(1, Math.min(100000, this.cfg.get<number>('apiHistoryMaxEntries', 10000)));
   }
 
   get apiHistoryPersistOnExit(): boolean {

@@ -783,7 +783,7 @@ Current Usage 卡片底部提供可折叠的内存占用表格，展示 `AppStat
 | `Store.usageEntries` | `state.usageEntries` | 保留期内的原始消息条目 |
 | `Store.localEstimate` | `state.localEstimate` | 本地估算状态（P/C/k + 聚合费用） |
 | `Store.quota` | `state.quota` | API 配额数据 |
-| `Store.apiHistory` | `state.apiHistory` | API 调用历史（v0.5.4 新增） |
+| `Store.estHistory` | `state.estHistory` | 估算器历史（api + short tick，v0.5.5 新增） |
 | `Store.storeOverhead` | 固定 | Store 监听器、UI 状态、Provider 引用 |
 
 ### 10.3 展开详情
@@ -791,7 +791,7 @@ Current Usage 卡片底部提供可折叠的内存占用表格，展示 `AppStat
 点击表格行可在该行下方展开详情区域：
 - `Store.usageEntries`：显示最近 N 条（`memoryDetailMaxRows` 配置）完整字段（timestamp/inputOther/output/inputCacheRead/inputCacheCreation/cost/messageId/model），标题显示 `Recent usage entries (X/Y)`
 - `Store.localEstimate` / `Store.quota`：列出所有 key-value 对，过滤掉 object 类型值
-- `Store.apiHistory`：显示最近 N 条完整字段（timestamp/apiWeeklyPct/apiWindowPct/estimatedWeeklyPct/estimatedWindowPct/localCost7d/localCost5h/weeklyK/windowK），标题显示 `API History (X/Y)`
+- `Store.estHistory`：显示最近 N 条完整字段（timestamp/source/apiWeeklyPct/apiWindowPct/estimatedWeeklyPct/estimatedWindowPct/localCost7d/localCost5h/weeklyP/weeklyC/weeklyK/windowP/windowC/windowK），标题显示 `Estimator History (X/Y)`
 - `Store.storeOverhead`：显示固定说明文本
 
 ### 10.4 CSV 导出
@@ -800,7 +800,7 @@ Current Usage 卡片底部提供可折叠的内存占用表格，展示 `AppStat
 - `Store.usageEntries` → `usage-entries.csv`
 - `Store.localEstimate` → `local-estimate.csv`
 - `Store.quota` → `quota.csv`
-- `Store.apiHistory` → `api-history.csv`
+- `Store.estHistory` → `est-history.csv`
 
 CSV 使用 UTF-8 编码（带 BOM），字符串字段自动转义引号。
 

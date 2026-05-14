@@ -1,5 +1,17 @@
 # ChangeLog
 
+## [0.5.5] - 2026-05-13
+
+### 改进
+
+- **Estimator History 全面重构**：
+  - `ApiHistoryEntry` 重命名为 `EstHistoryEntry`，扩展为 15 字段（新增 source/weeklyP/weeklyC/windowP/windowC）
+  - `doShortTick` 现在也保存估算历史，可观察两次 API 调用之间的估算轨迹
+  - timestamp 在存储、传输、显示、CSV 导出时均强制取整（`Math.round`）
+  - 容量配置 `apiHistoryMaxEntries` 默认值提升至 10000，最大值 100000
+  - Dashboard 展开表格支持 15 列（含 source 列，api*Pct 为 null 时显示 '-'）
+  - CSV 导出同步更新为 15 字段
+
 ## [0.5.4] - 2026-05-13
 
 ### 新增

@@ -12,7 +12,7 @@ export const defaultState = (): AppState => ({
   isLoading: false,
   localEstimate: null,
   usageEntries: [],
-  apiHistory: [],
+  estHistory: [],
   activeProvider: 'codex',
   ui: {
     displayMode: 'percent',
@@ -146,22 +146,22 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'API_HISTORY': {
       const maxEntries = action.payload.maxEntries;
-      const next = [...state.apiHistory, action.payload.entry];
+      const next = [...state.estHistory, action.payload.entry];
       if (next.length > maxEntries) {
         next.shift();
       }
-      return { ...state, apiHistory: next };
+      return { ...state, estHistory: next };
     }
 
     case 'API_HISTORY_LOAD':
-      return { ...state, apiHistory: action.payload };
+      return { ...state, estHistory: action.payload };
 
     case 'SIGN_OUT':
       return {
         ...defaultState(),
         activeProvider: state.activeProvider,
         ui: state.ui,
-        apiHistory: state.apiHistory,
+        estHistory: state.estHistory,
       };
 
     default:

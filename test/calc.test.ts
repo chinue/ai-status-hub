@@ -277,7 +277,7 @@ function makeQuota(partial: Partial<QuotaData> = {}): QuotaData {
   };
 }
 
-function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null; usageEntries?: import('../src/types').UsageEntry[]; apiHistory?: import('../src/types').ApiHistoryEntry[] }): AppState {
+function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null; usageEntries?: import('../src/types').UsageEntry[]; estHistory?: import('../src/types').EstHistoryEntry[] }): AppState {
   const base: AppState = {
     quota: null,
     lastFetchAt: null,
@@ -288,7 +288,7 @@ function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?:
     isLoading: false,
     localEstimate: null,
     usageEntries: [],
-    apiHistory: [],
+    estHistory: [],
     activeProvider: 'codex',
     ui: { displayMode: 'percent', language: 'auto', isPaused: false },
   };
@@ -338,8 +338,8 @@ function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?:
   if (partial.usageEntries) {
     base.usageEntries = partial.usageEntries;
   }
-  if (partial.apiHistory) {
-    base.apiHistory = partial.apiHistory;
+  if (partial.estHistory) {
+    base.estHistory = partial.estHistory;
   }
   return base;
 }
@@ -359,24 +359,29 @@ describe('estimateStateMemory', () => {
     expect(result.items[0].name).to.equal('Store.storeOverhead');
   });
 
-  it('includes apiHistory when present', () => {
+  it('includes estHistory when present', () => {
     const state = makeState({
       quota: null,
       localEstimate: null,
-      apiHistory: Array.from({ length: 100 }, () => ({
+      estHistory: Array.from({ length: 100 }, () => ({
         timestamp: Date.now(),
-        apiWeeklyPct: 50,
-        apiWindowPct: 20,
+        source: 'short' as const,
+        apiWeeklyPct: null,
+        apiWindowPct: null,
         estimatedWeeklyPct: 51,
         estimatedWindowPct: 19,
         localCost7d: 10,
         localCost5h: 2,
+        weeklyP: 50,
+        weeklyC: 10,
         weeklyK: 5,
+        windowP: 20,
+        windowC: 2,
         windowK: 10,
       })),
     });
     const result = estimateStateMemory(state);
-    const historyItem = result.items.find((i) => i.name === 'Store.apiHistory');
+    const historyItem = result.items.find((i) => i.name === 'Store.estHistory');
     expect(historyItem).to.exist;
     expect(historyItem!.bytes).to.be.greaterThan(0);
   });

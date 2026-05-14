@@ -3,7 +3,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { ApiHistoryEntry } from '../types';
+import { EstHistoryEntry } from '../types';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 
@@ -27,19 +27,19 @@ export class ApiHistoryService {
     this.providerId = id;
   }
 
-  async readFromDisk(): Promise<ApiHistoryEntry[]> {
+  async readFromDisk(): Promise<EstHistoryEntry[]> {
     const file = this.historyFile;
     try {
       const raw = await fs.readFile(file, 'utf-8');
       const lines = raw.split(/\r?\n/).filter(l => l.trim().length > 0);
-      const entries: ApiHistoryEntry[] = [];
+      const entries: EstHistoryEntry[] = [];
       for (const line of lines) {
         try {
           const parsed = JSON.parse(line);
           if (typeof parsed.timestamp === 'number') {
             parsed.timestamp = Math.round(parsed.timestamp);
           }
-          entries.push(parsed as ApiHistoryEntry);
+          entries.push(parsed as EstHistoryEntry);
         } catch {
           // skip malformed line
         }
@@ -50,7 +50,7 @@ export class ApiHistoryService {
     }
   }
 
-  async writeToDisk(entries: ApiHistoryEntry[]): Promise<void> {
+  async writeToDisk(entries: EstHistoryEntry[]): Promise<void> {
     const file = this.historyFile;
     try {
       const lines = entries.map(e => JSON.stringify({ ...e, timestamp: Math.round(e.timestamp) }));
@@ -66,7 +66,7 @@ export class ApiHistoryService {
     if (!config.apiHistoryPersistOnExit || !this.store) {
       return;
     }
-    await this.writeToDisk(this.store.getState().apiHistory);
+    await this.writeToDisk(this.store.getState().estHistory);
   }
 
   private get historyFile(): string {

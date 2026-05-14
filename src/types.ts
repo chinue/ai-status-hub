@@ -77,16 +77,21 @@ export interface CalibrationData {
   reset7dAt: number;
 }
 
-export interface ApiHistoryEntry {
+export interface EstHistoryEntry {
   /** Raw integer timestamp in milliseconds. Always stored and displayed as an integer. */
   timestamp: number;
-  apiWeeklyPct: number;
-  apiWindowPct: number;
+  source: 'api' | 'short';
+  apiWeeklyPct: number | null;
+  apiWindowPct: number | null;
   estimatedWeeklyPct: number;
   estimatedWindowPct: number;
   localCost7d: number;
   localCost5h: number;
+  weeklyP: number;
+  weeklyC: number;
   weeklyK: number;
+  windowP: number;
+  windowC: number;
   windowK: number;
 }
 
@@ -100,7 +105,7 @@ export interface AppState {
   isLoading: boolean;
   localEstimate: LocalEstimate | null;
   usageEntries: UsageEntry[];
-  apiHistory: ApiHistoryEntry[];
+  estHistory: EstHistoryEntry[];
   activeProvider: string;
   ui: {
     displayMode: DisplayMode;
@@ -138,8 +143,8 @@ export type Action =
   | { type: 'API_SUCCESS'; payload: QuotaData; source?: DataSource }
   | { type: 'API_ERROR'; payload: { error: string; authFailed?: boolean; networkError?: boolean } }
   | { type: 'LOCAL_ESTIMATE'; payload: Partial<LocalEstimate> & { entries?: UsageEntry[] } }
-  | { type: 'API_HISTORY'; payload: { maxEntries: number; entry: ApiHistoryEntry } }
-  | { type: 'API_HISTORY_LOAD'; payload: ApiHistoryEntry[] }
+  | { type: 'API_HISTORY'; payload: { maxEntries: number; entry: EstHistoryEntry } }
+  | { type: 'API_HISTORY_LOAD'; payload: EstHistoryEntry[] }
   | { type: 'AUTH_STATUS'; payload: AuthStatus }
   | { type: 'UI_SET_DISPLAY_MODE'; payload: DisplayMode }
   | { type: 'UI_SET_LANGUAGE'; payload: LanguageSetting }
@@ -234,9 +239,9 @@ export interface KimiUsageData {
   memoryLocalEstimate?: Record<string, number | string | null>;
   memoryQuota?: Record<string, number | string | null>;
 
-  // API history
-  apiHistory?: ApiHistoryEntry[];
-  apiHistoryCount?: number;
+  // Estimator history
+  estHistory?: EstHistoryEntry[];
+  estHistoryCount?: number;
 }
 
 export interface MemoryBreakdownItem {
