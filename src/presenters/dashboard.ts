@@ -216,6 +216,8 @@ export class DashboardPanel {
         officialDate: config.pricingOfficialDate,
         currencySymbol: config.currency.symbol,
         memoryDetailMaxRows: config.memoryDetailMaxRows,
+        apiHistoryMaxEntries: config.apiHistoryMaxEntries,
+        apiHistoryPersistOnExit: config.apiHistoryPersistOnExit,
       },
       isLoading: state.isLoading,
     };
@@ -302,6 +304,8 @@ export class DashboardPanel {
       memoryEntryTotalCount: state.usageEntries?.length,
       memoryLocalEstimate,
       memoryQuota,
+      apiHistory: state.apiHistory.slice(-config.memoryDetailMaxRows),
+      apiHistoryCount: state.apiHistory.length,
     };
   }
 
@@ -376,6 +380,16 @@ export class DashboardPanel {
           .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
           .join('\n');
         defaultName = 'quota.csv';
+      } else if (moduleName === 'Store.apiHistory' && state.apiHistory.length > 0) {
+        const header = ['timestamp', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyK', 'windowK'];
+        csv = header.join(',') + '\n' + state.apiHistory.map(h =>
+          [Math.round(h.timestamp),
+            h.apiWeeklyPct, h.apiWindowPct,
+            h.estimatedWeeklyPct, h.estimatedWindowPct,
+            h.localCost7d, h.localCost5h,
+            h.weeklyK, h.windowK].join(','),
+        ).join('\n');
+        defaultName = 'api-history.csv';
       } else {
         return;
       }
@@ -981,6 +995,7 @@ export class DashboardPanel {
         'Store.localEstimate': '${i18n('dashboard.memoryDetail.localEstimate')}',
         'Store.quota': '${i18n('dashboard.memoryDetail.quota')}',
         'Store.storeOverhead': '${i18n('dashboard.memoryDetail.storeOverhead')}',
+        'Store.apiHistory': '${i18n('dashboard.memoryDetail.apiHistory')}',
       };
       const baseTitle = detailLabels[name] || name;
       let title = baseTitle;
@@ -1030,6 +1045,28 @@ export class DashboardPanel {
           body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(display) + '</td></tr>';
         }
         body += '</tbody></table>';
+      } else if (name === 'Store.apiHistory' && usage.apiHistory && usage.apiHistory.length > 0) {
+        const x = usage.apiHistory.length;
+        const y = usage.apiHistoryCount || x;
+        title = baseTitle + ' (' + x + '/' + y + ')';
+        const headers = ['timestamp', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyK', 'windowK'];
+        body += '<div style="overflow-x:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:720px;"><thead><tr>' +
+          headers.map(h => '<th>' + esc(h) + '</th>').join('') +
+          '</tr></thead><tbody>';
+        for (const h of usage.apiHistory) {
+          body += '<tr>' +
+            '<td class="ccu-key">' + Math.round(h.timestamp) + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.apiWeeklyPct) ? h.apiWeeklyPct.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.apiWindowPct) ? h.apiWindowPct.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.estimatedWeeklyPct) ? h.estimatedWeeklyPct.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.estimatedWindowPct) ? h.estimatedWindowPct.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.localCost7d) ? h.localCost7d.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.localCost5h) ? h.localCost5h.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.weeklyK) ? h.weeklyK.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-num">' + (isFinite(h.windowK) ? h.windowK.toFixed(4) : '0.0000') + '</td>' +
+            '</tr>';
+        }
+        body += '</tbody></table></div>';
       } else if (name === 'Store.storeOverhead') {
         body += '<div style="padding:6px 8px;font-size:0.82em;color:var(--vscode-descriptionForeground);">' + esc(baseTitle) + '</div>';
       } else {

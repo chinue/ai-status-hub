@@ -2,7 +2,7 @@
   "name": "codex-status-pro",
   "displayName": "CodexStatusPro",
   "description": "Monitor Codex token usage and rate limits in real-time",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -232,6 +232,20 @@
           "maximum": 200,
           "order": 67,
           "description": "Maximum number of rows to display when expanding memory detail tables in Dashboard."
+        },
+        "codexStatusPro.apiHistoryMaxEntries": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 1,
+          "maximum": 10000,
+          "order": 68,
+          "description": "Maximum number of API history entries to keep in memory."
+        },
+        "codexStatusPro.apiHistoryPersistOnExit": {
+          "type": "boolean",
+          "default": false,
+          "order": 69,
+          "description": "Persist API history to disk JSONL when the extension deactivates."
         },
         "codexStatusPro.currency": {
           "type": "string",

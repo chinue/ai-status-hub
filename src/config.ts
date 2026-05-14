@@ -126,6 +126,14 @@ export class ConfigService {
     return Math.max(1, Math.min(200, this.cfg.get<number>('dashboard.memoryDetailMaxRows', 50)));
   }
 
+  get apiHistoryMaxEntries(): number {
+    return Math.max(1, Math.min(10000, this.cfg.get<number>('apiHistoryMaxEntries', 1000)));
+  }
+
+  get apiHistoryPersistOnExit(): boolean {
+    return this.cfg.get<boolean>('apiHistoryPersistOnExit', false);
+  }
+
   get heatmapDays(): number {
     return Math.max(30, Math.min(365, this.cfg.get<number>('heatmapDays', 90)));
   }

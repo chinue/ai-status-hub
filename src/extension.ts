@@ -7,6 +7,7 @@ import { getProvider, resolveProviderId } from './providers/registry';
 import { IProvider } from './providers/base/types';
 import { CacheService } from './services/cacheService';
 import { LocalUsageService } from './services/localUsageService';
+import { ApiHistoryService } from './services/apiHistoryService';
 import { Scheduler } from './services/scheduler';
 import { StatusBarPresenter } from './presenters/statusBar';
 import { DashboardPanel } from './presenters/dashboard';
@@ -21,6 +22,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const config = ConfigService.getInstance();
   const cacheService = CacheService.getInstance();
   const localUsageService = LocalUsageService.getInstance();
+  const apiHistoryService = ApiHistoryService.getInstance();
 
   let currentProvider: IProvider;
   let scheduler: Scheduler;
@@ -45,6 +47,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // 3. Update services
     cacheService.setProviderId(currentProvider.id);
     localUsageService.setProvider(currentProvider);
+    apiHistoryService.setProviderId(currentProvider.id);
     if (currentProvider.auth.initSecrets) {
       currentProvider.auth.initSecrets(context.secrets);
     }
@@ -57,8 +60,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     store.dispatch({ type: 'UI_SET_LANGUAGE', payload: prevUi.language });
     store.dispatch({ type: 'UI_SET_PAUSED', payload: prevUi.isPaused });
 
-    // 5. Restore cache for new provider
+    // 5. Restore cache and API history for new provider
     const cached = await cacheService.read();
+    const historyEntries = await apiHistoryService.readFromDisk();
+    if (historyEntries.length > 0) {
+      store.dispatch({ type: 'API_HISTORY_LOAD', payload: historyEntries });
+    }
     if (cached) {
       store.dispatch({ type: 'CACHE_LOADED', payload: cached.quota, fetchedAt: cached.fetchedAt });
       if (cached.calibration) {
@@ -89,6 +96,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Determine initial provider
   const providerId = await resolveProviderId(config.provider);
   await activateProvider(providerId);
+  apiHistoryService.setStore(store);
 
   // 1. Restore pause state from globalState (cross-window sync)
   const pausedFromGlobal = context.globalState.get<boolean>(PAUSE_STATE_KEY, false);
@@ -176,7 +184,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 }
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
+  await ApiHistoryService.getInstance().persistIfEnabled();
   log('CodexStatusPro v2 deactivated');
 }
 

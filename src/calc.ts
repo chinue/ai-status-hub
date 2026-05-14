@@ -517,7 +517,17 @@ export function estimateStateMemory(state: AppState | null): MemoryBreakdown {
     });
   }
 
-  // 4. Store overhead (listeners, UI state, etc.)
+  // 4. apiHistory
+  const apiHistoryBytes = state.apiHistory.length * (9 * 8);
+  if (apiHistoryBytes > 0) {
+    items.push({
+      name: 'Store.apiHistory',
+      bytes: apiHistoryBytes,
+      description: 'API call history for estimator accuracy evaluation',
+    });
+  }
+
+  // 5. Store overhead (listeners, UI state, etc.)
   items.push({
     name: 'Store.storeOverhead',
     bytes: 2048,

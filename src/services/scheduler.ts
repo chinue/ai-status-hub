@@ -416,6 +416,26 @@ export class Scheduler {
         entries: localUsage.entries,
       },
     });
+
+    // Record API history for estimator accuracy evaluation
+    const cfg = this.config;
+    this.store.dispatch({
+      type: 'API_HISTORY',
+      payload: {
+        maxEntries: cfg.apiHistoryMaxEntries,
+        entry: {
+          timestamp: Math.round(now),
+          apiWeeklyPct: quotaData.weeklyUsedPct,
+          apiWindowPct: quotaData.windowUsedPct,
+          estimatedWeeklyPct: weeklyPct,
+          estimatedWindowPct: windowPct,
+          localCost7d: localUsage.cost7d,
+          localCost5h: localUsage.cost5h,
+          weeklyK: weeklyEstimator.k,
+          windowK: windowEstimator.k,
+        },
+      },
+    });
   }
 
   private rateLimitsToQuota(rateLimits: RateLimits, now: number): import('../types').QuotaData {

@@ -1,5 +1,17 @@
 # ChangeLog
 
+## [0.5.4] - 2026-05-13
+
+### 新增
+
+- **API 调用历史记录（ApiHistory）**：
+  - 内存中滑动窗口保存最近 N 条 API 调用结果（FIFO），用于评估线性增量模型准确性
+  - 9 个字段：timestamp（原始整数）/ apiWeeklyPct / apiWindowPct / estimatedWeeklyPct / estimatedWindowPct / localCost7d / localCost5h / weeklyK / windowK
+  - 配置项 `apiHistoryMaxEntries`（默认 1000，范围 1–10000）
+  - 配置项 `apiHistoryPersistOnExit` checkbox 控制是否在插件退出时写入磁盘 JSONL
+  - 磁盘文件：`~/.codex/codex-status-pro-api-history-{provider}.jsonl`
+  - Dashboard 内存表格新增 `Store.apiHistory` 模块，可展开详情并导出 CSV
+
 ## [0.5.3] - 2026-05-13
 
 ### 改进

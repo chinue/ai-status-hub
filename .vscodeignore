@@ -10,3 +10,4 @@ tsconfig.test.json
 .mocharc.json
 *.code-workspace
 out/*.map
+bin/*.csv

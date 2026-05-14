@@ -277,7 +277,7 @@ function makeQuota(partial: Partial<QuotaData> = {}): QuotaData {
   };
 }
 
-function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null; usageEntries?: import('../src/types').UsageEntry[] }): AppState {
+function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null; usageEntries?: import('../src/types').UsageEntry[]; apiHistory?: import('../src/types').ApiHistoryEntry[] }): AppState {
   const base: AppState = {
     quota: null,
     lastFetchAt: null,
@@ -288,6 +288,8 @@ function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?:
     isLoading: false,
     localEstimate: null,
     usageEntries: [],
+    apiHistory: [],
+    activeProvider: 'codex',
     ui: { displayMode: 'percent', language: 'auto', isPaused: false },
   };
   if (partial.quota === null) {
@@ -336,6 +338,9 @@ function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?:
   if (partial.usageEntries) {
     base.usageEntries = partial.usageEntries;
   }
+  if (partial.apiHistory) {
+    base.apiHistory = partial.apiHistory;
+  }
   return base;
 }
 
@@ -352,6 +357,28 @@ describe('estimateStateMemory', () => {
     expect(result.totalBytes).to.be.greaterThan(0);
     expect(result.items).to.have.length(1);
     expect(result.items[0].name).to.equal('Store.storeOverhead');
+  });
+
+  it('includes apiHistory when present', () => {
+    const state = makeState({
+      quota: null,
+      localEstimate: null,
+      apiHistory: Array.from({ length: 100 }, () => ({
+        timestamp: Date.now(),
+        apiWeeklyPct: 50,
+        apiWindowPct: 20,
+        estimatedWeeklyPct: 51,
+        estimatedWindowPct: 19,
+        localCost7d: 10,
+        localCost5h: 2,
+        weeklyK: 5,
+        windowK: 10,
+      })),
+    });
+    const result = estimateStateMemory(state);
+    const historyItem = result.items.find((i) => i.name === 'Store.apiHistory');
+    expect(historyItem).to.exist;
+    expect(historyItem!.bytes).to.be.greaterThan(0);
   });
 
   it('estimates usageEntries memory', () => {

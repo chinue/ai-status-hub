@@ -12,6 +12,7 @@ export const defaultState = (): AppState => ({
   isLoading: false,
   localEstimate: null,
   usageEntries: [],
+  apiHistory: [],
   activeProvider: 'codex',
   ui: {
     displayMode: 'percent',
@@ -143,11 +144,24 @@ function reducer(state: AppState, action: Action): AppState {
     case 'LOADING_END':
       return { ...state, isLoading: false };
 
+    case 'API_HISTORY': {
+      const maxEntries = action.payload.maxEntries;
+      const next = [...state.apiHistory, action.payload.entry];
+      if (next.length > maxEntries) {
+        next.shift();
+      }
+      return { ...state, apiHistory: next };
+    }
+
+    case 'API_HISTORY_LOAD':
+      return { ...state, apiHistory: action.payload };
+
     case 'SIGN_OUT':
       return {
         ...defaultState(),
         activeProvider: state.activeProvider,
         ui: state.ui,
+        apiHistory: state.apiHistory,
       };
 
     default:

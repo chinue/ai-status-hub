@@ -77,6 +77,19 @@ export interface CalibrationData {
   reset7dAt: number;
 }
 
+export interface ApiHistoryEntry {
+  /** Raw integer timestamp in milliseconds. Always stored and displayed as an integer. */
+  timestamp: number;
+  apiWeeklyPct: number;
+  apiWindowPct: number;
+  estimatedWeeklyPct: number;
+  estimatedWindowPct: number;
+  localCost7d: number;
+  localCost5h: number;
+  weeklyK: number;
+  windowK: number;
+}
+
 export interface AppState {
   quota: QuotaData | null;
   lastFetchAt: number | null;
@@ -87,6 +100,7 @@ export interface AppState {
   isLoading: boolean;
   localEstimate: LocalEstimate | null;
   usageEntries: UsageEntry[];
+  apiHistory: ApiHistoryEntry[];
   activeProvider: string;
   ui: {
     displayMode: DisplayMode;
@@ -124,6 +138,8 @@ export type Action =
   | { type: 'API_SUCCESS'; payload: QuotaData; source?: DataSource }
   | { type: 'API_ERROR'; payload: { error: string; authFailed?: boolean; networkError?: boolean } }
   | { type: 'LOCAL_ESTIMATE'; payload: Partial<LocalEstimate> & { entries?: UsageEntry[] } }
+  | { type: 'API_HISTORY'; payload: { maxEntries: number; entry: ApiHistoryEntry } }
+  | { type: 'API_HISTORY_LOAD'; payload: ApiHistoryEntry[] }
   | { type: 'AUTH_STATUS'; payload: AuthStatus }
   | { type: 'UI_SET_DISPLAY_MODE'; payload: DisplayMode }
   | { type: 'UI_SET_LANGUAGE'; payload: LanguageSetting }
@@ -217,6 +233,10 @@ export interface KimiUsageData {
   memoryEntryTotalCount?: number;
   memoryLocalEstimate?: Record<string, number | string | null>;
   memoryQuota?: Record<string, number | string | null>;
+
+  // API history
+  apiHistory?: ApiHistoryEntry[];
+  apiHistoryCount?: number;
 }
 
 export interface MemoryBreakdownItem {
@@ -321,4 +341,6 @@ export interface DashboardSettings {
   officialDate: string;
   currencySymbol: string;
   memoryDetailMaxRows: number;
+  apiHistoryMaxEntries: number;
+  apiHistoryPersistOnExit: boolean;
 }

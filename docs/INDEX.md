@@ -27,6 +27,7 @@
 | `src/services/cacheService.ts` | `v2-phase2-implementation.md#servicescacheservicets` | 磁盘缓存读写、schema 版本管理 |
 | `src/services/localUsageService.ts` | `v2-local-estimation-design.md` | 本地 JSONL 扫描、用量聚合 |
 | `src/services/scheduler.ts` | `v2-phase2-implementation.md#servicesschedulerts` | 长短 tick 调度、自动刷新 |
+| `src/services/apiHistoryService.ts` | `v2-phase2-implementation.md#servicesapihistoryservicets` | API 调用历史 JSONL 磁盘读写 |
 
 ---
 
