@@ -122,6 +122,10 @@ export class ConfigService {
     return Math.max(0.2, Math.min(1, this.cfg.get<number>('chartHeightRatio', 0.4)));
   }
 
+  get memoryDetailMaxRows(): number {
+    return Math.max(1, Math.min(200, this.cfg.get<number>('dashboard.memoryDetailMaxRows', 50)));
+  }
+
   get heatmapDays(): number {
     return Math.max(30, Math.min(365, this.cfg.get<number>('heatmapDays', 90)));
   }

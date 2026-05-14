@@ -2,7 +2,7 @@
   "name": "codex-status-pro",
   "displayName": "CodexStatusPro",
   "description": "Monitor Codex token usage and rate limits in real-time",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -224,6 +224,14 @@
           "maximum": 1,
           "order": 66,
           "description": "Height ratio for dashboard charts (canvas height = width * ratio)."
+        },
+        "codexStatusPro.dashboard.memoryDetailMaxRows": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 200,
+          "order": 67,
+          "description": "Maximum number of rows to display when expanding memory detail tables in Dashboard."
         },
         "codexStatusPro.currency": {
           "type": "string",

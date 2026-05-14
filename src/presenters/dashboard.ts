@@ -2,6 +2,7 @@
 // AGENTS: fmt->calc.ts | err->try-catch | i18n->makeT() | no-disk-IO
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
@@ -122,6 +123,12 @@ export class DashboardPanel {
         }
         break;
       }
+      case 'saveMemoryDetail': {
+        const moduleName = msg.payload as string;
+        if (!moduleName) break;
+        void this.saveMemoryDetailToCsv(moduleName);
+        break;
+      }
     }
   }
 
@@ -208,6 +215,7 @@ export class DashboardPanel {
         officialUrl: config.pricingOfficialUrl,
         officialDate: config.pricingOfficialDate,
         currencySymbol: config.currency.symbol,
+        memoryDetailMaxRows: config.memoryDetailMaxRows,
       },
       isLoading: state.isLoading,
     };
@@ -226,14 +234,20 @@ export class DashboardPanel {
     const effectiveWeeklyReset = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now).resetAt;
 
     const mem = estimateStateMemory(state);
+    const config = ConfigService.getInstance();
+    const maxRows = config.memoryDetailMaxRows;
 
     // Build memory detail samples for expandable rows
     const memoryEntrySamples = state.usageEntries && state.usageEntries.length > 0
-      ? state.usageEntries.slice(-20).reverse().map(e => ({
+      ? state.usageEntries.slice(-maxRows).reverse().map(e => ({
           timestamp: e.timestamp,
+          inputOther: e.inputOther,
+          output: e.output,
+          inputCacheRead: e.inputCacheRead,
+          inputCacheCreation: e.inputCacheCreation,
+          cost: e.cost,
           messageId: e.messageId,
           model: e.model,
-          cost: e.cost,
         }))
       : undefined;
     const memoryLocalEstimate = state.localEstimate
@@ -285,6 +299,7 @@ export class DashboardPanel {
       memoryBreakdown: mem.items,
       memoryTotalBytes: mem.totalBytes,
       memoryEntrySamples,
+      memoryEntryTotalCount: state.usageEntries?.length,
       memoryLocalEstimate,
       memoryQuota,
     };
@@ -328,6 +343,51 @@ export class DashboardPanel {
       this.panel.webview.postMessage({ type: 'dailyDataResponse', month, data: data ?? [] });
     } catch (err) {
       console.error('dailyData error', err);
+    }
+  }
+
+  private async saveMemoryDetailToCsv(moduleName: string): Promise<void> {
+    const state = this.store.getState();
+    let csv = '';
+    let defaultName = '';
+
+    try {
+      if (moduleName === 'Store.usageEntries') {
+        const entries = state.usageEntries ?? [];
+        if (entries.length === 0) return;
+        const header = ['timestamp', 'inputOther', 'output', 'inputCacheRead', 'inputCacheCreation', 'cost', 'messageId', 'model'];
+        csv = header.join(',') + '\n' + entries.map(e =>
+          [e.timestamp, e.inputOther, e.output, e.inputCacheRead, e.inputCacheCreation, e.cost,
+            e.messageId ? '"' + e.messageId.replace(/"/g, '""') + '"' : '',
+            e.model ? '"' + e.model.replace(/"/g, '""') + '"' : ''].join(','),
+        ).join('\n');
+        defaultName = 'usage-entries.csv';
+      } else if (moduleName === 'Store.localEstimate' && state.localEstimate) {
+        const header = ['key', 'value'];
+        csv = header.join(',') + '\n' + Object.entries(state.localEstimate)
+          .filter(([, v]) => v != null)
+          .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
+          .join('\n');
+        defaultName = 'local-estimate.csv';
+      } else if (moduleName === 'Store.quota' && state.quota) {
+        const header = ['key', 'value'];
+        csv = header.join(',') + '\n' + Object.entries(state.quota)
+          .filter(([, v]) => v != null && v !== 0)
+          .map(([k, v]) => ['"' + String(k).replace(/"/g, '""') + '"', '"' + String(v).replace(/"/g, '""') + '"'].join(','))
+          .join('\n');
+        defaultName = 'quota.csv';
+      } else {
+        return;
+      }
+
+      const uri = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(defaultName),
+        filters: { 'CSV': ['csv'] },
+      });
+      if (!uri) return;
+      fs.writeFileSync(uri.fsPath, '\uFEFF' + csv, { encoding: 'utf-8' });
+    } catch {
+      // ignore
     }
   }
 
@@ -601,7 +661,10 @@ export class DashboardPanel {
       </div>
     </div>
     <div class="memory-section" style="margin-top:10px;">
-      <button class="detail-toggle" id="memory-toggle" style="font-size:0.85em;">🔺🖥️${i18n('dashboard.memoryUsage')}</button>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <button class="detail-toggle" id="memory-toggle" style="font-size:0.85em;">🔺🖥️${i18n('dashboard.memoryUsage')}</button>
+        <button class="detail-toggle" id="memory-save" style="font-size:0.85em;display:none;">💾</button>
+      </span>
       <div id="memory-body" style="display:none;margin-top:8px;">
         <table class="ccu-table" id="memory-table">
           <thead><tr><th>${i18n('dashboard.memoryModule')}</th><th>${i18n('dashboard.memorySize')}</th><th>${i18n('dashboard.memoryDescription')}</th></tr></thead>
@@ -791,6 +854,11 @@ export class DashboardPanel {
     document.getElementById('history-toggle').addEventListener('click', toggleHistory);
     document.getElementById('costcurve-toggle').addEventListener('click', toggleCostCurve);
     document.getElementById('memory-toggle').addEventListener('click', toggleMemory);
+    document.getElementById('memory-save').addEventListener('click', () => {
+      if (expandedMemoryRow) {
+        vscode.postMessage({ type: 'saveMemoryDetail', payload: expandedMemoryRow });
+      }
+    });
     document.getElementById('memory-tbody').addEventListener('click', (e) => {
       const row = e.target && e.target.closest && e.target.closest('tr[data-memory-row]');
       if (!row) return;
@@ -896,6 +964,7 @@ export class DashboardPanel {
       memoryOpen = !memoryOpen;
       const el = document.getElementById('memory-body');
       const btn = document.getElementById('memory-toggle');
+      const saveBtn = document.getElementById('memory-save');
       if (el) el.style.display = memoryOpen ? '' : 'none';
       if (btn) {
         const totalText = lastData && lastData.usage && lastData.usage.memoryTotalBytes
@@ -903,6 +972,7 @@ export class DashboardPanel {
           : '';
         btn.textContent = (memoryOpen ? '🔻🖥️' : '🔺🖥️') + '${i18n('dashboard.memoryUsage')}' + totalText;
       }
+      if (saveBtn) saveBtn.style.display = (memoryOpen && expandedMemoryRow) ? '' : 'none';
     }
 
     function renderMemoryDetail(name, usage) {
@@ -912,30 +982,56 @@ export class DashboardPanel {
         'Store.quota': '${i18n('dashboard.memoryDetail.quota')}',
         'Store.storeOverhead': '${i18n('dashboard.memoryDetail.storeOverhead')}',
       };
-      const title = detailLabels[name] || name;
+      const baseTitle = detailLabels[name] || name;
+      let title = baseTitle;
       let body = '';
+
       if (name === 'Store.usageEntries' && usage.memoryEntrySamples && usage.memoryEntrySamples.length > 0) {
-        body += '<table class="ccu-table" style="margin:6px 0;font-size:0.82em;"><thead><tr><th>Time</th><th>Model</th><th>Cost</th></tr></thead><tbody>';
+        const x = usage.memoryEntrySamples.length;
+        const y = usage.memoryEntryTotalCount || x;
+        title = baseTitle + ' (' + x + '/' + y + ')';
+        const headers = ['timestamp', 'inputOther', 'output', 'inputCacheRead', 'inputCacheCreation', 'cost', 'messageId', 'model'];
+        body += '<div style="overflow-x:auto;"><table class="ccu-table" style="margin:6px 0;font-size:0.78em;min-width:640px;"><thead><tr>' +
+          headers.map(h => '<th>' + esc(h) + '</th>').join('') +
+          '</tr></thead><tbody>';
         for (const s of usage.memoryEntrySamples) {
-          const d = new Date(s.timestamp);
-          const timeStr = (d.getMonth()+1) + '-' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-          body += '<tr><td class="ccu-key">' + esc(timeStr) + '</td><td class="ccu-key">' + esc(s.model || '') + '</td><td class="ccu-num">' + fmtCurrency(s.cost) + '</td></tr>';
+          const msgId = s.messageId ? (s.messageId.length > 12 ? s.messageId.slice(0, 12) + '…' : s.messageId) : '';
+          body += '<tr>' +
+            '<td class="ccu-key">' + s.timestamp + '</td>' +
+            '<td class="ccu-num">' + fmtNum(s.inputOther) + '</td>' +
+            '<td class="ccu-num">' + fmtNum(s.output) + '</td>' +
+            '<td class="ccu-num">' + fmtNum(s.inputCacheRead) + '</td>' +
+            '<td class="ccu-num">' + fmtNum(s.inputCacheCreation) + '</td>' +
+            '<td class="ccu-num">' + (isFinite(s.cost) ? s.cost.toFixed(4) : '0.0000') + '</td>' +
+            '<td class="ccu-key" title="' + esc(s.messageId || '') + '">' + esc(msgId) + '</td>' +
+            '<td class="ccu-key">' + esc(s.model || '') + '</td>' +
+            '</tr>';
         }
-        body += '</tbody></table>';
+        body += '</tbody></table></div>';
       } else if (name === 'Store.localEstimate' && usage.memoryLocalEstimate) {
         body += '<table class="ccu-table" style="margin:6px 0;font-size:0.82em;"><tbody>';
         for (const [k, v] of Object.entries(usage.memoryLocalEstimate)) {
-          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(String(v)) + '</td></tr>';
+          const t = typeof v;
+          if (t !== 'number' && t !== 'string' && t !== 'boolean') continue;
+          const display = t === 'number'
+            ? (Number.isInteger(v) ? fmtNum(v) : (isFinite(v) ? Number(v).toFixed(4) : '0.0000'))
+            : String(v);
+          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(display) + '</td></tr>';
         }
         body += '</tbody></table>';
       } else if (name === 'Store.quota' && usage.memoryQuota) {
         body += '<table class="ccu-table" style="margin:6px 0;font-size:0.82em;"><tbody>';
         for (const [k, v] of Object.entries(usage.memoryQuota)) {
-          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(String(v)) + '</td></tr>';
+          const t = typeof v;
+          if (t !== 'number' && t !== 'string' && t !== 'boolean') continue;
+          const display = t === 'number'
+            ? (Number.isInteger(v) ? fmtNum(v) : (isFinite(v) ? Number(v).toFixed(4) : '0.0000'))
+            : String(v);
+          body += '<tr><td class="ccu-key">' + esc(k) + '</td><td class="ccu-num">' + esc(display) + '</td></tr>';
         }
         body += '</tbody></table>';
       } else if (name === 'Store.storeOverhead') {
-        body += '<div style="padding:6px 8px;font-size:0.82em;color:var(--vscode-descriptionForeground);">' + esc(title) + '</div>';
+        body += '<div style="padding:6px 8px;font-size:0.82em;color:var(--vscode-descriptionForeground);">' + esc(baseTitle) + '</div>';
       } else {
         body += '<div style="padding:6px 8px;font-size:0.82em;color:var(--vscode-descriptionForeground);">No detail available</div>';
       }
@@ -987,6 +1083,7 @@ export class DashboardPanel {
       const memBody = document.getElementById('memory-body');
       const memTbody = document.getElementById('memory-tbody');
       const memTotal = document.getElementById('memory-total');
+      const memSave = document.getElementById('memory-save');
       if (memBtn && usage.memoryTotalBytes != null) {
         memBtn.textContent = (memoryOpen ? '🔻🖥️' : '🔺🖥️') + '${i18n('dashboard.memoryUsage')}' + ' (' + fmtMemSize(usage.memoryTotalBytes) + ')';
       }
@@ -1010,6 +1107,9 @@ export class DashboardPanel {
       }
       if (memBody) {
         memBody.style.display = memoryOpen ? '' : 'none';
+      }
+      if (memSave) {
+        memSave.style.display = (memoryOpen && expandedMemoryRow) ? '' : 'none';
       }
     }
 

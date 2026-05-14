@@ -206,10 +206,15 @@ export interface KimiUsageData {
   // Memory detail samples for expandable rows
   memoryEntrySamples?: Array<{
     timestamp: number;
+    inputOther: number;
+    output: number;
+    inputCacheRead: number;
+    inputCacheCreation: number;
+    cost: number;
     messageId: string | null;
     model?: string;
-    cost: number;
   }>;
+  memoryEntryTotalCount?: number;
   memoryLocalEstimate?: Record<string, number | string | null>;
   memoryQuota?: Record<string, number | string | null>;
 }
@@ -315,4 +320,5 @@ export interface DashboardSettings {
   officialUrl: string;
   officialDate: string;
   currencySymbol: string;
+  memoryDetailMaxRows: number;
 }

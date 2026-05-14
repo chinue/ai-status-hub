@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.5.3] - 2026-05-13
+
+### 改进
+
+- **Dashboard 内存详情全面增强**：
+  - UsageEntry 展开表格展示全部 8 个字段（timestamp 显示原始 64 位整数 / inputOther / output / inputCacheRead / inputCacheCreation / cost / messageId / model）
+  - 标题显示 `Recent usage entries (X/Y)`，X = 展示条数，Y = 总条数
+  - 过滤 object 类型值，避免 `[object Object]` 污染
+  - 新增配置项 `codexStatusPro.dashboard.memoryDetailMaxRows`（默认 50，范围 1–200）
+  - 展开详情时内存按钮旁显示 💾 保存按钮，点击可将完整数据导出为 CSV
+
 ## [0.5.2] - 2026-05-13
 
 ### 改进
