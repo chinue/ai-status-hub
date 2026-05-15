@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.5.12",
+  "version": "0.5.13",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {

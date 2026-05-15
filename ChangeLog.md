@@ -1,5 +1,14 @@
 # ChangeLog
 
+## [0.5.13] - 2026-05-15
+
+### 变更
+
+- **工程 Fork 并改名为 AI Status Hub**：将扩展包名、展示名、命令 ID、配置命名空间、缓存文件名和文档中的当前工程名统一迁移到 `ai-status-hub` / `aiStatusHub`。
+- **README 双语重写**：新增英文 `README.md` 与中文 `README.zh-CN.md`，说明项目从 Kimi-only 用量统计扩展为支持 Kimi / Claude / Codex / GLM / Cursor 的多 Provider 用量状态中心。
+- **迁移项目级 skills**：提交 `.kimi/skills` 下的协作、编码和发版规则，并忽略本地临时 `.skills/` 目录，避免其进入 VSIX 包。
+- **新增通用 AI 工具入口**：以 `.skills/` 作为共享 skills 主目录，并新增 `CLAUDE.md`、`GEMINI.md`、`.cursor/rules/ai-status-hub.mdc`、`.github/copilot-instructions.md`，让 Claude、Gemini、Cursor、Copilot 等工具能发现同一套项目规则。
+
 ## [0.5.12] - 2026-05-13
 
 ### 改进

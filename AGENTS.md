@@ -43,11 +43,13 @@
 - **Plan 文档**：通过 `EnterPlanMode` 制定的所有实现计划、技术方案必须使用中文书写（技术术语可保留英文）。
 - **用户回答**：向用户作出的所有文字回复必须使用中文（用户明确要求其他语言时除外）。
 - **思考过程**：内部推理、分析、总结优先使用中文进行。
-- 参考 `.kimi/skills/chinese-first/SKILL.md`
+- 参考 `.skills/chinese-first/SKILL.md`
 
 ### 5. Skills 目录
+通用项目 skills 以 `.skills/` 为主目录，供 Codex、Claude、Cursor、Copilot、Gemini 等工具通过各自入口文件读取；`.kimi/skills/` 作为 Kimi 兼容副本保留。更新 skill 时应同步两个目录中的同名 `SKILL.md`。
+
 ```
-.kimi/skills/
+.skills/
   vscode-extension-release-workflow/SKILL.md  ← 发版流程（最高优先级）
   version-bump-rules/SKILL.md                 ← 版本号规则
   reusable-format-functions/SKILL.md          ← 格式化函数提取规则

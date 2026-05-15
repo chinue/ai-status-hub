@@ -4,6 +4,11 @@ src/
 test/
 docs/
 .kimi/
+.skills/
+.cursor/
+.github/
+CLAUDE.md
+GEMINI.md
 esbuild.js
 tsconfig.json
 tsconfig.test.json
