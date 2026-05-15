@@ -1,4 +1,4 @@
-# KimiStatusPro / ClaudeStatusEx Provider 抽象设计
+# AI Status Hub / ClaudeStatusEx Provider 抽象设计
 
 > 版本：v1.0.0-draft  
 > 日期：2026-05-10  
@@ -9,7 +9,7 @@
 
 ## 1. 背景
 
-`claude-status`（参考工程）与 `kimi-status-pro-v2`（重建工程）的核心架构高度重叠：
+`claude-status`（参考工程）与 `ai-status-hub-v2`（重建工程）的核心架构高度重叠：
 
 - 状态栏 3 条目 + tooltip
 - Dashboard（进度条/成本曲线/热力图/历史数据）
@@ -86,7 +86,7 @@ export interface IAuthProvider {
 
 **实现差异**：
 - **Claude**：读取 `~/.claude/credentials.json` 中的 `claudeAiOauth.accessToken`
-- **Kimi**：从 VS Code `SecretStorage` 读取 `kimiStatusPro.apiKey` 或 OAuth credentials
+- **Kimi**：从 VS Code `SecretStorage` 读取 `aiStatusHub.apiKey` 或 OAuth credentials
 
 ### 3.2 配额 API 接口
 
@@ -296,7 +296,7 @@ function selectProvider(): IProvider {
 
 ### Phase 1：Kimi v2 独立稳定
 
-- 按当前计划完成 kimi-status-pro-v2 的独立开发
+- 按当前计划完成 ai-status-hub-v2 的独立开发
 - 不引入 Provider 抽象，避免增加复杂度
 - **目标**：验证 v2 架构（Store + Scheduler + 内存历史数据）在真实场景下的稳定性
 
@@ -319,7 +319,7 @@ Kimi v2 稳定运行后，将通用模块提取为 **私有 npm package** 或 **
 Kimi 和 Claude 各自依赖 `@coding-status/core`，只需实现各自的 Provider：
 
 ```typescript
-// kimi-status-pro/src/providers/kimi/index.ts
+// ai-status-hub/src/providers/kimi/index.ts
 import { IProvider } from '@coding-status/core';
 export const kimiProvider: IProvider = { ... };
 
@@ -336,7 +336,7 @@ export const claudeProvider: IProvider = { ... };
 coding-status-ex/
 ├── src/
 │   ├── providers/claude/     # 复用 claude-status 的 Provider 实现
-│   ├── providers/kimi/       # 复用 kimi-status-pro 的 Provider 实现
+│   ├── providers/kimi/       # 复用 ai-status-hub 的 Provider 实现
 │   └── extension.ts          # 同时激活两个 Provider，状态栏显示两行
 ```
 

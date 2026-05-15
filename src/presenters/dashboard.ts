@@ -34,7 +34,7 @@ export class DashboardPanel {
     this.lastProvider = store.getState().activeProvider;
 
     this.panel = vscode.window.createWebviewPanel(
-      'codexStatusProDashboard',
+      'aiStatusHubDashboard',
       i18n('dashboard.title'),
       vscode.ViewColumn.Beside,
       { enableScripts: true, retainContextWhenHidden: true }
@@ -75,7 +75,7 @@ export class DashboardPanel {
         this.sendUpdate(this.store.getState());
         break;
       case 'refresh':
-        vscode.commands.executeCommand('codexStatusPro.refresh');
+        vscode.commands.executeCommand('aiStatusHub.refresh');
         break;
       case 'toggleMode': {
         const next = ConfigService.getInstance().displayMode === 'percent' ? 'absolute' : 'percent';
@@ -87,7 +87,7 @@ export class DashboardPanel {
         break;
       }
       case 'openSettings':
-        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.codex-status-pro');
+        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.ai-status-hub');
         break;
       case 'setProvider': {
         const cfg = ConfigService.getInstance();
@@ -120,7 +120,7 @@ export class DashboardPanel {
         const amount = msg.amount;
         if (amount === null || typeof amount === 'number') {
           void ConfigService.getInstance().setWeeklyBudget(typeof amount === 'number' ? amount : null)
-            .then(() => vscode.commands.executeCommand('codexStatusPro.refresh'));
+            .then(() => vscode.commands.executeCommand('aiStatusHub.refresh'));
         }
         break;
       }

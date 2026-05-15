@@ -1,4 +1,4 @@
-# KimiStatusPro v2 Phase 3 详细实现文档
+# AI Status Hub v2 Phase 3 详细实现文档
 
 > 版本：v2.0.0-draft  
 > 日期：2026-05-12  
@@ -1364,9 +1364,9 @@ export interface LocalEstimate {
 ```typescript
   // Register budget command
   context.subscriptions.push(
-    vscode.commands.registerCommand("kimiStatusPro.setBudget", async () => {
+    vscode.commands.registerCommand("aiStatusHub.setBudget", async () => {
       const value = await vscode.window.showInputBox({
-        title: "KimiStatusPro – Set Weekly Budget",
+        title: "AI Status Hub – Set Weekly Budget",
         prompt: "Enter weekly budget in RMB (¥). Leave empty to clear.",
         validateInput: (v) => {
           if (!v) return null;
@@ -1401,20 +1401,20 @@ export interface LocalEstimate {
 
 ```json
 {
-  "kimiStatusPro.weeklyBudget": {
+  "aiStatusHub.weeklyBudget": {
     "type": ["number", "null"],
     "default": null,
     "minimum": 0,
     "description": "Weekly budget in RMB. Null means no budget."
   },
-  "kimiStatusPro.chartHeightRatio": {
+  "aiStatusHub.chartHeightRatio": {
     "type": "number",
     "default": 0.4,
     "minimum": 0.1,
     "maximum": 1.0,
     "description": "Dashboard chart height ratio relative to width."
   },
-  "kimiStatusPro.sessionMonitorEnabled": {
+  "aiStatusHub.sessionMonitorEnabled": {
     "type": "boolean",
     "default": false,
     "description": "Enable file system watcher for real-time session detection."
@@ -1426,8 +1426,8 @@ export interface LocalEstimate {
 
 ```json
 {
-  "command": "kimiStatusPro.setBudget",
-  "title": "KimiStatusPro: Set Weekly Budget",
+  "command": "aiStatusHub.setBudget",
+  "title": "AI Status Hub: Set Weekly Budget",
   "icon": "$(warning)"
 }
 ```

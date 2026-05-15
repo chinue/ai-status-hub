@@ -6,3 +6,6 @@ bin/*.csv
 .tmp
 tmp
 *.code-workspace
+!.kimi/
+!.kimi/skills/
+!.kimi/skills/**

@@ -41,13 +41,13 @@ export class StatusBarPresenter {
 
     this.itemWeekly = vscode.window.createStatusBarItem(alignment, 104);
     this.itemWeekly.name = `${this.displayName}StatusPro Weekly`;
-    this.itemWeekly.command = 'codexStatusPro.showDashboard';
+    this.itemWeekly.command = 'aiStatusHub.showDashboard';
     this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
     this.itemWeekly.show();
 
     this.itemWindow = vscode.window.createStatusBarItem(alignment, 103);
-    this.itemWindow.name = 'CodexStatusPro Window';
-    this.itemWindow.command = 'codexStatusPro.refresh';
+    this.itemWindow.name = 'AI Status Hub Window';
+    this.itemWindow.command = 'aiStatusHub.refresh';
     this.itemWindow.show();
 
     const unsub = store.subscribe((state) => this.render(state));
@@ -66,7 +66,7 @@ export class StatusBarPresenter {
         this.stopUpdateAnimation();
         const icon = this.provider?.ui.mainIcon ?? '$(openai)';
         this.itemWeekly.text = icon;
-        this.itemWeekly.command = 'codexStatusPro.togglePause';
+        this.itemWeekly.command = 'aiStatusHub.togglePause';
         this.itemWeekly.color = undefined;
         this.itemWeekly.backgroundColor = undefined;
         this.itemWeekly.show();
@@ -77,7 +77,7 @@ export class StatusBarPresenter {
       if (state.authStatus === 'missing') {
         this.stopUpdateAnimation();
         this.itemWeekly.text = `$(key) ${this.displayName}: sign in`;
-        this.itemWeekly.command = 'codexStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWeekly.color = new vscode.ThemeColor('statusBarItem.errorForeground');
         this.itemWindow.hide();
@@ -87,7 +87,7 @@ export class StatusBarPresenter {
       if (state.error && state.authStatus === 'failed') {
         this.stopUpdateAnimation();
         this.itemWeekly.text = `$(warning) ${this.displayName}: auth failed`;
-        this.itemWeekly.command = 'codexStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWindow.hide();
         return;
@@ -166,7 +166,7 @@ export class StatusBarPresenter {
         this.itemWeekly.text = `${icon} ${this.displayName}:${formatPercent(weeklyPct, 2)}${sourceIndicator}`;
       }
 
-      this.itemWeekly.command = 'codexStatusPro.showDashboard';
+      this.itemWeekly.command = 'aiStatusHub.showDashboard';
       this.itemWeekly.color = this.utilizationToColor(weeklyUtil);
       this.itemWeekly.backgroundColor = undefined;
       this.itemWeekly.show();
@@ -310,7 +310,7 @@ export class StatusBarPresenter {
 
     parts.push('---');
     parts.push('');
-    const ext = vscode.extensions?.getExtension('kayuii.codex-status-pro');
+    const ext = vscode.extensions?.getExtension('kayuii.ai-status-hub');
     const version = ext?.packageJSON?.version ?? '0.0.0';
     const lastUpdateText = `${t('tooltip.lastUpdate')} ${state.lastFetchAt ? fmtDateTime(state.lastFetchAt) : '—'} · v${version}`;
     parts.push(`<span style="color:var(--vscode-descriptionForeground);font-size:11px;">${lastUpdateText}</span>`);
@@ -319,7 +319,7 @@ export class StatusBarPresenter {
     parts.push('');
     const pauseLabel = state.ui.isPaused ? t('tooltip.resume') : t('tooltip.pause');
     const pauseIcon = state.ui.isPaused ? '▶️' : '⏸️';
-    parts.push(`<a href="command:codexStatusPro.refresh">🔄 ${t('tooltip.refresh')}</a> · <a href="command:codexStatusPro.showDashboard">📊 ${t('tooltip.showDetails')}</a> · <a href="command:codexStatusPro.openSettings">⚙️ ${t('tooltip.settings')}</a> · <a href="command:codexStatusPro.togglePause">${pauseIcon} ${pauseLabel}</a>`);
+    parts.push(`<a href="command:aiStatusHub.refresh">🔄 ${t('tooltip.refresh')}</a> · <a href="command:aiStatusHub.showDashboard">📊 ${t('tooltip.showDetails')}</a> · <a href="command:aiStatusHub.openSettings">⚙️ ${t('tooltip.settings')}</a> · <a href="command:aiStatusHub.togglePause">${pauseIcon} ${pauseLabel}</a>`);
     parts.push('');
     parts.push('</div>');
 

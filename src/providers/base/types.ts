@@ -107,7 +107,7 @@ export interface IPricingProvider {
 
 export interface IUIProvider {
   readonly mainIcon: string;           // '$(openai)' or '🌑'
-  readonly statusBarName: string;      // 'CodexStatusPro Weekly'
+  readonly statusBarName: string;      // 'AI Status Hub Weekly'
   readonly dashboardTitle: string;     // 'Codex Dashboard'
   readonly displayName: string;        // 'Codex'
   readonly officialUrl: string;

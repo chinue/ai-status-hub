@@ -1,13 +1,13 @@
 {
-  "name": "codex-status-pro",
-  "displayName": "CodexStatusPro",
-  "description": "Monitor Codex token usage and rate limits in real-time",
+  "name": "ai-status-hub",
+  "displayName": "AI Status Hub",
+  "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
   "version": "0.5.12",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chinue/kimi-status-pro"
+    "url": "https://github.com/chinue/ai-status-hub"
   },
   "engines": {
     "vscode": "^1.74.0"
@@ -23,40 +23,40 @@
   "contributes": {
     "commands": [
       {
-        "command": "codexStatusPro.refresh",
-        "title": "CodexStatusPro: Refresh",
+        "command": "aiStatusHub.refresh",
+        "title": "AI Status Hub: Refresh",
         "icon": "$(refresh)"
       },
       {
-        "command": "codexStatusPro.signIn",
-        "title": "CodexStatusPro: Sign In",
+        "command": "aiStatusHub.signIn",
+        "title": "AI Status Hub: Sign In",
         "icon": "$(sign-in)"
       },
       {
-        "command": "codexStatusPro.signOut",
-        "title": "CodexStatusPro: Sign Out",
+        "command": "aiStatusHub.signOut",
+        "title": "AI Status Hub: Sign Out",
         "icon": "$(sign-out)"
       },
       {
-        "command": "codexStatusPro.setApiKey",
-        "title": "CodexStatusPro: Set API Key",
+        "command": "aiStatusHub.setApiKey",
+        "title": "AI Status Hub: Set API Key",
         "icon": "$(key)"
       },
       {
-        "command": "codexStatusPro.showDashboard",
-        "title": "CodexStatusPro: Show Dashboard",
+        "command": "aiStatusHub.showDashboard",
+        "title": "AI Status Hub: Show Dashboard",
         "icon": "$(graph)"
       },
       {
-        "command": "codexStatusPro.togglePause",
-        "title": "CodexStatusPro: Toggle Pause",
+        "command": "aiStatusHub.togglePause",
+        "title": "AI Status Hub: Toggle Pause",
         "icon": "$(debug-pause)"
       }
     ],
     "configuration": {
-      "title": "CodexStatusPro",
+      "title": "AI Status Hub",
       "properties": {
-        "codexStatusPro.provider": {
+        "aiStatusHub.provider": {
           "type": "string",
           "enum": [
             "auto",
@@ -70,7 +70,7 @@
           "order": 0,
           "description": "Which coding assistant to monitor. auto: detect from local session directories."
         },
-        "codexStatusPro.displayMode": {
+        "aiStatusHub.displayMode": {
           "type": "string",
           "enum": [
             "percent",
@@ -80,7 +80,7 @@
           "order": 1,
           "description": "Status bar display mode. percent: show percentage with mini bar. absolute: show used/limit count."
         },
-        "codexStatusPro.language": {
+        "aiStatusHub.language": {
           "type": "string",
           "enum": [
             "auto",
@@ -91,7 +91,7 @@
           "order": 2,
           "description": "Display language. auto: follow VS Code locale. en: English. zh-CN: Simplified Chinese."
         },
-        "codexStatusPro.statusBar.alignment": {
+        "aiStatusHub.statusBar.alignment": {
           "type": "string",
           "enum": [
             "left",
@@ -101,7 +101,7 @@
           "order": 10,
           "description": "Status bar alignment. left: aligned to the left side of the status bar. right: aligned to the right side."
         },
-        "codexStatusPro.updateAnimationDurationMs": {
+        "aiStatusHub.updateAnimationDurationMs": {
           "type": "number",
           "default": 5000,
           "minimum": 500,
@@ -109,7 +109,7 @@
           "order": 14,
           "description": "Duration of the moon update animation in milliseconds. Range: 500–10000. When new data arrives during animation, the timer resets."
         },
-        "codexStatusPro.updateAnimationIntervalMs": {
+        "aiStatusHub.updateAnimationIntervalMs": {
           "type": "number",
           "default": 300,
           "minimum": 100,
@@ -117,44 +117,44 @@
           "order": 15,
           "description": "Frame interval of the moon update animation in milliseconds. Range: 100–2000. Controls how fast the moon phases cycle."
         },
-        "codexStatusPro.statusBar.utilizationColor.lt20": {
+        "aiStatusHub.statusBar.utilizationColor.lt20": {
           "type": "string",
           "default": "#FFFFFF",
           "order": 16,
           "description": "Status bar text color when utilization is below 20%. Hex color string."
         },
-        "codexStatusPro.statusBar.utilizationColor.lt40": {
+        "aiStatusHub.statusBar.utilizationColor.lt40": {
           "type": "string",
           "default": "#FFFF80",
           "order": 17,
           "description": "Status bar text color when utilization is 20%–40%. Hex color string."
         },
-        "codexStatusPro.statusBar.utilizationColor.lt60": {
+        "aiStatusHub.statusBar.utilizationColor.lt60": {
           "type": "string",
           "default": "#00FF80",
           "order": 18,
           "description": "Status bar text color when utilization is 40%–60%. Hex color string."
         },
-        "codexStatusPro.statusBar.utilizationColor.lt80": {
+        "aiStatusHub.statusBar.utilizationColor.lt80": {
           "type": "string",
           "default": "#FF80FF",
           "order": 19,
           "description": "Status bar text color when utilization is 60%–80%. Hex color string."
         },
-        "codexStatusPro.statusBar.utilizationColor.gte80": {
+        "aiStatusHub.statusBar.utilizationColor.gte80": {
           "type": "string",
           "default": "#FF0000",
           "order": 20,
           "description": "Status bar text color when utilization is 80% or above. Hex color string."
         },
-        "codexStatusPro.refreshIntervalSeconds": {
+        "aiStatusHub.refreshIntervalSeconds": {
           "type": "number",
           "default": 300,
           "minimum": 30,
           "order": 30,
           "description": "API refresh interval in seconds. Range: 30–∞. Long tick fetches quota from API."
         },
-        "codexStatusPro.shortRefreshIntervalSeconds": {
+        "aiStatusHub.shortRefreshIntervalSeconds": {
           "type": "number",
           "default": 5,
           "minimum": 1,
@@ -162,7 +162,7 @@
           "order": 31,
           "description": "Local estimation refresh interval in seconds. Range: 1–60. Short tick reads local JSONL and estimates usage without API call."
         },
-        "codexStatusPro.dataRetentionDays": {
+        "aiStatusHub.dataRetentionDays": {
           "type": "number",
           "default": 365,
           "minimum": 30,
@@ -170,14 +170,14 @@
           "order": 32,
           "description": "Local usage data retention period in days. Range: 30–3650. Older entries are discarded during scan."
         },
-        "codexStatusPro.weeklyBudget": {
+        "aiStatusHub.weeklyBudget": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "order": 50,
           "description": "Weekly budget in configured currency. 0 means disabled. When cost7d exceeds this value, a warning is shown."
         },
-        "codexStatusPro.heatmapDays": {
+        "aiStatusHub.heatmapDays": {
           "type": "number",
           "default": 90,
           "minimum": 30,
@@ -185,7 +185,7 @@
           "order": 60,
           "description": "Number of days to show in the usage history heatmap."
         },
-        "codexStatusPro.heatmapCycles5h": {
+        "aiStatusHub.heatmapCycles5h": {
           "type": "number",
           "default": 30,
           "minimum": 1,
@@ -193,7 +193,7 @@
           "order": 61,
           "description": "Number of 5h cycles to display in the heatmap. Range: 1–60."
         },
-        "codexStatusPro.heatmapCycles7d": {
+        "aiStatusHub.heatmapCycles7d": {
           "type": "number",
           "default": 30,
           "minimum": 1,
@@ -201,7 +201,7 @@
           "order": 62,
           "description": "Number of 7d cycles to display in the heatmap. Range: 1–60."
         },
-        "codexStatusPro.heatmapCycles30d": {
+        "aiStatusHub.heatmapCycles30d": {
           "type": "number",
           "default": 12,
           "minimum": 1,
@@ -209,7 +209,7 @@
           "order": 63,
           "description": "Number of 30d cycles to display in the heatmap. Range: 1–60."
         },
-        "codexStatusPro.costCurveMaxPoints": {
+        "aiStatusHub.costCurveMaxPoints": {
           "type": "number",
           "default": 2000,
           "minimum": 200,
@@ -217,7 +217,7 @@
           "order": 65,
           "description": "Maximum number of data points for the cost curve. Range: 200–20000."
         },
-        "codexStatusPro.chartHeightRatio": {
+        "aiStatusHub.chartHeightRatio": {
           "type": "number",
           "default": 0.4,
           "minimum": 0.2,
@@ -225,7 +225,7 @@
           "order": 66,
           "description": "Height ratio for dashboard charts (canvas height = width * ratio)."
         },
-        "codexStatusPro.dashboard.memoryDetailMaxRows": {
+        "aiStatusHub.dashboard.memoryDetailMaxRows": {
           "type": "number",
           "default": 500,
           "minimum": 1,
@@ -233,7 +233,7 @@
           "order": 67,
           "description": "Maximum number of rows to pass to Dashboard memory detail tables."
         },
-        "codexStatusPro.dashboard.memoryDetailDisplayMaxRows": {
+        "aiStatusHub.dashboard.memoryDetailDisplayMaxRows": {
           "type": "number",
           "default": 40,
           "minimum": 1,
@@ -241,7 +241,7 @@
           "order": 67,
           "description": "Maximum visible rows in Dashboard detail tables before scrollbar appears."
         },
-        "codexStatusPro.dashboard.memoryDetailCellMaxChars": {
+        "aiStatusHub.dashboard.memoryDetailCellMaxChars": {
           "type": "number",
           "default": 64,
           "minimum": 8,
@@ -249,7 +249,7 @@
           "order": 67,
           "description": "Maximum characters displayed per cell in Dashboard detail tables."
         },
-        "codexStatusPro.apiHistoryMaxEntries": {
+        "aiStatusHub.apiHistoryMaxEntries": {
           "type": "number",
           "default": 10000,
           "minimum": 1,
@@ -257,13 +257,13 @@
           "order": 68,
           "description": "Maximum number of estimator history entries to keep in memory."
         },
-        "codexStatusPro.apiHistoryPersistOnExit": {
+        "aiStatusHub.apiHistoryPersistOnExit": {
           "type": "boolean",
           "default": false,
           "order": 69,
           "description": "Persist API history to disk JSONL when the extension deactivates."
         },
-        "codexStatusPro.currency": {
+        "aiStatusHub.currency": {
           "type": "string",
           "enum": [
             "auto",
@@ -274,165 +274,165 @@
           "order": 5,
           "description": "Currency for cost display. auto: infer from provider (Codex/Claude/Cursor → USD, Kimi/GLM → CNY). USD: US Dollar. CNY: Chinese Yuan."
         },
-        "codexStatusPro.pricing.models.gpt5.inputPerMillion": {
+        "aiStatusHub.pricing.models.gpt5.inputPerMillion": {
           "type": "number",
           "default": 2,
           "minimum": 0,
           "order": 80,
           "description": "gpt-5 input token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.gpt5.outputPerMillion": {
+        "aiStatusHub.pricing.models.gpt5.outputPerMillion": {
           "type": "number",
           "default": 10,
           "minimum": 0,
           "order": 81,
           "description": "gpt-5 output token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.gpt5.cacheReadPerMillion": {
+        "aiStatusHub.pricing.models.gpt5.cacheReadPerMillion": {
           "type": "number",
           "default": 0.5,
           "minimum": 0,
           "order": 82,
           "description": "gpt-5 cache-read token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.gpt5.cacheCreatePerMillion": {
+        "aiStatusHub.pricing.models.gpt5.cacheCreatePerMillion": {
           "type": "number",
           "default": 2,
           "minimum": 0,
           "order": 83,
           "description": "gpt-5 cache-write token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeOpus.inputPerMillion": {
+        "aiStatusHub.pricing.models.claudeOpus.inputPerMillion": {
           "type": "number",
           "default": 5,
           "minimum": 0,
           "order": 90,
           "description": "Claude Opus input token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeOpus.outputPerMillion": {
+        "aiStatusHub.pricing.models.claudeOpus.outputPerMillion": {
           "type": "number",
           "default": 25,
           "minimum": 0,
           "order": 91,
           "description": "Claude Opus output token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeOpus.cacheReadPerMillion": {
+        "aiStatusHub.pricing.models.claudeOpus.cacheReadPerMillion": {
           "type": "number",
           "default": 0.5,
           "minimum": 0,
           "order": 92,
           "description": "Claude Opus cache-read token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeOpus.cacheCreatePerMillion": {
+        "aiStatusHub.pricing.models.claudeOpus.cacheCreatePerMillion": {
           "type": "number",
           "default": 6.25,
           "minimum": 0,
           "order": 93,
           "description": "Claude Opus cache-write token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeSonnet.inputPerMillion": {
+        "aiStatusHub.pricing.models.claudeSonnet.inputPerMillion": {
           "type": "number",
           "default": 3,
           "minimum": 0,
           "order": 94,
           "description": "Claude Sonnet input token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeSonnet.outputPerMillion": {
+        "aiStatusHub.pricing.models.claudeSonnet.outputPerMillion": {
           "type": "number",
           "default": 15,
           "minimum": 0,
           "order": 95,
           "description": "Claude Sonnet output token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeSonnet.cacheReadPerMillion": {
+        "aiStatusHub.pricing.models.claudeSonnet.cacheReadPerMillion": {
           "type": "number",
           "default": 0.3,
           "minimum": 0,
           "order": 96,
           "description": "Claude Sonnet cache-read token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeSonnet.cacheCreatePerMillion": {
+        "aiStatusHub.pricing.models.claudeSonnet.cacheCreatePerMillion": {
           "type": "number",
           "default": 3.75,
           "minimum": 0,
           "order": 97,
           "description": "Claude Sonnet cache-write token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeHaiku.inputPerMillion": {
+        "aiStatusHub.pricing.models.claudeHaiku.inputPerMillion": {
           "type": "number",
           "default": 1,
           "minimum": 0,
           "order": 98,
           "description": "Claude Haiku input token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeHaiku.outputPerMillion": {
+        "aiStatusHub.pricing.models.claudeHaiku.outputPerMillion": {
           "type": "number",
           "default": 5,
           "minimum": 0,
           "order": 99,
           "description": "Claude Haiku output token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeHaiku.cacheReadPerMillion": {
+        "aiStatusHub.pricing.models.claudeHaiku.cacheReadPerMillion": {
           "type": "number",
           "default": 0.1,
           "minimum": 0,
           "order": 100,
           "description": "Claude Haiku cache-read token price per million (USD)."
         },
-        "codexStatusPro.pricing.models.claudeHaiku.cacheCreatePerMillion": {
+        "aiStatusHub.pricing.models.claudeHaiku.cacheCreatePerMillion": {
           "type": "number",
           "default": 1.25,
           "minimum": 0,
           "order": 101,
           "description": "Claude Haiku cache-write token price per million (USD)."
         },
-        "codexStatusPro.pricing.kimi.models.k2_6.inputPerMillion": {
+        "aiStatusHub.pricing.kimi.models.k2_6.inputPerMillion": {
           "type": "number",
-          "default": 6.50,
+          "default": 6.5,
           "minimum": 0,
           "order": 110,
           "description": "Kimi k2.6 input token price per million (CNY)."
         },
-        "codexStatusPro.pricing.kimi.models.k2_6.outputPerMillion": {
+        "aiStatusHub.pricing.kimi.models.k2_6.outputPerMillion": {
           "type": "number",
-          "default": 27.00,
+          "default": 27,
           "minimum": 0,
           "order": 111,
           "description": "Kimi k2.6 output token price per million (CNY)."
         },
-        "codexStatusPro.pricing.kimi.models.k2_6.cacheReadPerMillion": {
+        "aiStatusHub.pricing.kimi.models.k2_6.cacheReadPerMillion": {
           "type": "number",
-          "default": 1.10,
+          "default": 1.1,
           "minimum": 0,
           "order": 112,
           "description": "Kimi k2.6 cache-read token price per million (CNY)."
         },
-        "codexStatusPro.pricing.kimi.models.k2_6.cacheCreatePerMillion": {
+        "aiStatusHub.pricing.kimi.models.k2_6.cacheCreatePerMillion": {
           "type": "number",
-          "default": 6.50,
+          "default": 6.5,
           "minimum": 0,
           "order": 113,
           "description": "Kimi k2.6 cache-write token price per million (CNY)."
         },
-        "codexStatusPro.pricing.officialUrl": {
+        "aiStatusHub.pricing.officialUrl": {
           "type": "string",
           "default": "",
           "order": 84,
           "description": "Custom official pricing page URL shown in Dashboard. Leave empty to use provider default."
         },
-        "codexStatusPro.pricing.officialDate": {
+        "aiStatusHub.pricing.officialDate": {
           "type": "string",
           "default": "2026-05-13",
           "order": 85,
           "description": "Pricing publish date displayed next to the official pricing link (YYYY-MM-DD)."
         },
-        "codexStatusPro.defaultModelName": {
+        "aiStatusHub.defaultModelName": {
           "type": "string",
           "default": "gpt-5",
           "order": 70,
           "description": "Default model name displayed when usage entry has no model information."
         },
-        "codexStatusPro._pauseSignal": {
+        "aiStatusHub._pauseSignal": {
           "type": "number",
           "default": 0,
           "description": "Internal: pause state broadcast signal (timestamp). Do not modify manually."

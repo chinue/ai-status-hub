@@ -1,4 +1,4 @@
-# KimiStatusPro v2 仪表盘设计文档
+# AI Status Hub v2 仪表盘设计文档
 
 > 版本：v2.0.0-draft  
 > 日期：2026-05-10  

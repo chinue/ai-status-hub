@@ -71,7 +71,7 @@ export class CodexApiProvider implements IQuotaApiProvider {
       session_id: sessionId,
       Accept: 'text/event-stream',
       originator: 'codex_vscode_extension',
-      'User-Agent': 'codex-status-pro/1.0.0',
+      'User-Agent': 'ai-status-hub/1.0.0',
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',

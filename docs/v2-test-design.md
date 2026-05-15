@@ -1,4 +1,4 @@
-# KimiStatusPro v2 测试设计文档
+# AI Status Hub v2 测试设计文档
 
 > 版本：v1.0.0-draft  
 > 日期：2026-05-10  
@@ -458,7 +458,7 @@ describe('AuthService', () => {
     const auth = AuthService.getInstance();
     const ctx = makeContext();
     auth.init(ctx.secrets);
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test123');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test123');
     const token = await auth.resolveToken();
     expect(token).to.equal('sk-test123');
   });
@@ -467,9 +467,9 @@ describe('AuthService', () => {
     const auth = AuthService.getInstance();
     const ctx = makeContext();
     auth.init(ctx.secrets);
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
     const t1 = await auth.resolveToken();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-changed'); // 修改存储
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-changed'); // 修改存储
     const t2 = await auth.resolveToken(); // 应返回缓存值
     expect(t1).to.equal('sk-test');
     expect(t2).to.equal('sk-test');
@@ -479,10 +479,10 @@ describe('AuthService', () => {
     const auth = AuthService.getInstance();
     const ctx = makeContext();
     auth.init(ctx.secrets);
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
     await auth.resolveToken();
     auth.invalidate();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-new');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-new');
     const token = await auth.resolveToken();
     expect(token).to.equal('sk-new');
   });
@@ -615,7 +615,7 @@ describe('Scheduler', () => {
   it('tick dispatches LOADING_START → API_SUCCESS → LOADING_END', async () => {
     const ctx = makeContext();
     auth.init(ctx.secrets);
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     const quota = {
       weeklyLimit: 1000, weeklyUsed: 250, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,

@@ -18,8 +18,8 @@ const TOKEN_PATH = '/api/oauth/token';
 const REFRESH_THRESHOLD_SECONDS = 300;
 const HTTP_TIMEOUT_MS = 15_000;
 
-const SECRET_API_KEY = 'kimiStatusPro.apiKey';
-const SECRET_OAUTH = 'kimiStatusPro.oauthCredentials';
+const SECRET_API_KEY = 'aiStatusHub.apiKey';
+const SECRET_OAUTH = 'aiStatusHub.oauthCredentials';
 
 interface KimiOAuthCredentials {
   accessToken: string;

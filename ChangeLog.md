@@ -84,7 +84,7 @@
   - 9 个字段：timestamp（原始整数）/ apiWeeklyPct / apiWindowPct / estimatedWeeklyPct / estimatedWindowPct / localCost7d / localCost5h / weeklyK / windowK
   - 配置项 `apiHistoryMaxEntries`（默认 1000，范围 1–10000）
   - 配置项 `apiHistoryPersistOnExit` checkbox 控制是否在插件退出时写入磁盘 JSONL
-  - 磁盘文件：`~/.codex/codex-status-pro-api-history-{provider}.jsonl`
+  - 磁盘文件：`~/.codex/ai-status-hub-api-history-{provider}.jsonl`
   - Dashboard 内存表格新增 `Store.apiHistory` 模块，可展开详情并导出 CSV
 
 ## [0.5.3] - 2026-05-13
@@ -95,7 +95,7 @@
   - UsageEntry 展开表格展示全部 8 个字段（timestamp 显示原始 64 位整数 / inputOther / output / inputCacheRead / inputCacheCreation / cost / messageId / model）
   - 标题显示 `Recent usage entries (X/Y)`，X = 展示条数，Y = 总条数
   - 过滤 object 类型值，避免 `[object Object]` 污染
-  - 新增配置项 `codexStatusPro.dashboard.memoryDetailMaxRows`（默认 50，范围 1–200）
+  - 新增配置项 `aiStatusHub.dashboard.memoryDetailMaxRows`（默认 50，范围 1–200）
   - 展开详情时内存按钮旁显示 💾 保存按钮，点击可将完整数据导出为 CSV
 
 ## [0.5.2] - 2026-05-13
@@ -165,10 +165,10 @@
 ### 变更
 
 - **Tooltip 底部操作按钮栏**：参考 `codex-ratelimit-vscode` 风格，在 tooltip 底部居中添加一行操作按钮（emoji 图标 + 蓝色命令链接）：
-  - 🔄 Refresh → `codexStatusPro.refresh`
-  - 📊 Show Details → `codexStatusPro.showDashboard`
-  - ⚙️ Settings → `codexStatusPro.openSettings`
-  - ⏸ Pause / ▶ Resume → `codexStatusPro.togglePause`
+  - 🔄 Refresh → `aiStatusHub.refresh`
+  - 📊 Show Details → `aiStatusHub.showDashboard`
+  - ⚙️ Settings → `aiStatusHub.openSettings`
+  - ⏸ Pause / ▶ Resume → `aiStatusHub.togglePause`
 - **状态栏版本号显示**：在原来暂停按钮的位置（priority 102）添加蓝色版本号 `vX.Y.Z`（`statusBarItem.prominentForeground`），点击打开 Dashboard。
 
 ## [0.4.5] - 2026-05-13
@@ -236,9 +236,9 @@
 - **多厂商切换架构（参考 tokscale 抽象方法）**：扩展从单一 Codex 监控改造为支持多厂商切换的通用编码助手用量监控。
   - **Provider Registry**：新增 `src/providers/registry.ts`，支持 Codex、Kimi、Claude、GLM、Cursor 五家厂商。Codex 和 Kimi 为完整实现，其余为占位接口（后续可逐步填充）。
   - **Dashboard 厂商切换下拉框**：顶部工具栏新增 `<select>` 下拉框，可实时切换当前监控的厂商，无需重启 VS Code。
-  - **配置项 `codexStatusPro.provider`**：支持 `auto`/`codex`/`kimi`/`claude`/`glm`/`cursor`。`auto` 模式自动检测本地 session 目录（`~/.codex/sessions/`、`~/.kimi/sessions/`、`~/.claude/`）。
-  - **各厂商数据完全隔离**：每个厂商有独立的缓存文件（`codex-status-pro-cache-v1-{providerId}.json`），切换时 Store 状态重置，Scheduler 重建。
-  - **Kimi Provider 完整移植**：从参考工程 kimi-status-pro 移植：
+  - **配置项 `aiStatusHub.provider`**：支持 `auto`/`codex`/`kimi`/`claude`/`glm`/`cursor`。`auto` 模式自动检测本地 session 目录（`~/.codex/sessions/`、`~/.kimi/sessions/`、`~/.claude/`）。
+  - **各厂商数据完全隔离**：每个厂商有独立的缓存文件（`ai-status-hub-cache-v1-{providerId}.json`），切换时 Store 状态重置，Scheduler 重建。
+  - **Kimi Provider 完整移植**：从参考工程 ai-status-hub 移植：
     - **鉴权**：OAuth device code flow + API Key + CLI credentials 文件 fallback
     - **API**：`api.kimi.com/coding/v1/usages` JSON body 解析
     - **本地扫描**：`~/.kimi/sessions/<session>/<conv>/wire.jsonl`，解析 `message.type === 'StatusUpdate'` 的 token_usage
@@ -257,11 +257,11 @@
 
 ### 新增
 
-- **在 Settings UI 中恢复 `language` 配置项**：此前 `language` 的 setter 虽然保留在 `src/config.ts` 中，但已从 `package.json` 的 `contributes.configuration` 中移除，导致 Dashboard 语言切换按钮无法持久化到用户配置（fallback 到 store 内存）。现已将 `codexStatusPro.language` 重新加入 `package.json`，支持 `auto`/`en`/`zh-CN` 三档，与 VS Code 设置同步。
+- **在 Settings UI 中恢复 `language` 配置项**：此前 `language` 的 setter 虽然保留在 `src/config.ts` 中，但已从 `package.json` 的 `contributes.configuration` 中移除，导致 Dashboard 语言切换按钮无法持久化到用户配置（fallback 到 store 内存）。现已将 `aiStatusHub.language` 重新加入 `package.json`，支持 `auto`/`en`/`zh-CN` 三档，与 VS Code 设置同步。
 
 ### Bug 修复
 
-- **修复 Dashboard 设置按钮打开空设置面板**：`openSettings` 命令传入了错误的扩展 ID `@ext:codex-status-pro`（缺少 publisher 前缀）。VS Code 的 `@ext:` 过滤需要完整 ID（`publisher.name`），导致搜索不到任何配置项。已修正为 `@ext:kayuii.codex-status-pro`。
+- **修复 Dashboard 设置按钮打开空设置面板**：`openSettings` 命令传入了错误的扩展 ID `@ext:ai-status-hub`（缺少 publisher 前缀）。VS Code 的 `@ext:` 过滤需要完整 ID（`publisher.name`），导致搜索不到任何配置项。已修正为 `@ext:kayuii.ai-status-hub`。
 
 ## [0.3.16] - 2026-05-13
 
@@ -295,7 +295,7 @@
 
 - **彻底修复百分比严重偏离官网（P0）**：
   1. **`resolveWeeklyPct` 优先级反转**：之前 `localEstimate.weeklyPct` 无条件优先于 `quota.weeklyUsedPct`，导致缓存恢复时默认值为 0、short tick 错误覆盖、本地 rate_limits fallback 污染后都会显示错误百分比。现已改为**API quota 为权威来源**，`localEstimate` 仅在四舍五入后与 API 值匹配时才用于保留小数精度。
-  2. **本地 rate_limits 不再污染缓存**：API 失败 fallback 到本地 `rate_limits` 时，之前会调用 `processQuotaData` 将过时的本地值（如 2%/46%）写入 `~/.codex/codex-status-pro-cache-v1.json`，导致每次启动都加载错误数据。现已增加 `persistToCache` 参数，本地 fallback 时**只显示、不持久化**。
+  2. **本地 rate_limits 不再污染缓存**：API 失败 fallback 到本地 `rate_limits` 时，之前会调用 `processQuotaData` 将过时的本地值（如 2%/46%）写入 `~/.codex/ai-status-hub-cache-v1.json`，导致每次启动都加载错误数据。现已增加 `persistToCache` 参数，本地 fallback 时**只显示、不持久化**。
   3. **修复 `lastFetchAt` 被错误设为 `weeklyResetAt`**：`CACHE_LOADED` 之前将 `lastFetchAt` 设为 `quota.weeklyResetAt`（重置时间），导致 tooltip 显示错误，stale 检测混乱。现已改为使用缓存的 `fetchedAt` 字段。
 
 ## [0.3.12] - 2026-05-13
@@ -310,7 +310,7 @@
 
 ### Bug 修复
 
-- **移除 JSONL 增量解析**：恢复全量解析，彻底消除文件前缀变化导致增量解析出错的潜在风险。codex-status-pro 全程只读 jsonl，不会写入或删除 session 文件。
+- **移除 JSONL 增量解析**：恢复全量解析，彻底消除文件前缀变化导致增量解析出错的潜在风险。ai-status-hub 全程只读 jsonl，不会写入或删除 session 文件。
 - **short tick 不再用本地 rate_limits 覆盖 API 值**：只要 API 成功过（`quota` 存在），short tick 只使用 calibration 估算；仅在 API 完全不可用时才 fallback 到本地 `rate_limits`，避免过时的本地数据覆盖权威 API 百分比。
 
 ## [0.3.10] - 2026-05-13
@@ -378,7 +378,7 @@
 
 ### 重大变更
 
-- **完整迁移**：从 `kimi-status-pro` 迁移至 `codex-status-pro`，全面支持 OpenAI Codex CLI 的用量监控与状态追踪。
+- **完整迁移**：从 `ai-status-hub` 迁移至 `ai-status-hub`，全面支持 OpenAI Codex CLI 的用量监控与状态追踪。
 - **Provider 抽象层**：引入统一的 Provider 架构（`IProvider`），将认证、API 配额、本地用量解析、定价策略与 UI 表现完全解耦，为未来多 Provider 扩展奠定基础。
 
 ### 功能
@@ -386,7 +386,7 @@
 - **Codex 认证**：自动读取 `~/.codex/auth.json`，解析 JWT `id_token` 获取账户信息，使用 `access_token` 作为 Bearer Token。
 - **API 配额监控**：通过向 Codex API 发送探测请求，从响应头中提取 `x-codex-primary-*`（5 小时窗口）与 `x-codex-secondary-*`（7 天窗口）的速率限制使用率与重置时间。
 - **本地 JSONL 用量解析**：扫描 `~/.codex/sessions/**/*.jsonl` 与 `archived_sessions`，基于 `last_token_usage` 增量（delta）逻辑精确计算每轮对话的 token 消耗，支持模型追踪与缓存 token 钳位。
-- **成本估算**：内置 USD 定价（默认 `gpt-5` 模型），支持通过 `codexStatusPro.currency` 配置币种符号（默认 `$`）。
+- **成本估算**：内置 USD 定价（默认 `gpt-5` 模型），支持通过 `aiStatusHub.currency` 配置币种符号（默认 `$`）。
 - **状态栏 UI**：使用 `$(openai)` Codex 图标，更新动画替换为 `['🎆','🎇','✨️']`，所有文案统一为 Codex 品牌。
 
 ### 技术细节

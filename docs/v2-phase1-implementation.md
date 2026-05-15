@@ -1,4 +1,4 @@
-# KimiStatusPro v2 Phase 1 详细实现文档
+# AI Status Hub v2 Phase 1 详细实现文档
 
 > 版本：v2.0.0-draft  
 > 日期：2026-05-10  
@@ -19,8 +19,8 @@
 | **定时器** | 每 60s 自动刷新 API | 单一 setTimeout 链 |
 | **缓存** | 启动时从磁盘恢复配额数据 | v2 schema，拒绝旧版本 |
 | **认证** | OAuth + API Key + CLI fallback | AuthService 统一解析 |
-| **登录/登出** | 命令 + 状态栏响应 | `kimiStatusPro.signIn` / `signOut` |
-| **手动刷新** | 命令触发立即刷新 | `kimiStatusPro.refresh` |
+| **登录/登出** | 命令 + 状态栏响应 | `aiStatusHub.signIn` / `signOut` |
+| **手动刷新** | 命令触发立即刷新 | `aiStatusHub.refresh` |
 | **基础仪表盘** | WebView 显示百分比 + 进度条 | 可折叠区块，中英文切换按钮 |
 | **语言切换** | 仪表盘内 🌐 按钮切换 | reload WebView，设置持久化 |
 
@@ -61,8 +61,8 @@ v2/
 
 ```json
 {
-  "name": "kimi-status-pro",
-  "displayName": "KimiStatusPro",
+  "name": "ai-status-hub",
+  "displayName": "AI Status Hub",
   "description": "Monitor Kimi Code quota usage in real-time",
   "version": "0.4.0",
   "publisher": "kayuii",
@@ -74,33 +74,33 @@ v2/
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      { "command": "kimiStatusPro.refresh", "title": "KimiStatusPro: Refresh", "icon": "$(refresh)" },
-      { "command": "kimiStatusPro.signIn", "title": "KimiStatusPro: Sign In (OAuth)", "icon": "$(sign-in)" },
-      { "command": "kimiStatusPro.signOut", "title": "KimiStatusPro: Sign Out", "icon": "$(sign-out)" },
-      { "command": "kimiStatusPro.setApiKey", "title": "KimiStatusPro: Set API Key", "icon": "$(key)" },
-      { "command": "kimiStatusPro.showDashboard", "title": "KimiStatusPro: Show Dashboard", "icon": "$(graph)" },
-      { "command": "kimiStatusPro.togglePause", "title": "KimiStatusPro: Toggle Pause", "icon": "$(debug-pause)" }
+      { "command": "aiStatusHub.refresh", "title": "AI Status Hub: Refresh", "icon": "$(refresh)" },
+      { "command": "aiStatusHub.signIn", "title": "AI Status Hub: Sign In (OAuth)", "icon": "$(sign-in)" },
+      { "command": "aiStatusHub.signOut", "title": "AI Status Hub: Sign Out", "icon": "$(sign-out)" },
+      { "command": "aiStatusHub.setApiKey", "title": "AI Status Hub: Set API Key", "icon": "$(key)" },
+      { "command": "aiStatusHub.showDashboard", "title": "AI Status Hub: Show Dashboard", "icon": "$(graph)" },
+      { "command": "aiStatusHub.togglePause", "title": "AI Status Hub: Toggle Pause", "icon": "$(debug-pause)" }
     ],
     "configuration": {
-      "title": "KimiStatusPro",
+      "title": "AI Status Hub",
       "properties": {
-        "kimiStatusPro.language": {
+        "aiStatusHub.language": {
           "type": "string", "enum": ["auto", "en", "zh-CN"], "default": "auto",
           "description": "Display language (auto-detect or manual)"
         },
-        "kimiStatusPro.refreshIntervalSeconds": {
+        "aiStatusHub.refreshIntervalSeconds": {
           "type": "number", "default": 60, "minimum": 30,
           "description": "API refresh interval in seconds"
         },
-        "kimiStatusPro.displayMode": {
+        "aiStatusHub.displayMode": {
           "type": "string", "enum": ["percent", "absolute"], "default": "percent",
           "description": "Status bar display mode"
         },
-        "kimiStatusPro.shortRefreshIntervalSeconds": {
+        "aiStatusHub.shortRefreshIntervalSeconds": {
           "type": "number", "default": 5, "minimum": 1, "maximum": 60,
           "description": "Local estimate short refresh interval in seconds"
         },
-        "kimiStatusPro._pauseSignal": {
+        "aiStatusHub._pauseSignal": {
           "type": "number", "default": 0,
           "description": "Internal: pause state broadcast signal (timestamp). Do not modify manually."
         }
@@ -322,7 +322,7 @@ export class Store {
 import * as vscode from 'vscode';
 import { DisplayMode, LanguageSetting } from './types';
 
-const CFG_SECTION = 'kimiStatusPro';
+const CFG_SECTION = 'aiStatusHub';
 
 export class ConfigService {
   private static instance: ConfigService;
@@ -382,7 +382,7 @@ export type Locale = 'en' | 'zh-CN';
 export const dict: Record<Locale, Record<string, string>> = {
   en: {
     'tooltip.title': 'Kimi Code Usage',
-    'tooltip.notLoggedIn': 'Sign in to see your usage data.\nRun "KimiStatusPro: Sign In" or set an API key.',
+    'tooltip.notLoggedIn': 'Sign in to see your usage data.\nRun "AI Status Hub: Sign In" or set an API key.',
     'tooltip.authFailed': 'Authentication failed. Please sign in again.',
     'tooltip.window5h': '5h window',
     'tooltip.window7d': '7d window',
@@ -404,7 +404,7 @@ export const dict: Record<Locale, Record<string, string>> = {
   },
   'zh-CN': {
     'tooltip.title': 'Kimi Code 用量',
-    'tooltip.notLoggedIn': '请登录后查看用量数据。\n运行 "KimiStatusPro: Sign In" 或设置 API Key。',
+    'tooltip.notLoggedIn': '请登录后查看用量数据。\n运行 "AI Status Hub: Sign In" 或设置 API Key。',
     'tooltip.authFailed': '认证失败，请重新登录。',
     'tooltip.window5h': '5h 窗口',
     'tooltip.window7d': '7d 窗口',
@@ -605,14 +605,14 @@ export function drawBorderTable(
 import * as vscode from 'vscode';
 import { KimiOAuthCredentials } from './types';
 
-const SECRET_API_KEY = 'kimiStatusPro.apiKey';
-const SECRET_OAUTH = 'kimiStatusPro.oauthCredentials';
+const SECRET_API_KEY = 'aiStatusHub.apiKey';
+const SECRET_OAUTH = 'aiStatusHub.oauthCredentials';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
 export function getOutputChannel(): vscode.OutputChannel {
   if (!outputChannel) {
-    outputChannel = vscode.window.createOutputChannel('KimiStatusPro');
+    outputChannel = vscode.window.createOutputChannel('AI Status Hub');
   }
   return outputChannel;
 }
@@ -717,7 +717,7 @@ function commonHeaders(deviceId: string): Record<string, string> {
   return {
     'Content-Type': 'application/x-www-form-urlencoded',
     Accept: 'application/json',
-    'X-Msh-Platform': 'kimi-status-pro-vscode',
+    'X-Msh-Platform': 'ai-status-hub-vscode',
     'X-Msh-Version': '0.4.0',
     'X-Msh-Device-Id': deviceId,
   };
@@ -1032,8 +1032,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { CachedData } from '../types';
 
-const CACHE_FILE = path.join(os.homedir(), '.kimi', 'kimi-status-pro-cache-v2.json');
-const SCHEMA = 'kimi-status-pro-cache-v2';
+const CACHE_FILE = path.join(os.homedir(), '.kimi', 'ai-status-hub-cache-v2.json');
+const SCHEMA = 'ai-status-hub-cache-v2';
 const CURRENT_VERSION = 2;
 
 export class CacheService {
@@ -1212,14 +1212,14 @@ export class StatusBarPresenter {
     const alignment = vscode.StatusBarAlignment.Right;
 
     this.itemWeekly = vscode.window.createStatusBarItem(alignment, 104);
-    this.itemWeekly.name = 'KimiStatusPro Weekly';
-    this.itemWeekly.command = 'kimiStatusPro.showDashboard';
+    this.itemWeekly.name = 'AI Status Hub Weekly';
+    this.itemWeekly.command = 'aiStatusHub.showDashboard';
     this.itemWeekly.text = '$(sync~spin) Kimi…';
     this.itemWeekly.show();
 
     this.itemWindow = vscode.window.createStatusBarItem(alignment, 103);
-    this.itemWindow.name = 'KimiStatusPro Window';
-    this.itemWindow.command = 'kimiStatusPro.showDashboard';
+    this.itemWindow.name = 'AI Status Hub Window';
+    this.itemWindow.command = 'aiStatusHub.showDashboard';
     this.itemWindow.show();
 
     store.subscribe((state) => this.render(state));
@@ -1229,7 +1229,7 @@ export class StatusBarPresenter {
     try {
       if (state.authStatus === 'missing') {
         this.itemWeekly.text = '$(key) Kimi: sign in';
-        this.itemWeekly.command = 'kimiStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWeekly.color = new vscode.ThemeColor('statusBarItem.errorForeground');
         this.itemWindow.hide();
@@ -1238,7 +1238,7 @@ export class StatusBarPresenter {
 
       if (state.error && state.authStatus === 'failed') {
         this.itemWeekly.text = '$(warning) Kimi: auth failed';
-        this.itemWeekly.command = 'kimiStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWindow.hide();
         return;
@@ -1261,7 +1261,7 @@ export class StatusBarPresenter {
         this.itemWindow.text = `5️⃣ ${metrics.windowMiniBar} ${formatPercent(metrics.windowPct, 1)}`;
       }
 
-      this.itemWeekly.command = 'kimiStatusPro.showDashboard';
+      this.itemWeekly.command = 'aiStatusHub.showDashboard';
       this.itemWeekly.color = utilizationToColor(metrics.weeklyUtil);
       this.itemWindow.color = utilizationToColor(metrics.windowUtil);
       this.itemWeekly.backgroundColor = undefined;
@@ -1368,7 +1368,7 @@ export class DashboardPanel {
     const i18n = makeT(locale);
 
     this.panel = vscode.window.createWebviewPanel(
-      'kimiStatusProDashboard',
+      'aiStatusHubDashboard',
       i18n('dashboard.title'),
       vscode.ViewColumn.Beside,
       { enableScripts: true, retainContextWhenHidden: true }
@@ -1402,7 +1402,7 @@ export class DashboardPanel {
         this.sendUpdate(this.store.getState());
         break;
       case 'refresh':
-        vscode.commands.executeCommand('kimiStatusPro.refresh');
+        vscode.commands.executeCommand('aiStatusHub.refresh');
         break;
       case 'toggleMode': {
         const next = ConfigService.getInstance().displayMode === 'percent' ? 'absolute' : 'percent';
@@ -1418,7 +1418,7 @@ export class DashboardPanel {
         break;
       }
       case 'openSettings':
-        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.kimi-status-pro');
+        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.ai-status-hub');
         break;
     }
   }
@@ -1646,7 +1646,7 @@ import { DashboardPanel } from './presenters/dashboard';
 import { log, writeApiKey, writeOAuth } from './utils';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  log('KimiStatusPro v2 activated');
+  log('AI Status Hub v2 activated');
 
   const store = new Store();
   const config = ConfigService.getInstance();
@@ -1671,38 +1671,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // 4. 注册命令
   context.subscriptions.push(
-    vscode.commands.registerCommand('kimiStatusPro.refresh', () => {
+    vscode.commands.registerCommand('aiStatusHub.refresh', () => {
       scheduler.force();
     }),
-    vscode.commands.registerCommand('kimiStatusPro.signIn', async () => {
+    vscode.commands.registerCommand('aiStatusHub.signIn', async () => {
       const success = await authService.startOAuthFlow();
       if (success) {
         scheduler.force();
       }
     }),
-    vscode.commands.registerCommand('kimiStatusPro.signOut', async () => {
-      await context.secrets.delete('kimiStatusPro.apiKey');
-      await context.secrets.delete('kimiStatusPro.oauthCredentials');
+    vscode.commands.registerCommand('aiStatusHub.signOut', async () => {
+      await context.secrets.delete('aiStatusHub.apiKey');
+      await context.secrets.delete('aiStatusHub.oauthCredentials');
       authService.invalidate();
       store.dispatch({ type: 'SIGN_OUT' });
     }),
-    vscode.commands.registerCommand('kimiStatusPro.setApiKey', () => {
+    vscode.commands.registerCommand('aiStatusHub.setApiKey', () => {
       promptForApiKey(context);
     }),
-    vscode.commands.registerCommand('kimiStatusPro.showDashboard', () => {
+    vscode.commands.registerCommand('aiStatusHub.showDashboard', () => {
       DashboardPanel.createOrShow(store);
     }),
-    vscode.commands.registerCommand('kimiStatusPro.togglePause', async () => {
+    vscode.commands.registerCommand('aiStatusHub.togglePause', async () => {
       const next = !store.getState().ui.isPaused;
       store.dispatch({ type: 'UI_SET_PAUSED', payload: next });
-      await context.globalState.update('kimiStatusPro._pauseSignal', next);
+      await context.globalState.update('aiStatusHub._pauseSignal', next);
     }),
   );
 
   // 5. 配置变更监听
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('kimiStatusPro')) {
+      if (e.affectsConfiguration('aiStatusHub')) {
         // 重新读取配置，触发 UI 更新
         store.dispatch({ type: 'UI_SET_DISPLAY_MODE', payload: config.displayMode });
         store.dispatch({ type: 'UI_SET_LANGUAGE', payload: config.language });
@@ -1717,12 +1717,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
-  log('KimiStatusPro v2 deactivated');
+  log('AI Status Hub v2 deactivated');
 }
 
 async function promptForApiKey(context: vscode.ExtensionContext): Promise<void> {
   const value = await vscode.window.showInputBox({
-    title: 'KimiStatusPro – Set API Key',
+    title: 'AI Status Hub – Set API Key',
     prompt: 'Paste your Kimi API key (sk-...).',
     password: true,
     ignoreFocusOut: true,

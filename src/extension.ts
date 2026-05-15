@@ -13,10 +13,10 @@ import { StatusBarPresenter } from './presenters/statusBar';
 import { DashboardPanel } from './presenters/dashboard';
 import { log, writeApiKey, deleteApiKey, deleteOAuth } from './utils';
 
-const PAUSE_STATE_KEY = 'codexStatusPro._pauseSignal';
+const PAUSE_STATE_KEY = 'aiStatusHub._pauseSignal';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  log('CodexStatusPro v2 activated');
+  log('AI Status Hub v2 activated');
 
   const store = new Store();
   const config = ConfigService.getInstance();
@@ -106,10 +106,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Register commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('codexStatusPro.refresh', () => {
+    vscode.commands.registerCommand('aiStatusHub.refresh', () => {
       scheduler.force();
     }),
-    vscode.commands.registerCommand('codexStatusPro.signIn', async () => {
+    vscode.commands.registerCommand('aiStatusHub.signIn', async () => {
       if (currentProvider.auth.startLoginFlow) {
         const ok = await currentProvider.auth.startLoginFlow();
         if (ok) {
@@ -119,11 +119,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void vscode.window.showInformationMessage(`Please run "${currentProvider.ui.displayName.toLowerCase()} login" in your terminal to authenticate.`);
       }
     }),
-    vscode.commands.registerCommand('codexStatusPro.signOut', async () => {
+    vscode.commands.registerCommand('aiStatusHub.signOut', async () => {
       // Clear provider-specific credentials
       if (currentProvider.id === 'kimi') {
-        await context.secrets.delete('kimiStatusPro.apiKey');
-        await context.secrets.delete('kimiStatusPro.oauthCredentials');
+        await context.secrets.delete('aiStatusHub.apiKey');
+        await context.secrets.delete('aiStatusHub.oauthCredentials');
       } else {
         await deleteApiKey(context.secrets);
         await deleteOAuth(context.secrets);
@@ -132,34 +132,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       localUsageService.invalidate();
       store.dispatch({ type: 'SIGN_OUT' });
     }),
-    vscode.commands.registerCommand('codexStatusPro.setApiKey', () => {
+    vscode.commands.registerCommand('aiStatusHub.setApiKey', () => {
       promptForApiKey(context);
     }),
-    vscode.commands.registerCommand('codexStatusPro.showDashboard', () => {
+    vscode.commands.registerCommand('aiStatusHub.showDashboard', () => {
       DashboardPanel.createOrShow(store);
     }),
-    vscode.commands.registerCommand('codexStatusPro.togglePause', async () => {
+    vscode.commands.registerCommand('aiStatusHub.togglePause', async () => {
       const next = !store.getState().ui.isPaused;
       store.dispatch({ type: 'UI_SET_PAUSED', payload: next });
       await context.globalState.update(PAUSE_STATE_KEY, next);
       // Broadcast via configuration change so other windows pick it up
-      const cfg = vscode.workspace.getConfiguration('codexStatusPro');
+      const cfg = vscode.workspace.getConfiguration('aiStatusHub');
       await cfg.update('_pauseSignal', Date.now(), true);
     }),
-    vscode.commands.registerCommand('codexStatusPro.openSettings', () => {
-      void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.codex-status-pro');
+    vscode.commands.registerCommand('aiStatusHub.openSettings', () => {
+      void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.ai-status-hub');
     }),
   );
 
   // Listen to configuration changes
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (e.affectsConfiguration('codexStatusPro')) {
+      if (e.affectsConfiguration('aiStatusHub')) {
         store.dispatch({ type: 'UI_SET_DISPLAY_MODE', payload: config.displayMode });
         store.dispatch({ type: 'UI_SET_LANGUAGE', payload: config.language });
 
         // Handle provider change
-        if (e.affectsConfiguration('codexStatusPro.provider')) {
+        if (e.affectsConfiguration('aiStatusHub.provider')) {
           const newId = await resolveProviderId(config.provider);
           if (newId !== store.getState().activeProvider) {
             await activateProvider(newId);
@@ -167,7 +167,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
 
         // Sync pause state from other windows via _pauseSignal broadcast
-        if (e.affectsConfiguration('codexStatusPro._pauseSignal')) {
+        if (e.affectsConfiguration('aiStatusHub._pauseSignal')) {
           const pausedFromGlobal = context.globalState.get<boolean>(PAUSE_STATE_KEY, false);
           const currentPaused = store.getState().ui.isPaused;
           if (pausedFromGlobal !== currentPaused) {
@@ -186,12 +186,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 export async function deactivate(): Promise<void> {
   await ApiHistoryService.getInstance().persistIfEnabled();
-  log('CodexStatusPro v2 deactivated');
+  log('AI Status Hub v2 deactivated');
 }
 
 async function promptForApiKey(context: vscode.ExtensionContext): Promise<void> {
   const value = await vscode.window.showInputBox({
-    title: 'CodexStatusPro – Set API Key',
+    title: 'AI Status Hub – Set API Key',
     prompt: 'Paste your OpenAI API key (sk-...).',
     password: true,
     ignoreFocusOut: true,

@@ -1,14 +1,14 @@
 // AGENTS: fmt->calc.ts | err->try-catch | no-disk-IO
 import * as vscode from 'vscode';
 
-const SECRET_API_KEY = 'codexStatusPro.apiKey';
-const SECRET_OAUTH = 'codexStatusPro.oauthCredentials';
+const SECRET_API_KEY = 'aiStatusHub.apiKey';
+const SECRET_OAUTH = 'aiStatusHub.oauthCredentials';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
 export function getOutputChannel(): vscode.OutputChannel {
   if (!outputChannel) {
-    outputChannel = vscode.window.createOutputChannel('CodexStatusPro');
+    outputChannel = vscode.window.createOutputChannel('AI Status Hub');
   }
   return outputChannel;
 }

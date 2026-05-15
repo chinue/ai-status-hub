@@ -1,4 +1,4 @@
-# KimiStatusPro 编码强制规范
+# AI Status Hub 编码强制规范
 
 > **本规范对 `src/` 下所有模块具有强制约束力。**
 > 任何新增代码、重构、Bug 修复都必须通过本规范检查清单后方可合入。
@@ -12,7 +12,7 @@
 | 模块 | 能否访问磁盘 | 说明 |
 |---|---|---|
 | `LocalUsageService` | ✅ | 唯一读取 `~/.kimi/sessions` 的模块 |
-| `CacheService` | ✅ | 读写 `~/.kimi/kimi-status-pro-cache-v2.json` |
+| `CacheService` | ✅ | 读写 `~/.kimi/ai-status-hub-cache-v2.json` |
 | `Scheduler` | ✅ 间接 | 调用 `LocalUsageService` / `CacheService`，本身不直接 IO |
 | `StatusBarPresenter` | ❌ | 只从 `store.getState()` 读取 |
 | `DashboardPanel` | ❌ | 只从 `store.getState()` 读取 |
@@ -37,7 +37,7 @@ const lu = store.getState().localEstimate;
 
 ### 2.1 配置项
 
-`kimiStatusPro.dataRetentionDays`：控制 LocalUsageService 保留历史 entries 的天数。
+`aiStatusHub.dataRetentionDays`：控制 LocalUsageService 保留历史 entries 的天数。
 
 - **默认值**：365
 - **范围**：30 – 3650（约 10 年）

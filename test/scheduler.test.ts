@@ -42,7 +42,7 @@ describe('Scheduler', () => {
 
   it('tick dispatches LOADING_START -> API_SUCCESS -> LOADING_END', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     const rateLimits: RateLimits = {
       secondary: { used_percent: 25, resets_in_seconds: 86400 },
@@ -90,7 +90,7 @@ describe('Scheduler', () => {
 
   it('short tick updates local estimate with decimal precision', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     // Local rate limits: 62% weekly, 25% window
     const rateLimits: RateLimits = {
@@ -156,7 +156,7 @@ describe('Scheduler', () => {
 
   it('force() triggers a long tick (local quota read) even when short tick is due', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     const rateLimits: RateLimits = {
       secondary: { used_percent: 25, resets_in_seconds: 86400 },
@@ -203,7 +203,7 @@ describe('Scheduler', () => {
 
   it('short tick dispatches full usage detail in LOCAL_ESTIMATE', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     const rateLimits: RateLimits = {
       secondary: { used_percent: 62, resets_in_seconds: 86400 },
@@ -271,7 +271,7 @@ describe('Scheduler', () => {
 
   it('long tick preserves smooth estimate when rounded value matches local integer', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     // Local rate limits return integer 25, but local estimate is 25.3 (smooth)
     const rateLimits: RateLimits = {
@@ -335,7 +335,7 @@ describe('Scheduler', () => {
 
   it('long tick forces local integer when rounded estimate differs', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     // Local rate limits return integer 25, but local estimate drifted to 25.6 (rounds to 26)
     const rateLimits: RateLimits = {
@@ -399,7 +399,7 @@ describe('Scheduler', () => {
 
   it('preserves old quota decimal precision when local returns integer and no current estimate', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     // Seed old quota with 12.1% precision (e.g. from a previous response)
     store.dispatch({
@@ -451,7 +451,7 @@ describe('Scheduler', () => {
 
   it('smooth estimate preserved through short tick after long tick', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     // Local rate limits return integer 25
     const rateLimits: RateLimits = {
@@ -553,7 +553,7 @@ describe('Scheduler', () => {
     sinon.stub(ConfigService.prototype, 'refreshIntervalSeconds').value(120);
 
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     const rateLimits: RateLimits = {
       secondary: { used_percent: 25, resets_in_seconds: 86400 },
@@ -600,7 +600,7 @@ describe('Scheduler', () => {
 
   it('short tick skips dispatch when no local entries exist', async () => {
     const ctx = makeContext();
-    await ctx.secrets.store('kimiStatusPro.apiKey', 'sk-test');
+    await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
     const rateLimits: RateLimits = {
       secondary: { used_percent: 25, resets_in_seconds: 86400 },

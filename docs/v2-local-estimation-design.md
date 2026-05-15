@@ -1,4 +1,4 @@
-# KimiStatusPro v2 本地估算设计文档
+# AI Status Hub v2 本地估算设计文档
 
 > 版本：v2.0.0-draft  
 > 日期：2026-05-10  
@@ -468,7 +468,7 @@ async function onLongTick(store: Store, authService: AuthService): Promise<void>
 ```json
 {
   "version": 3,
-  "schema": "codex-status-pro-cache-v1",
+  "schema": "ai-status-hub-cache-v1",
   "writtenAt": "2026-05-13T18:00:00.000Z",
   "data": {
     "quota": {

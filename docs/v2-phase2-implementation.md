@@ -1,4 +1,4 @@
-# KimiStatusPro v2 Phase 2 详细实现文档
+# AI Status Hub v2 Phase 2 详细实现文档
 
 > 版本：v2.0.0-draft
 > 日期：2026-05-12
@@ -935,8 +935,8 @@ import * as os from 'os';
 import { CachedData } from '../types';
 
 const CACHE_DIR = path.join(os.homedir(), '.kimi');
-const CACHE_FILE = path.join(CACHE_DIR, 'kimi-status-pro-cache-v2.json');
-const SCHEMA = 'kimi-status-pro-cache-v2';
+const CACHE_FILE = path.join(CACHE_DIR, 'ai-status-hub-cache-v2.json');
+const SCHEMA = 'ai-status-hub-cache-v2';
 const CURRENT_VERSION = 2;
 
 export class CacheService {
@@ -1005,10 +1005,10 @@ import { StatusBarPresenter } from './presenters/statusBar';
 import { DashboardPanel } from './presenters/dashboard';
 import { log, writeApiKey, deleteApiKey, deleteOAuth } from './utils';
 
-const PAUSE_STATE_KEY = 'kimiStatusPro._pauseSignal';
+const PAUSE_STATE_KEY = 'aiStatusHub._pauseSignal';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  log('KimiStatusPro v2 activated');
+  log('AI Status Hub v2 activated');
 
   const store = new Store();
   const config = ConfigService.getInstance();
@@ -1051,34 +1051,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // 5. Register commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('kimiStatusPro.refresh', () => {
+    vscode.commands.registerCommand('aiStatusHub.refresh', () => {
       scheduler.force();
     }),
-    vscode.commands.registerCommand('kimiStatusPro.signIn', async () => {
+    vscode.commands.registerCommand('aiStatusHub.signIn', async () => {
       const success = await authService.startOAuthFlow();
       if (success) {
         scheduler.force();
       }
     }),
-    vscode.commands.registerCommand('kimiStatusPro.signOut', async () => {
+    vscode.commands.registerCommand('aiStatusHub.signOut', async () => {
       await deleteApiKey(context.secrets);
       await deleteOAuth(context.secrets);
       authService.invalidate();
       localUsageService.invalidate();
       store.dispatch({ type: 'SIGN_OUT' });
     }),
-    vscode.commands.registerCommand('kimiStatusPro.setApiKey', () => {
+    vscode.commands.registerCommand('aiStatusHub.setApiKey', () => {
       promptForApiKey(context);
     }),
-    vscode.commands.registerCommand('kimiStatusPro.showDashboard', () => {
+    vscode.commands.registerCommand('aiStatusHub.showDashboard', () => {
       DashboardPanel.createOrShow(store);
     }),
-    vscode.commands.registerCommand('kimiStatusPro.togglePause', async () => {
+    vscode.commands.registerCommand('aiStatusHub.togglePause', async () => {
       const next = !store.getState().ui.isPaused;
       store.dispatch({ type: 'UI_SET_PAUSED', payload: next });
       await context.globalState.update(PAUSE_STATE_KEY, next);
       // Broadcast via configuration change so other windows pick it up
-      const cfg = vscode.workspace.getConfiguration('kimiStatusPro');
+      const cfg = vscode.workspace.getConfiguration('aiStatusHub');
       await cfg.update('_pauseSignal', Date.now(), true);
     }),
   );
@@ -1086,11 +1086,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // 6. Listen to configuration changes (including pause broadcast)
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('kimiStatusPro')) {
+      if (e.affectsConfiguration('aiStatusHub')) {
         store.dispatch({ type: 'UI_SET_DISPLAY_MODE', payload: config.displayMode });
         store.dispatch({ type: 'UI_SET_LANGUAGE', payload: config.language });
         // Sync pause state from other windows via _pauseSignal broadcast
-        if (e.affectsConfiguration('kimiStatusPro._pauseSignal')) {
+        if (e.affectsConfiguration('aiStatusHub._pauseSignal')) {
           const pausedFromGlobal = context.globalState.get<boolean>(PAUSE_STATE_KEY, false);
           const currentPaused = store.getState().ui.isPaused;
           if (pausedFromGlobal !== currentPaused) {
@@ -1108,12 +1108,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
-  log('KimiStatusPro v2 deactivated');
+  log('AI Status Hub v2 deactivated');
 }
 
 async function promptForApiKey(context: vscode.ExtensionContext): Promise<void> {
   const value = await vscode.window.showInputBox({
-    title: 'KimiStatusPro – Set API Key',
+    title: 'AI Status Hub – Set API Key',
     prompt: 'Paste your Kimi API key (sk-...).',
     password: true,
     ignoreFocusOut: true,
@@ -1132,8 +1132,8 @@ async function promptForApiKey(context: vscode.ExtensionContext): Promise<void> 
 Phase 2 扩展以支持 local-only 模式下的估算显示，并新增**月亮更新动画**：
 
 - 动画触发条件：`weeklyPct` 或 `windowPct` 的实际数值发生变化（首次数据到达除外，直接显示数值）。
-- 动画播放时长可通过设置 `kimiStatusPro.updateAnimationDurationMs` 调整（默认 5000ms，范围 500–10000ms）。
-- 动画帧间隔可通过设置 `kimiStatusPro.updateAnimationIntervalMs` 调整（默认 300ms，范围 100–2000ms），控制月亮相位切换速度。
+- 动画播放时长可通过设置 `aiStatusHub.updateAnimationDurationMs` 调整（默认 5000ms，范围 500–10000ms）。
+- 动画帧间隔可通过设置 `aiStatusHub.updateAnimationIntervalMs` 调整（默认 300ms，范围 100–2000ms），控制月亮相位切换速度。
 - 动画期间 `itemWeekly` 以 🌕🌖🌗🌘 循环播放，同时显示实时百分比，例如 `🌕 Kimi:25.0%`。`itemWindow`（5h 窗口）保持可见，继续正常显示。
 - 动画播放期间若又有新数据变化，重置计时器继续播放，不重置帧索引。
 - 动画结束后恢复完整正常显示（含迷你条、错误/估算指示器等）。
@@ -1168,19 +1168,19 @@ export class StatusBarPresenter {
     const alignment = vscode.StatusBarAlignment.Right;
 
     this.itemWeekly = vscode.window.createStatusBarItem(alignment, 104);
-    this.itemWeekly.name = 'KimiStatusPro Weekly';
-    this.itemWeekly.command = 'kimiStatusPro.showDashboard';
+    this.itemWeekly.name = 'AI Status Hub Weekly';
+    this.itemWeekly.command = 'aiStatusHub.showDashboard';
     this.itemWeekly.text = '$(sync~spin) Kimi…';
     this.itemWeekly.show();
 
     this.itemWindow = vscode.window.createStatusBarItem(alignment, 103);
-    this.itemWindow.name = 'KimiStatusPro Window';
-    this.itemWindow.command = 'kimiStatusPro.refresh';
+    this.itemWindow.name = 'AI Status Hub Window';
+    this.itemWindow.command = 'aiStatusHub.refresh';
     this.itemWindow.show();
 
     this.itemPause = vscode.window.createStatusBarItem(alignment, 102);
-    this.itemPause.name = 'KimiStatusPro Pause';
-    this.itemPause.command = 'kimiStatusPro.togglePause';
+    this.itemPause.name = 'AI Status Hub Pause';
+    this.itemPause.command = 'aiStatusHub.togglePause';
     this.itemPause.text = '\u23F8\uFE0F';
     this.itemPause.show();
 
@@ -1206,7 +1206,7 @@ export class StatusBarPresenter {
 
       if (state.authStatus === 'missing') {
         this.itemWeekly.text = '$(key) Kimi: sign in';
-        this.itemWeekly.command = 'kimiStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWeekly.color = new vscode.ThemeColor('statusBarItem.errorForeground');
         this.itemWindow.hide();
@@ -1215,7 +1215,7 @@ export class StatusBarPresenter {
 
       if (state.error && state.authStatus === 'failed') {
         this.itemWeekly.text = '$(warning) Kimi: auth failed';
-        this.itemWeekly.command = 'kimiStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWindow.hide();
         return;
@@ -1259,7 +1259,7 @@ export class StatusBarPresenter {
         this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 1)}${staleIndicator}`;
       }
 
-      this.itemWeekly.command = 'kimiStatusPro.showDashboard';
+      this.itemWeekly.command = 'aiStatusHub.showDashboard';
       this.itemWeekly.color = utilizationToColor(weeklyUtil);
       this.itemWindow.color = utilizationToColor(windowUtil);
       this.itemWeekly.backgroundColor = undefined;
@@ -1384,7 +1384,7 @@ export class DashboardPanel {
     const i18n = makeT(locale);
 
     this.panel = vscode.window.createWebviewPanel(
-      'kimiStatusProDashboard',
+      'aiStatusHubDashboard',
       i18n('dashboard.title'),
       vscode.ViewColumn.Beside,
       { enableScripts: true, retainContextWhenHidden: true }
@@ -1418,7 +1418,7 @@ export class DashboardPanel {
         this.sendUpdate(this.store.getState());
         break;
       case 'refresh':
-        vscode.commands.executeCommand('kimiStatusPro.refresh');
+        vscode.commands.executeCommand('aiStatusHub.refresh');
         break;
       case 'toggleMode': {
         const next = ConfigService.getInstance().displayMode === 'percent' ? 'absolute' : 'percent';
@@ -1431,7 +1431,7 @@ export class DashboardPanel {
         break;
       }
       case 'openSettings':
-        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.kimi-status-pro');
+        void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.ai-status-hub');
         break;
     }
   }
@@ -1879,8 +1879,8 @@ import * as os from 'os';
 import { CachedData } from '../types';
 
 const CACHE_DIR = path.join(os.homedir(), '.kimi');
-const CACHE_FILE = path.join(CACHE_DIR, 'kimi-status-pro-cache-v2.json');
-const SCHEMA = 'kimi-status-pro-cache-v2';
+const CACHE_FILE = path.join(CACHE_DIR, 'ai-status-hub-cache-v2.json');
+const SCHEMA = 'ai-status-hub-cache-v2';
 const CURRENT_VERSION = 2;
 
 export class CacheService {
@@ -1947,10 +1947,10 @@ import { StatusBarPresenter } from './presenters/statusBar';
 import { DashboardPanel } from './presenters/dashboard';
 import { log, writeApiKey, deleteApiKey, deleteOAuth } from './utils';
 
-const PAUSE_STATE_KEY = 'kimiStatusPro._pauseSignal';
+const PAUSE_STATE_KEY = 'aiStatusHub._pauseSignal';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  log('KimiStatusPro v2 activated');
+  log('AI Status Hub v2 activated');
 
   const store = new Store();
   const config = ConfigService.getInstance();
@@ -1993,34 +1993,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // 5. Register commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('kimiStatusPro.refresh', () => {
+    vscode.commands.registerCommand('aiStatusHub.refresh', () => {
       scheduler.force();
     }),
-    vscode.commands.registerCommand('kimiStatusPro.signIn', async () => {
+    vscode.commands.registerCommand('aiStatusHub.signIn', async () => {
       const success = await authService.startOAuthFlow();
       if (success) {
         scheduler.force();
       }
     }),
-    vscode.commands.registerCommand('kimiStatusPro.signOut', async () => {
+    vscode.commands.registerCommand('aiStatusHub.signOut', async () => {
       await deleteApiKey(context.secrets);
       await deleteOAuth(context.secrets);
       authService.invalidate();
       localUsageService.invalidate();
       store.dispatch({ type: 'SIGN_OUT' });
     }),
-    vscode.commands.registerCommand('kimiStatusPro.setApiKey', () => {
+    vscode.commands.registerCommand('aiStatusHub.setApiKey', () => {
       promptForApiKey(context);
     }),
-    vscode.commands.registerCommand('kimiStatusPro.showDashboard', () => {
+    vscode.commands.registerCommand('aiStatusHub.showDashboard', () => {
       DashboardPanel.createOrShow(store);
     }),
-    vscode.commands.registerCommand('kimiStatusPro.togglePause', async () => {
+    vscode.commands.registerCommand('aiStatusHub.togglePause', async () => {
       const next = !store.getState().ui.isPaused;
       store.dispatch({ type: 'UI_SET_PAUSED', payload: next });
       await context.globalState.update(PAUSE_STATE_KEY, next);
       // Broadcast via configuration change so other windows pick it up
-      const cfg = vscode.workspace.getConfiguration('kimiStatusPro');
+      const cfg = vscode.workspace.getConfiguration('aiStatusHub');
       await cfg.update('_pauseSignal', Date.now(), true);
     }),
   );
@@ -2028,11 +2028,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // 6. Listen to configuration changes (including pause broadcast)
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('kimiStatusPro')) {
+      if (e.affectsConfiguration('aiStatusHub')) {
         store.dispatch({ type: 'UI_SET_DISPLAY_MODE', payload: config.displayMode });
         store.dispatch({ type: 'UI_SET_LANGUAGE', payload: config.language });
         // Sync pause state from other windows via _pauseSignal broadcast
-        if (e.affectsConfiguration('kimiStatusPro._pauseSignal')) {
+        if (e.affectsConfiguration('aiStatusHub._pauseSignal')) {
           const pausedFromGlobal = context.globalState.get<boolean>(PAUSE_STATE_KEY, false);
           const currentPaused = store.getState().ui.isPaused;
           if (pausedFromGlobal !== currentPaused) {
@@ -2050,12 +2050,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
-  log('KimiStatusPro v2 deactivated');
+  log('AI Status Hub v2 deactivated');
 }
 
 async function promptForApiKey(context: vscode.ExtensionContext): Promise<void> {
   const value = await vscode.window.showInputBox({
-    title: 'KimiStatusPro – Set API Key',
+    title: 'AI Status Hub – Set API Key',
     prompt: 'Paste your Kimi API key (sk-...).',
     password: true,
     ignoreFocusOut: true,
@@ -2100,19 +2100,19 @@ export class StatusBarPresenter {
     const alignment = vscode.StatusBarAlignment.Right;
 
     this.itemWeekly = vscode.window.createStatusBarItem(alignment, 104);
-    this.itemWeekly.name = 'KimiStatusPro Weekly';
-    this.itemWeekly.command = 'kimiStatusPro.showDashboard';
+    this.itemWeekly.name = 'AI Status Hub Weekly';
+    this.itemWeekly.command = 'aiStatusHub.showDashboard';
     this.itemWeekly.text = '$(sync~spin) Kimi…';
     this.itemWeekly.show();
 
     this.itemWindow = vscode.window.createStatusBarItem(alignment, 103);
-    this.itemWindow.name = 'KimiStatusPro Window';
-    this.itemWindow.command = 'kimiStatusPro.refresh';
+    this.itemWindow.name = 'AI Status Hub Window';
+    this.itemWindow.command = 'aiStatusHub.refresh';
     this.itemWindow.show();
 
     this.itemPause = vscode.window.createStatusBarItem(alignment, 102);
-    this.itemPause.name = 'KimiStatusPro Pause';
-    this.itemPause.command = 'kimiStatusPro.togglePause';
+    this.itemPause.name = 'AI Status Hub Pause';
+    this.itemPause.command = 'aiStatusHub.togglePause';
     this.itemPause.text = '\u23F8\uFE0F';
     this.itemPause.show();
 
@@ -2138,7 +2138,7 @@ export class StatusBarPresenter {
 
       if (state.authStatus === 'missing') {
         this.itemWeekly.text = '$(key) Kimi: sign in';
-        this.itemWeekly.command = 'kimiStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWeekly.color = new vscode.ThemeColor('statusBarItem.errorForeground');
         this.itemWindow.hide();
@@ -2147,7 +2147,7 @@ export class StatusBarPresenter {
 
       if (state.error && state.authStatus === 'failed') {
         this.itemWeekly.text = '$(warning) Kimi: auth failed';
-        this.itemWeekly.command = 'kimiStatusPro.signIn';
+        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWindow.hide();
         return;
@@ -2191,7 +2191,7 @@ export class StatusBarPresenter {
         this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 1)}${staleIndicator}`;
       }
 
-      this.itemWeekly.command = 'kimiStatusPro.showDashboard';
+      this.itemWeekly.command = 'aiStatusHub.showDashboard';
       this.itemWeekly.color = utilizationToColor(weeklyUtil);
       this.itemWindow.color = utilizationToColor(windowUtil);
       this.itemWeekly.backgroundColor = undefined;
@@ -2498,7 +2498,7 @@ interface EstHistoryEntry {
 
 ### 14.4 磁盘持久化 (`ApiHistoryService`)
 
-- 文件：`~/.codex/codex-status-pro-est-history-{provider}.jsonl`
+- 文件：`~/.codex/ai-status-hub-est-history-{provider}.jsonl`
 - 格式：每行一个 `JSON.stringify(EstHistoryEntry)`
 - 写入时机：`extension.ts` `deactivate()` 时（当 `apiHistoryPersistOnExit` 为 true）
 - 读取时机：`extension.ts` `activate()` 时，加载后通过 `API_HISTORY_LOAD` 注入 store
@@ -2508,8 +2508,8 @@ interface EstHistoryEntry {
 
 | 配置键 | 类型 | 默认值 | 范围 |
 |---|---|---|---|
-| `codexStatusPro.apiHistoryMaxEntries` | number | 10000 | 1–100000 |
-| `codexStatusPro.apiHistoryPersistOnExit` | boolean | false | — |
+| `aiStatusHub.apiHistoryMaxEntries` | number | 10000 | 1–100000 |
+| `aiStatusHub.apiHistoryPersistOnExit` | boolean | false | — |
 
 ### 14.6 数据来源
 

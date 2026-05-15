@@ -1,4 +1,4 @@
-# KimiStatusPro v2 重建设计文档
+# AI Status Hub v2 重建设计文档
 
 > 版本：v2.0.0-draft  
 > 日期：2026-05-10  
@@ -276,7 +276,7 @@ any → missing             (用户 sign out)
 ```json
 {
   "version": 2,
-  "schema": "kimi-status-pro-cache-v2",
+  "schema": "ai-status-hub-cache-v2",
   "writtenAt": "2026-05-10T21:00:00.000Z",
   "data": {
     "quota": { ... },
@@ -293,7 +293,7 @@ any → missing             (用户 sign out)
 
 ```typescript
 class CacheService {
-  private readonly SCHEMA = 'kimi-status-pro-cache-v2';
+  private readonly SCHEMA = 'ai-status-hub-cache-v2';
   private readonly CURRENT_VERSION = 2;
 
   async read(): Promise<{ quota: QuotaData; calibration: Calibration } | null> {
@@ -359,14 +359,14 @@ class StatusBarPresenter {
 
     if (state.authStatus === 'missing') {
       this.items.weekly.text = '$(key) Kimi: sign in';
-      this.items.weekly.command = 'kimiStatusPro.signIn';
+      this.items.weekly.command = 'aiStatusHub.signIn';
       this.items.window.hide();
       return;
     }
 
     if (state.authStatus === 'failed') {
       this.items.weekly.text = '$(warning) Kimi: auth failed';
-      this.items.weekly.command = 'kimiStatusPro.signIn';
+      this.items.weekly.command = 'aiStatusHub.signIn';
       this.items.window.hide();
       return;
     }
@@ -424,7 +424,7 @@ NETWORK_ERROR → error = 'Network error', authStatus 保持不变
 ## 9. 文件结构
 
 ```
-kimi-status-pro/
+ai-status-hub/
 ├── src/
 │   ├── extension.ts          # 入口：初始化 Store + Services + Presenters
 │   ├── store.ts              # Store + reducer（单一状态源）
@@ -520,7 +520,7 @@ d:\code\vscode\kimi-usage\        # 当前工程（保留，作为参考）
 **方案 B：同级目录新建文件夹**
 ```
 d:\code\vscode\kimi-usage\        # 旧工程
-d:\code\vscode\kimi-status-pro-v2\ # 新工程
+d:\code\vscode\ai-status-hub-v2\ # 新工程
 ```
 - 优点：完全隔离，无交叉污染
 - 缺点：需要新开 VS Code 窗口，无法快速对比旧代码

@@ -8,12 +8,12 @@ import * as os from 'os';
 import { CachedData } from '../types';
 
 const CACHE_DIR = path.join(os.homedir(), '.codex');
-const SCHEMA = 'codex-status-pro-cache-v1';
+const SCHEMA = 'ai-status-hub-cache-v1';
 const CURRENT_VERSION = 3;
 
 function cacheFileFor(providerId?: string): string {
   const suffix = providerId && providerId !== 'codex' ? `-${providerId}` : '';
-  return path.join(CACHE_DIR, `codex-status-pro-cache-v1${suffix}.json`);
+  return path.join(CACHE_DIR, `ai-status-hub-cache-v1${suffix}.json`);
 }
 
 export class CacheService {

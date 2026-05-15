@@ -71,6 +71,6 @@ export class ApiHistoryService {
 
   private get historyFile(): string {
     const suffix = this.providerId && this.providerId !== 'codex' ? `-${this.providerId}` : '';
-    return path.join(os.homedir(), '.codex', `codex-status-pro-api-history${suffix}.jsonl`);
+    return path.join(os.homedir(), '.codex', `ai-status-hub-api-history${suffix}.jsonl`);
   }
 }

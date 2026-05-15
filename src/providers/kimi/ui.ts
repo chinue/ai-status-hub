@@ -9,5 +9,5 @@ export const kimiUIProvider: IUIProvider = {
   dashboardTitle: 'Kimi Dashboard',
   displayName: 'Kimi',
   officialUrl: 'https://www.moonshot.cn/pricing',
-  extensionDisplayName: 'KimiStatusPro',
+  extensionDisplayName: 'AI Status Hub',
 };

@@ -5,9 +5,9 @@ import { IUIProvider } from '../base/types';
 
 export const codexUIProvider: IUIProvider = {
   mainIcon: '$(openai)',
-  statusBarName: 'CodexStatusPro',
+  statusBarName: 'AI Status Hub',
   dashboardTitle: 'Codex Dashboard',
   displayName: 'Codex',
   officialUrl: 'https://openai.com/pricing',
-  extensionDisplayName: 'CodexStatusPro',
+  extensionDisplayName: 'AI Status Hub',
 };

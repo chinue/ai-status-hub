@@ -1,4 +1,4 @@
-# CodexStatusPro Agent Instructions
+# AI Status Hub Agent Instructions
 
 ## 最高优先级规则（不可遗忘）
 
