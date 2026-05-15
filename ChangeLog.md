@@ -1,5 +1,11 @@
 # ChangeLog
 
+## [0.5.17] - 2026-05-16
+
+### 改进
+
+- **Memory Usage 详情按时间倒序排列**：Dashboard 中 `Store.estHistory` 展开后的表格与 CSV 导出统一按**从新到旧**排列；`Store.usageEntries` CSV 导出也同步改为倒序，与表格显示保持一致。
+
 ## [0.5.16] - 2026-05-16
 
 ### 修复

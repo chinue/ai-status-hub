@@ -338,7 +338,7 @@ export class DashboardPanel {
       memoryEntryTotalCount: state.usageEntries?.length,
       memoryLocalEstimate,
       memoryQuota,
-      estHistory: state.estHistory.slice(-config.memoryDetailMaxRows),
+      estHistory: state.estHistory.slice(-config.memoryDetailMaxRows).reverse(),
       estHistoryCount: state.estHistory.length,
       memoryDetailDisplayMaxRows: config.memoryDetailDisplayMaxRows,
       memoryDetailCellMaxChars: config.memoryDetailCellMaxChars,
@@ -411,7 +411,7 @@ export class DashboardPanel {
       const entries = state.usageEntries ?? [];
       if (entries.length === 0) return null;
       const header = ['timestamp', 'inputOther', 'output', 'inputCacheRead', 'inputCacheCreation', 'cost', 'messageId', 'model'];
-      csv = header.join(',') + '\n' + entries.map(e =>
+      csv = header.join(',') + '\n' + entries.slice().reverse().map(e =>
         [Math.round(e.timestamp), e.inputOther, e.output, e.inputCacheRead, e.inputCacheCreation, e.cost,
           e.messageId ? '"' + e.messageId.replace(/"/g, '""') + '"' : '',
           e.model ? '"' + e.model.replace(/"/g, '""') + '"' : ''].join(','),
@@ -433,7 +433,7 @@ export class DashboardPanel {
       defaultName = 'quota.csv';
     } else if (moduleName === 'Store.estHistory' && state.estHistory.length > 0) {
       const header = ['timestamp', 'source', 'apiWeeklyPct', 'apiWindowPct', 'estimatedWeeklyPct', 'estimatedWindowPct', 'localCost7d', 'localCost5h', 'weeklyP', 'weeklyC', 'weeklyK', 'windowP', 'windowC', 'windowK', 'windowStartMs', 'weeklyStartMs'];
-      csv = header.join(',') + '\n' + state.estHistory.map(h =>
+      csv = header.join(',') + '\n' + state.estHistory.slice().reverse().map(h =>
         [Math.round(h.timestamp),
           h.source,
           h.apiWeeklyPct ?? '', h.apiWindowPct ?? '',
