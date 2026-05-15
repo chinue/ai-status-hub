@@ -32,6 +32,43 @@ function emptyUsage(): DashboardUsageData {
   };
 }
 
+function isSyntheticEntry(entry: UsageEntry): boolean {
+  return (entry.model ?? '').trim().toLowerCase() === '<synthetic>';
+}
+
+function visibleEntries(entries: UsageEntry[]): UsageEntry[] {
+  return entries.filter((entry) => !isSyntheticEntry(entry));
+}
+
+function modelRank(model: string): number {
+  const m = model.toLowerCase();
+  if (m.includes('haiku')) { return 0; }
+  if (m.includes('sonnet')) { return 1; }
+  if (m.includes('opus')) { return 2; }
+  return 10;
+}
+
+function compareModelNames(a: string, b: string): number {
+  const rankDiff = modelRank(a) - modelRank(b);
+  if (rankDiff !== 0) { return rankDiff; }
+  return a.localeCompare(b);
+}
+
+function orderModelBreakdown(data: DashboardUsageData | null): DashboardUsageData | null {
+  if (!data) { return data; }
+  data.modelBreakdown = Object.fromEntries(
+    Object.entries(data.modelBreakdown).sort(([a], [b]) => compareModelNames(a, b)),
+  );
+  return data;
+}
+
+function orderDailyModelBreakdown(row: DailyModelBreakdown): DailyModelBreakdown {
+  row.byModel = Object.fromEntries(
+    Object.entries(row.byModel).sort(([a], [b]) => compareModelNames(a, b)),
+  );
+  return row;
+}
+
 function addRecord(agg: DashboardUsageData, entry: UsageEntry, defaultModelName?: string): void {
   agg.totalInputTokens += entry.inputOther;
   agg.totalOutputTokens += entry.output;
@@ -95,6 +132,7 @@ export class HistoryService {
       defaultModelName?: string;
     },
   ): DashboardAggregates {
+    entries = visibleEntries(entries);
     const today = emptyUsage();
     const thisMonth = emptyUsage();
     const allTime = emptyUsage();
@@ -155,12 +193,12 @@ export class HistoryService {
       .map(([hour, data]) => ({ hour, data }));
 
     return {
-      today: hasAny ? today : null,
-      thisMonth: hasAny ? thisMonth : null,
-      allTime: hasAny ? allTime : null,
-      window5h: hasAny ? window5h : null,
-      window7d: hasAny ? window7d : null,
-      window30d: hasAny ? window30d : null,
+      today: hasAny ? orderModelBreakdown(today) : null,
+      thisMonth: hasAny ? orderModelBreakdown(thisMonth) : null,
+      allTime: hasAny ? orderModelBreakdown(allTime) : null,
+      window5h: hasAny ? orderModelBreakdown(window5h) : null,
+      window7d: hasAny ? orderModelBreakdown(window7d) : null,
+      window30d: hasAny ? orderModelBreakdown(window30d) : null,
       hourlyForToday,
       dailyForThisMonth,
       monthlyForAllTime,
@@ -180,7 +218,7 @@ export class HistoryService {
     const nowMs = Date.now();
     const days = 90;
     const cutoff = nowMs - days * 24 * 3600 * 1000;
-    const relevant = entries.filter(e => e.timestamp >= cutoff);
+    const relevant = visibleEntries(entries).filter(e => e.timestamp >= cutoff);
 
     const fallbackModel = opts?.defaultModelName || 'unknown';
     const daily = this.aggregateByDay(relevant, days);
@@ -255,12 +293,12 @@ export class HistoryService {
     for (let i = days - 1; i >= 0; i--) {
       const key = toDayKey(now - i * 24 * 3600 * 1000);
       result.push(
-        byDate.get(key) ?? {
+        orderDailyModelBreakdown(byDate.get(key) ?? {
           date: key,
           tokensTotal: 0,
           costTotal: 0,
           byModel: {},
-        },
+        }),
       );
     }
     return result;
@@ -303,7 +341,7 @@ export class HistoryService {
       row.byModel[model] = prev;
     }
 
-    return buckets;
+    return buckets.map(orderDailyModelBreakdown);
   }
 
   private toLocal5hLabel(ts: number): string {
@@ -370,6 +408,7 @@ export class HistoryService {
     endMs: number,
     maxPoints = 2000,
   ): CostCurvePoint[] {
+    entries = visibleEntries(entries);
     const now = Date.now();
     const cutoffMs = (startMs <= now && now < endMs) ? now : endMs;
 
@@ -457,6 +496,7 @@ export class HistoryService {
   }
 
   aggregateHourlyForDate(entries: UsageEntry[], dateKey: string): HourlyBreakdownRow[] {
+    entries = visibleEntries(entries);
     const byHour = new Map<string, DashboardUsageData>();
     for (const e of entries) {
       if (toDayKey(e.timestamp) !== dateKey) { continue; }
@@ -466,10 +506,11 @@ export class HistoryService {
     }
     return Array.from(byHour.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([hour, data]) => ({ hour, data }));
+      .map(([hour, data]) => ({ hour, data: orderModelBreakdown(data)! }));
   }
 
   aggregateDailyForMonth(entries: UsageEntry[], monthKey: string): DailyBreakdownRow[] {
+    entries = visibleEntries(entries);
     const byDay = new Map<string, DashboardUsageData>();
     for (const e of entries) {
       if (toMonthKey(e.timestamp) !== monthKey) { continue; }
@@ -479,6 +520,6 @@ export class HistoryService {
     }
     return Array.from(byDay.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, data]) => ({ date, data }));
+      .map(([date, data]) => ({ date, data: orderModelBreakdown(data)! }));
   }
 }

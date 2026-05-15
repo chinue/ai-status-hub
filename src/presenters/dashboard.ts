@@ -15,6 +15,9 @@ import {
 } from '../types';
 import { listProviders, getProviderInfo } from '../providers/registry';
 
+const WINDOW_5H_MS = 5 * 3600 * 1000;
+const WINDOW_7D_MS = 7 * 24 * 3600 * 1000;
+
 export class DashboardPanel {
   private static instance: DashboardPanel | undefined;
   private panel: vscode.WebviewPanel;
@@ -175,11 +178,7 @@ export class DashboardPanel {
 
     try {
       if (entries.length > 0) {
-        const quota = state.quota;
-        const effectiveWindowReset = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000, now).resetAt;
-        const effectiveWeeklyReset = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now).resetAt;
-        const window5hStart = effectiveWindowReset - 5 * 3600 * 1000;
-        const window7dStart = effectiveWeeklyReset - 7 * 24 * 3600 * 1000;
+        const { window5hStart, window7dStart } = this.resolveDashboardWindowStarts(state, now);
         dashboard = this.historyService.buildDashboardAggregates(entries, {
           todayStartMs: todayStart,
           window5hStartMs: window5hStart,
@@ -230,6 +229,29 @@ export class DashboardPanel {
     };
   }
 
+  private resolveDashboardWindowStarts(state: AppState, now = Date.now()): { window5hStart: number; window7dStart: number } {
+    const anchors = state.windowAnchors;
+    if (anchors?.providerId === state.activeProvider) {
+      return {
+        window5hStart: anchors.window5hStartMs,
+        window7dStart: anchors.window7dStartMs,
+      };
+    }
+    const quota = state.quota;
+    if (quota) {
+      const effectiveWindowReset = resolveResetTime(quota.windowResetAt, WINDOW_5H_MS, now).resetAt;
+      const effectiveWeeklyReset = resolveResetTime(quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt;
+      return {
+        window5hStart: effectiveWindowReset - WINDOW_5H_MS,
+        window7dStart: effectiveWeeklyReset - WINDOW_7D_MS,
+      };
+    }
+    return {
+      window5hStart: now - WINDOW_5H_MS,
+      window7dStart: now - WINDOW_7D_MS,
+    };
+  }
+
   private buildKimiUsageData(state: AppState): KimiUsageData {
     const le = state.localEstimate;
     const quota = state.quota;
@@ -239,8 +261,11 @@ export class DashboardPanel {
     // Use the same resolution logic as statusBar/tooltip for consistency
     const weeklyPct = resolveWeeklyPct(state);
     const windowPct = resolveWindowPct(state);
-    const effectiveWindowReset = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000, now).resetAt;
-    const effectiveWeeklyReset = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now).resetAt;
+    const anchors = state.windowAnchors?.providerId === state.activeProvider ? state.windowAnchors : null;
+    const effectiveWindowReset = anchors?.window5hResetAtMs
+      ?? resolveResetTime(quota?.windowResetAt, WINDOW_5H_MS, now).resetAt;
+    const effectiveWeeklyReset = anchors?.window7dResetAtMs
+      ?? resolveResetTime(quota?.weeklyResetAt, WINDOW_7D_MS, now).resetAt;
 
     const mem = estimateStateMemory(state);
     const config = ConfigService.getInstance();
@@ -276,10 +301,10 @@ export class DashboardPanel {
     return {
       utilization5h: windowPct / 100,
       utilization7d: weeklyPct / 100,
-      resetIn5h: quota ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
-      resetIn7d: quota ? Math.max(0, Math.floor((effectiveWeeklyReset - now) / 1000)) : 0,
-      resetIn5hText: fmtResetTime(quota?.windowResetAt, 5 * 3600 * 1000, now),
-      resetIn7dText: fmtResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000, now),
+      resetIn5h: (quota || anchors) ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
+      resetIn7d: (quota || anchors) ? Math.max(0, Math.floor((effectiveWeeklyReset - now) / 1000)) : 0,
+      resetIn5hText: fmtResetTime(effectiveWindowReset, WINDOW_5H_MS, now),
+      resetIn7dText: fmtResetTime(effectiveWeeklyReset, WINDOW_7D_MS, now),
       limitStatus: 'allowed',
       has7dLimit: !!quota,
       providerType: 'openai',
@@ -319,10 +344,15 @@ export class DashboardPanel {
   }
 
   private sendCostCurveOptions(): void {
-    const entries = this.store.getState().usageEntries ?? [];
+    const state = this.store.getState();
+    const entries = state.usageEntries ?? [];
     if (entries.length === 0) return;
     try {
-      const opts = this.historyService.buildCostCurveOptions(entries);
+      const { window5hStart, window7dStart } = this.resolveDashboardWindowStarts(state);
+      const opts = this.historyService.buildCostCurveOptions(entries, {
+        window5hStartMs: window5hStart,
+        window7dStartMs: window7dStart,
+      });
       this.panel.webview.postMessage({ type: 'costCurveOptions', data: opts });
     } catch (err) {
       console.error('costCurveOptions error', err);
@@ -866,6 +896,19 @@ export class DashboardPanel {
     function fmtNum(n) { return (isFinite(n) ? Math.round(n) : 0).toLocaleString('en-US'); }
     function fmtCurrency(n) { return CURRENCY_SYMBOL + (isFinite(n) ? n.toFixed(2) : '0.00'); }
     function fmtDateShort(iso) { const d = new Date(iso); return (d.getMonth()+1) + '.' + d.getDate(); }
+    function isSyntheticModel(model) { return String(model || '').trim().toLowerCase() === '<synthetic>'; }
+    function modelRank(model) {
+      const m = String(model || '').toLowerCase();
+      if (m.includes('haiku')) return 0;
+      if (m.includes('sonnet')) return 1;
+      if (m.includes('opus')) return 2;
+      return 10;
+    }
+    function compareModelNames(a, b) {
+      const rankDiff = modelRank(a) - modelRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      return String(a).localeCompare(String(b));
+    }
     function heatmapColdWarmColor(t) {
       t = Math.max(0, Math.min(1, t));
       const c0 = [13, 71, 161];
@@ -1324,9 +1367,9 @@ export class DashboardPanel {
 
     function renderModelBreakdown(data) {
       if (!data || !data.modelBreakdown) return '';
-      const entries = Object.entries(data.modelBreakdown);
+      const entries = Object.entries(data.modelBreakdown).filter(([model]) => !isSyntheticModel(model));
       if (entries.length === 0) return '';
-      entries.sort((a, b) => (b[1].cost || 0) - (a[1].cost || 0));
+      entries.sort((a, b) => compareModelNames(a[0], b[0]) || ((b[1].cost || 0) - (a[1].cost || 0)));
       return '<div class="model-breakdown"><div class="section-title">${i18n('dashboard.modelBreakdown')}</div><div class="model-list">' +
         entries.map(([model, m]) => {
           return '<div class="model-item"><div class="model-header"><span class="model-name">' + esc(model) + '</span><span class="model-cost">' + fmtCurrency(m.cost) + '</span></div>' +
@@ -1591,8 +1634,8 @@ export class DashboardPanel {
         // Dynamic model colors
         const presetColors = ['#7c4dff', '#00a8e8', '#00c853', '#ff9800', '#ff5252', '#448aff'];
         const allModels = new Set();
-        byModel.forEach(d => Object.keys(d.byModel).forEach(m => allModels.add(m)));
-        const modelList = Array.from(allModels);
+        byModel.forEach(d => Object.keys(d.byModel).forEach(m => { if (!isSyntheticModel(m)) allModels.add(m); }));
+        const modelList = Array.from(allModels).sort(compareModelNames);
         const modelColors = {};
         modelList.forEach((m, i) => { modelColors[m] = presetColors[i % presetColors.length]; });
 
@@ -1694,8 +1737,14 @@ export class DashboardPanel {
       }
       const opts5h = costCurveOptions.options5h || [];
       const opts7d = costCurveOptions.options7d || [];
-      if (!selected5h && opts5h.length) selected5h = String(opts5h[0].startMs);
-      if (!selected7d && opts7d.length) selected7d = String(opts7d[0].startMs);
+      if ((!selected5h || !opts5h.some(o => String(o.startMs) === String(selected5h))) && opts5h.length) {
+        selected5h = String(opts5h[0].startMs);
+        selected5hDate = null;
+        selected5hHour = null;
+      }
+      if ((!selected7d || !opts7d.some(o => String(o.startMs) === String(selected7d))) && opts7d.length) {
+        selected7d = String(opts7d[0].startMs);
+      }
 
       function fmtDateKey(ms) { const d = new Date(ms); return (d.getMonth()+1) + '.' + d.getDate(); }
       function fmtHour(ms) { return String(new Date(ms).getHours()).padStart(2, '0'); }

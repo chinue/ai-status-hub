@@ -17,6 +17,17 @@ export type AuthStatus = 'unknown' | 'authenticated' | 'missing' | 'expired' | '
 export type DataSource = 'api' | 'cache' | 'stale' | 'no-credentials' | 'no-data' | 'local-only';
 export type DisplayMode = 'percent' | 'absolute';
 export type LanguageSetting = 'auto' | 'en' | 'zh-CN';
+export type WindowAnchorSource = 'api' | 'disk' | 'fallback';
+
+export interface WindowAnchorData {
+  providerId: string;
+  window5hStartMs: number;
+  window5hResetAtMs: number;
+  window7dStartMs: number;
+  window7dResetAtMs: number;
+  updatedAt: number;
+  source: WindowAnchorSource;
+}
 
 export interface TokenPricing {
   inputPerMillion: number;
@@ -108,6 +119,7 @@ export interface AppState {
   localEstimate: LocalEstimate | null;
   usageEntries: UsageEntry[];
   estHistory: EstHistoryEntry[];
+  windowAnchors: WindowAnchorData | null;
   activeProvider: string;
   ui: {
     displayMode: DisplayMode;
@@ -147,6 +159,7 @@ export type Action =
   | { type: 'LOCAL_ESTIMATE'; payload: Partial<LocalEstimate> & { entries?: UsageEntry[] } }
   | { type: 'API_HISTORY'; payload: { maxEntries: number; entry: EstHistoryEntry } }
   | { type: 'API_HISTORY_LOAD'; payload: EstHistoryEntry[] }
+  | { type: 'WINDOW_ANCHORS_SET'; payload: WindowAnchorData | null }
   | { type: 'AUTH_STATUS'; payload: AuthStatus }
   | { type: 'UI_SET_DISPLAY_MODE'; payload: DisplayMode }
   | { type: 'UI_SET_LANGUAGE'; payload: LanguageSetting }

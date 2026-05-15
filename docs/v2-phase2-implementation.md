@@ -25,6 +25,16 @@
 
 ---
 
+## 1.1 当前窗口锚点策略
+
+- 5h / 7d 的本地统计窗口统一由 `WindowAnchorData` 驱动，窗口起点定义为官方 reset 时间减去固定周期：`windowResetAt - 5h`、`weeklyResetAt - 7d`。
+- `Scheduler` 在 API 成功时从 quota 的 `windowResetAt` / `weeklyResetAt` 生成官方锚点并写入 Store；API 失败时先复用当前 Store 锚点，再通过 `CacheService.readWindowAnchors(providerId)` 从磁盘恢复，仍失败才使用 `now - period` fallback。
+- `CacheService` 负责所有窗口锚点磁盘 I/O，schema 为 `ai-status-hub-window-anchors-v1`，文件位于 provider 隔离缓存目录，例如 `~/.codex/ai-status-hub-window-anchors-claude.json`。
+- 插件 `deactivate` 时通过 `CacheService.writeWindowAnchors(providerId, data)` 写入最后有效锚点；`SIGN_OUT` 清空当前锚点，provider 激活后由 Scheduler 重新从 API / 磁盘 / fallback 设置。
+- Claude JSONL 不要求保存官方窗口起点；Claude API 403、用量耗尽或网络失败时，本地 usage、Detailed Usage、heatmap、Cost Curve 仍共用同一组锚点窗口。
+
+---
+
 ## 2. 文件结构变化
 
 相对于 Phase 1 的变化：

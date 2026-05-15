@@ -1,5 +1,28 @@
 # ChangeLog
 
+## [0.5.15] - 2026-05-15
+
+### 修复
+
+- **统一 5h / 7d 官方窗口起点**：新增 provider 隔离的窗口锚点，Dashboard、Detailed Usage、Token usage heatmap、Cost Curve 和本地估算统一使用同一组 `window5hStartMs` / `window7dStartMs`。
+- **修复 Claude API 用量耗尽后的 7d 曲线空白**：API 失败时按「内存锚点 → 磁盘锚点 → 当前时间回推周期」恢复窗口，Claude JSONL 没有官方窗口起点时仍能用本地数据展示 7d 曲线。
+
+### 改进
+
+- **窗口锚点持久化**：`CacheService` 新增 `readWindowAnchors` / `writeWindowAnchors`，使用 `ai-status-hub-window-anchors-v1` schema 保存 5h/7d reset 与 start 元信息，并在插件退出时写盘。
+- **发版测试覆盖**：新增 CacheService、Store、Scheduler、HistoryService 测试，覆盖锚点读写、登出清空、API 成功、磁盘恢复、fallback 与 Claude 无本地 rate_limits 场景。
+
+## [0.5.14] - 2026-05-15
+
+### 修复
+
+- **修复 Claude API 失败时 7d Cost Curve 为空**：`getCostCurveOptions` 现在复用 Dashboard 的 5h/7d reset 推算，且 WebView 在 options 刷新后会将无效选择回退到第一个有效窗口，避免 quota 用尽/缓存恢复期间 7d 曲线请求落到空窗口。
+- **隐藏 `<synthetic>` 内部数据**：Detailed Usage、Token usage heatmap、模型柱状图和 cost curve 聚合统一过滤 `<synthetic>` usage entry。
+
+### 改进
+
+- **Claude 模型展示顺序固定**：模型明细和热力图图例按 Haiku → Sonnet → Opus 排列，其余模型按名称稳定排序。
+
 ## [0.5.13] - 2026-05-15
 
 ### 变更

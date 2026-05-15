@@ -228,6 +228,8 @@ body {
 
 **标题行**：左侧 `费用变化曲线`，右侧 `[▲ 收起]` toggle 按钮
 
+**窗口来源**：Cost Curve 的 5h / 7d options 与 Dashboard 聚合、Detailed Usage、Token usage heatmap 共用 `state.windowAnchors` 中的 `window5hStartMs` / `window7dStartMs`。没有锚点时才使用当前时间回推周期作为临时 fallback。
+
 **内容**：两个子区块，上下排列
 
 #### 4.3.1 5h 曲线
@@ -237,6 +239,7 @@ body {
 - **日期下拉**：按日期分组，选项格式 `5.10`、`5.11` 等
 - **时间下拉**：按小时分组，选项格式 `00`、`01`、...、`23`
 - 选择后通过 `postMessage` 请求数据
+- options 刷新后若当前选择不在新 options 中，自动回退到第一个有效窗口；Claude API 用量耗尽/403 时仍使用窗口锚点生成 options，避免 7d 曲线请求空窗口
 
 **图表**：`<canvas id="costcurve-5h">`
 
@@ -301,6 +304,7 @@ body {
 - 当前激活 tab：背景 `--vscode-button-secondaryBackground`，文字 `--vscode-button-secondaryForeground`
 - 非激活 tab：透明背景，边框 `--vscode-panel-border`
 - 点击切换 tab 时重新渲染内容（不请求新数据，数据已预加载）
+- 5h / 7d tab 的统计范围来自同一组窗口锚点；API 不可用时不会单独按 Dashboard quota 或当前时间重新推算
 
 **每个 tab 的内容结构**：
 
@@ -335,7 +339,8 @@ body {
 - 指标：5 列 grid（Input / Output / CacheW / CacheR / 消息）
 - 每个指标两行：数值 + 单价（灰色小字）
 - **多模型扩展**：当 `modelBreakdown` 有多个 key 时，依次渲染多个 `.model-item`
-- **排序**：按 `cost` 降序排列
+- **排序**：Claude 系列固定按 Haiku → Sonnet → Opus 排列，其余模型按名称稳定排序
+- **过滤**：`model === '<synthetic>'` 的内部汇总数据不进入 Detailed Usage 展示
 
 #### C. Breakdown Table（明细表格）
 
@@ -372,6 +377,8 @@ body {
 
 - 切换 tab 时重新渲染热力图和图表
 - 数据使用 `heatmap` message 中预计算的多种粒度
+- 5h / 7d 周期从窗口锚点起算，与 Detailed Usage 和 Cost Curve 保持一致
+- 热力图和模型柱状图不展示 `<synthetic>` 内部汇总数据；Claude 模型图例按 Haiku → Sonnet → Opus 排列
 
 #### 4.6.1 Token 用量热力图
 
@@ -725,6 +732,7 @@ Model Breakdown 区块根据 `modelBreakdown` 的 key 数量动态渲染多个 `
 
 - Cost Curve 选择改变后，150ms debounce 后发送请求
 - 收到响应时检查 `startMs` 是否与当前选择匹配
+- `getCostCurveOptions` 使用与 Dashboard 聚合同一套 5h/7d reset 推算，确保 Claude API 失败回退本地数据时，7d 曲线窗口与热力图窗口一致
 - 不匹配则忽略（用户已切换选择）
 
 ### 8.4 XSS 防护

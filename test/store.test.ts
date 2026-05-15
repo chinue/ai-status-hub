@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { Store, defaultState } from '../src/store';
-import { QuotaData } from '../src/types';
+import { QuotaData, WindowAnchorData } from '../src/types';
 
 describe('Store', () => {
   it('initial state matches defaultState', () => {
@@ -66,15 +66,24 @@ describe('Store', () => {
     expect(store.getState().activeProvider).to.equal('kimi');
   });
 
+  it('WINDOW_ANCHORS_SET writes window anchors', () => {
+    const store = new Store();
+    const anchors = makeAnchors('codex');
+    store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
+    expect(store.getState().windowAnchors).to.deep.equal(anchors);
+  });
+
   it('SIGN_OUT resets to default but preserves UI settings and activeProvider', () => {
     const store = new Store();
     store.dispatch({ type: 'UI_SET_DISPLAY_MODE', payload: 'absolute' });
     store.dispatch({ type: 'SET_PROVIDER', payload: 'kimi' });
+    store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: makeAnchors('kimi') });
     store.dispatch({ type: 'SIGN_OUT' });
     const s = store.getState();
     expect(s.quota).to.be.null;
     expect(s.ui.displayMode).to.equal('absolute');
     expect(s.activeProvider).to.equal('kimi');
+    expect(s.windowAnchors).to.be.null;
   });
 
   it('notifies subscribers on state change', () => {
@@ -145,5 +154,18 @@ function makeQuota(): QuotaData {
     weeklyLimit: 1000, weeklyUsed: 250, weeklyUsedPct: 25, weeklyResetAt: Date.now() + 86400000,
     windowLimit: 200, windowUsed: 50, windowRemaining: 150, windowUsedPct: 25, windowResetAt: Date.now() + 18000000,
     parallelLimit: 30,
+  };
+}
+
+function makeAnchors(providerId: string): WindowAnchorData {
+  const now = Date.now();
+  return {
+    providerId,
+    window5hStartMs: now - 5 * 3600 * 1000,
+    window5hResetAtMs: now,
+    window7dStartMs: now - 7 * 24 * 3600 * 1000,
+    window7dResetAtMs: now,
+    updatedAt: now,
+    source: 'api',
   };
 }

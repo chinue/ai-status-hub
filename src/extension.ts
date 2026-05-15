@@ -14,6 +14,8 @@ import { DashboardPanel } from './presenters/dashboard';
 import { log, writeApiKey, deleteApiKey, deleteOAuth } from './utils';
 
 const PAUSE_STATE_KEY = 'aiStatusHub._pauseSignal';
+let activeStore: Store | undefined;
+let activeCacheService: CacheService | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   log('AI Status Hub v2 activated');
@@ -23,6 +25,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const cacheService = CacheService.getInstance();
   const localUsageService = LocalUsageService.getInstance();
   const apiHistoryService = ApiHistoryService.getInstance();
+  activeStore = store;
+  activeCacheService = cacheService;
 
   let currentProvider: IProvider;
   let scheduler: Scheduler;
@@ -185,6 +189,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export async function deactivate(): Promise<void> {
+  const anchors = activeStore?.getState().windowAnchors;
+  if (anchors) {
+    await activeCacheService?.writeWindowAnchors(anchors.providerId, anchors);
+  }
   await ApiHistoryService.getInstance().persistIfEnabled();
   log('AI Status Hub v2 deactivated');
 }

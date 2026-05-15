@@ -24,7 +24,7 @@
 | `src/presenters/dashboard.ts` | `v2-dashboard-design.md` | Dashboard WebView、数据可视化 |
 | `src/services/apiService.ts` | `v2-provider-abstraction.md` | API 请求、配额数据解析 |
 | `src/services/authService.ts` | `v2-phase2-implementation.md#servicesauthservicets` | OAuth/API Key 认证、token 缓存 |
-| `src/services/cacheService.ts` | `v2-phase2-implementation.md#servicescacheservicets` | 磁盘缓存读写、schema 版本管理 |
+| `src/services/cacheService.ts` | `v2-phase2-implementation.md#servicescacheservicets` | 磁盘缓存读写、schema 版本管理、窗口锚点持久化 |
 | `src/services/localUsageService.ts` | `v2-local-estimation-design.md` | 本地 JSONL 扫描、用量聚合 |
 | `src/services/scheduler.ts` | `v2-phase2-implementation.md#servicesschedulerts` | 长短 tick 调度、自动刷新 |
 | `src/services/apiHistoryService.ts` | `v2-phase2-implementation.md#servicesapihistoryservicets` | 估算器历史 JSONL 磁盘读写（api + short tick） |
@@ -47,6 +47,7 @@
 - **API 配额**：`v2-provider-abstraction.md` → `src/services/apiService.ts`
 - **本地估算**：`v2-local-estimation-design.md` → `src/services/localUsageService.ts`, `src/calc.ts`
 - **缓存**：`v2-phase2-implementation.md#servicescacheservicets` → `src/services/cacheService.ts`
+- **窗口锚点**：`v2-phase2-implementation.md#11-当前窗口锚点策略` + `v2-dashboard-design.md#43-cost-curve-card可折叠` → `src/services/scheduler.ts`, `src/services/cacheService.ts`, `src/presenters/dashboard.ts`
 
 ### 调度与刷新
 - **Scheduler**：`v2-phase2-implementation.md#servicesschedulerts` → `src/services/scheduler.ts`

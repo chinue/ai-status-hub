@@ -8,11 +8,15 @@ import { CacheService } from './cacheService';
 import { LocalUsageService } from './localUsageService';
 import { ConfigService } from '../config';
 import { log } from '../utils';
+import { DataSource, QuotaData, WindowAnchorData, WindowAnchorSource } from '../types';
 import {
   createLinearEstimator,
   ILinearEstimator,
   resolveResetTime,
 } from '../calc';
+
+const WINDOW_5H_MS = 5 * 3600 * 1000;
+const WINDOW_7D_MS = 7 * 24 * 3600 * 1000;
 
 export class Scheduler {
   private timer: NodeJS.Timeout | null = null;
@@ -31,6 +35,63 @@ export class Scheduler {
     private cacheService: CacheService,
     private localUsageService: LocalUsageService,
   ) {}
+
+  private currentProviderId(): string {
+    return this.store.getState().activeProvider || 'codex';
+  }
+
+  private anchorsFromResets(
+    providerId: string,
+    window5hResetAtMs: number,
+    window7dResetAtMs: number,
+    updatedAt: number,
+    source: WindowAnchorSource,
+  ): WindowAnchorData {
+    return {
+      providerId,
+      window5hStartMs: Math.round(window5hResetAtMs - WINDOW_5H_MS),
+      window5hResetAtMs: Math.round(window5hResetAtMs),
+      window7dStartMs: Math.round(window7dResetAtMs - WINDOW_7D_MS),
+      window7dResetAtMs: Math.round(window7dResetAtMs),
+      updatedAt: Math.round(updatedAt),
+      source,
+    };
+  }
+
+  private fallbackWindowAnchors(providerId: string, now: number): WindowAnchorData {
+    return this.anchorsFromResets(providerId, now, now, now, 'fallback');
+  }
+
+  private stateWindowAnchors(now: number): WindowAnchorData {
+    const state = this.store.getState();
+    const providerId = this.currentProviderId();
+    if (state.windowAnchors?.providerId === providerId) {
+      return state.windowAnchors;
+    }
+    if (state.quota) {
+      return this.anchorsFromResets(
+        providerId,
+        resolveResetTime(state.quota.windowResetAt, WINDOW_5H_MS, now).resetAt,
+        resolveResetTime(state.quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt,
+        now,
+        'fallback',
+      );
+    }
+    return this.fallbackWindowAnchors(providerId, now);
+  }
+
+  private async resolveWindowAnchorsFromFallbackChain(now: number): Promise<WindowAnchorData> {
+    const providerId = this.currentProviderId();
+    const stateAnchors = this.store.getState().windowAnchors;
+    if (stateAnchors?.providerId === providerId) {
+      return stateAnchors;
+    }
+
+    const diskAnchors = await this.cacheService.readWindowAnchors(providerId);
+    const anchors = diskAnchors ?? this.fallbackWindowAnchors(providerId, now);
+    this.store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
+    return anchors;
+  }
 
   start(): void {
     if (this.running) return;
@@ -91,11 +152,10 @@ export class Scheduler {
     const state = this.store.getState();
     const quota = state.quota;
 
-    const weeklyResetAtMs = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000).resetAt;
-    const windowResetAtMs = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000).resetAt;
+    const anchors = this.stateWindowAnchors(Date.now());
     const localUsage = await this.localUsageService.getLocalUsage({
-      weeklyResetAtMs,
-      windowResetAtMs,
+      weeklyResetAtMs: anchors.window7dResetAtMs,
+      windowResetAtMs: anchors.window5hResetAtMs,
       dataRetentionDays: this.config.dataRetentionDays,
     });
 
@@ -207,8 +267,6 @@ export class Scheduler {
     // Record short-tick estimator history
     const le = state.localEstimate;
     const cfg = this.config;
-    const shortWeeklyResetAtMs = resolveResetTime(quota?.weeklyResetAt, 7 * 24 * 3600 * 1000).resetAt;
-    const shortWindowResetAtMs = resolveResetTime(quota?.windowResetAt, 5 * 3600 * 1000).resetAt;
     this.store.dispatch({
       type: 'API_HISTORY',
       payload: {
@@ -228,8 +286,8 @@ export class Scheduler {
           windowP: le?.windowP ?? 0,
           windowC: le?.windowC ?? 0,
           windowK: le?.windowK ?? 0,
-          windowStartMs: Math.round(shortWindowResetAtMs - 5 * 3600 * 1000),
-          weeklyStartMs: Math.round(shortWeeklyResetAtMs - 7 * 24 * 3600 * 1000),
+          windowStartMs: anchors.window5hStartMs,
+          weeklyStartMs: anchors.window7dStartMs,
         },
       },
     });
@@ -292,7 +350,10 @@ export class Scheduler {
     // so the user sees usage data (tokens, cost, entries) in the status bar.
     // This is especially important for providers like Claude whose JSONL
     // does not contain rate_limits — without this, the UI stays blank.
+    const anchors = await this.resolveWindowAnchorsFromFallbackChain(now);
     const localUsageFallback = await this.localUsageService.getLocalUsage({
+      weeklyResetAtMs: anchors.window7dResetAtMs,
+      windowResetAtMs: anchors.window5hResetAtMs,
       dataRetentionDays: this.config.dataRetentionDays,
     });
     if (localUsageFallback.entries.length > 0) {
@@ -351,16 +412,32 @@ export class Scheduler {
   }
 
   private async processQuotaData(
-    quotaData: import('../types').QuotaData,
+    quotaData: QuotaData,
     now: number,
-    source: import('../types').DataSource,
+    source: DataSource,
     persistToCache: boolean = true,
+    anchorOverride?: WindowAnchorData,
   ): Promise<void> {
     const oldQuota = this.store.getState().quota;
+    const providerId = this.currentProviderId();
+    const windowResetAt = quotaData.windowResetAt > 0
+      ? quotaData.windowResetAt
+      : resolveResetTime(quotaData.windowResetAt, WINDOW_5H_MS, now).resetAt;
+    const weeklyResetAt = quotaData.weeklyResetAt > 0
+      ? quotaData.weeklyResetAt
+      : resolveResetTime(quotaData.weeklyResetAt, WINDOW_7D_MS, now).resetAt;
+    const anchors = anchorOverride ?? this.anchorsFromResets(
+      providerId,
+      windowResetAt,
+      weeklyResetAt,
+      now,
+      source === 'api' ? 'api' : 'fallback',
+    );
+    this.store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
 
     const localUsage = await this.localUsageService.getLocalUsage({
-      weeklyResetAtMs: quotaData.weeklyResetAt,
-      windowResetAtMs: quotaData.windowResetAt,
+      weeklyResetAtMs: anchors.window7dResetAtMs,
+      windowResetAtMs: anchors.window5hResetAtMs,
       dataRetentionDays: this.config.dataRetentionDays,
     });
 
@@ -404,6 +481,7 @@ export class Scheduler {
           reset7dAt: quotaData.weeklyResetAt,
         },
       });
+      await this.cacheService.writeWindowAnchors(providerId, anchors);
     }
 
     this.store.dispatch({ type: 'API_SUCCESS', payload: quotaData, source });
@@ -449,8 +527,6 @@ export class Scheduler {
 
     // Record estimator history for accuracy evaluation
     const cfg = this.config;
-    const effWindowReset = resolveResetTime(quotaData.windowResetAt, 5 * 3600 * 1000, now).resetAt;
-    const effWeeklyReset = resolveResetTime(quotaData.weeklyResetAt, 7 * 24 * 3600 * 1000, now).resetAt;
     this.store.dispatch({
       type: 'API_HISTORY',
       payload: {
@@ -470,14 +546,14 @@ export class Scheduler {
           windowP: windowEstimator.P,
           windowC: windowEstimator.C,
           windowK: windowEstimator.k,
-          windowStartMs: Math.round(effWindowReset - 5 * 3600 * 1000),
-          weeklyStartMs: Math.round(effWeeklyReset - 7 * 24 * 3600 * 1000),
+          windowStartMs: anchors.window5hStartMs,
+          weeklyStartMs: anchors.window7dStartMs,
         },
       },
     });
   }
 
-  private rateLimitsToQuota(rateLimits: RateLimits, now: number): import('../types').QuotaData {
+  private rateLimitsToQuota(rateLimits: RateLimits, now: number): QuotaData {
     const primary = rateLimits.primary;
     const secondary = rateLimits.secondary;
     // Local jsonl uses resets_at (absolute Unix timestamp in seconds);

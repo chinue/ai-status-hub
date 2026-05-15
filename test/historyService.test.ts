@@ -72,6 +72,29 @@ describe('HistoryService', () => {
       });
       expect(Object.keys(agg.today!.modelBreakdown)).to.deep.equal(['k2.6', 'k2.6-lite']);
     });
+
+    it('excludes synthetic entries and orders Claude models', () => {
+      const now = new Date('2026-05-13T12:00:00').getTime();
+      const entries: UsageEntry[] = [
+        makeEntry(now, { model: 'claude-opus-4', cost: 3 }),
+        makeEntry(now, { model: '<synthetic>', cost: 99 }),
+        makeEntry(now, { model: 'claude-sonnet-4', cost: 2 }),
+        makeEntry(now, { model: 'claude-3-haiku-20240307', cost: 1 }),
+      ];
+      const agg = svc.buildDashboardAggregates(entries, {
+        todayStartMs: new Date('2026-05-13T00:00:00').getTime(),
+        window5hStartMs: now - 5 * 3600 * 1000,
+        window7dStartMs: now - 7 * 24 * 3600 * 1000,
+        window30dStartMs: now - 30 * 24 * 3600 * 1000,
+        monthStartMs: new Date('2026-05-01T00:00:00').getTime(),
+      });
+      expect(agg.today!.messageCount).to.equal(3);
+      expect(Object.keys(agg.today!.modelBreakdown)).to.deep.equal([
+        'claude-3-haiku-20240307',
+        'claude-sonnet-4',
+        'claude-opus-4',
+      ]);
+    });
   });
 
   describe('buildHeatmapData', () => {
@@ -93,6 +116,19 @@ describe('HistoryService', () => {
       expect(day!.sessionCount).to.equal(2);
       expect(day!.tokensTotal).to.equal(4800);
     });
+
+    it('excludes synthetic entries from heatmap model data', () => {
+      const now = Date.now();
+      const entries: UsageEntry[] = [
+        makeEntry(now - 3600 * 1000, { model: '<synthetic>', inputOther: 10_000, output: 10_000, cost: 50 }),
+        makeEntry(now - 3600 * 1000, { model: 'claude-sonnet-4', inputOther: 1000, output: 500, cost: 1 }),
+      ];
+      const hm = svc.buildHeatmapData(entries);
+      const row = hm.dailyByModel.find(d => Object.keys(d.byModel).length > 0);
+      expect(row).to.exist;
+      expect(row!.byModel).to.not.have.property('<synthetic>');
+      expect(row!.byModel).to.have.property('claude-sonnet-4');
+    });
   });
 
   describe('buildCostCurveOptions', () => {
@@ -102,6 +138,33 @@ describe('HistoryService', () => {
       expect(opts.options7d.length).to.be.greaterThan(0);
       expect(opts.options5h[0].endMs - opts.options5h[0].startMs).to.equal(5 * 3600 * 1000);
       expect(opts.options7d[0].endMs - opts.options7d[0].startMs).to.equal(7 * 24 * 3600 * 1000);
+    });
+
+    it('uses the same supplied starts as aggregates and heatmap', () => {
+      const now = Date.now();
+      const window5hStartMs = now - 2 * 3600 * 1000;
+      const window7dStartMs = now - 2 * 24 * 3600 * 1000;
+      const entries: UsageEntry[] = [
+        makeEntry(window5hStartMs - 1000, { cost: 1 }),
+        makeEntry(window5hStartMs + 1000, { cost: 2 }),
+        makeEntry(window7dStartMs + 1000, { cost: 3 }),
+      ];
+      const agg = svc.buildDashboardAggregates(entries, {
+        todayStartMs: now - 24 * 3600 * 1000,
+        window5hStartMs,
+        window7dStartMs,
+        window30dStartMs: now - 30 * 24 * 3600 * 1000,
+        monthStartMs: now - 30 * 24 * 3600 * 1000,
+      });
+      const heatmap = svc.buildHeatmapData(entries, { window5hStartMs, window7dStartMs });
+      const opts = svc.buildCostCurveOptions(entries, { window5hStartMs, window7dStartMs });
+
+      expect(agg.window5h!.messageCount).to.equal(1);
+      expect(agg.window7d!.messageCount).to.equal(3);
+      expect(heatmap.cycles5hByModel[heatmap.cycles5hByModel.length - 1].costTotal).to.equal(2);
+      expect(heatmap.cycles7dByModel[heatmap.cycles7dByModel.length - 1].costTotal).to.equal(6);
+      expect(opts.current5hStartMs).to.equal(window5hStartMs);
+      expect(opts.current7dStartMs).to.equal(window7dStartMs);
     });
   });
 
@@ -125,6 +188,18 @@ describe('HistoryService', () => {
       expect(samples.length).to.be.at.least(3);
       const lastSample = samples[samples.length - 1];
       expect(lastSample.cumulativeRmb).to.be.closeTo(6.0, 0.01);
+    });
+
+    it('excludes synthetic entries from cost curves', () => {
+      const base = Date.now() - 3600 * 1000;
+      const entries: UsageEntry[] = [
+        makeEntry(base + 10 * 60 * 1000, { model: '<synthetic>', cost: 100 }),
+        makeEntry(base + 20 * 60 * 1000, { model: 'claude-haiku', cost: 2 }),
+      ];
+      const pts = svc.buildCostCurve(entries, '5h', base, base + 3600 * 1000);
+      const samples = pts.filter(p => p.sample);
+      expect(samples.length).to.equal(1);
+      expect(samples[0].cumulativeRmb).to.equal(2);
     });
   });
 

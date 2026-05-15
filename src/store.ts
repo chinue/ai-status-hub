@@ -13,6 +13,7 @@ export const defaultState = (): AppState => ({
   localEstimate: null,
   usageEntries: [],
   estHistory: [],
+  windowAnchors: null,
   activeProvider: 'codex',
   ui: {
     displayMode: 'percent',
@@ -155,6 +156,9 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'API_HISTORY_LOAD':
       return { ...state, estHistory: action.payload };
+
+    case 'WINDOW_ANCHORS_SET':
+      return { ...state, windowAnchors: action.payload };
 
     case 'SIGN_OUT':
       return {

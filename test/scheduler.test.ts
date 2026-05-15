@@ -1,5 +1,8 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { Scheduler } from '../src/services/scheduler';
 import { Store } from '../src/store';
 import { IAuthProvider, IQuotaApiProvider, RateLimits } from '../src/providers/base/types';
@@ -7,6 +10,7 @@ import { CacheService } from '../src/services/cacheService';
 import { LocalUsageService } from '../src/services/localUsageService';
 import { ConfigService } from '../src/config';
 import { makeContext } from './mocks/vscode';
+import { QuotaData, WindowAnchorData } from '../src/types';
 
 describe('Scheduler', () => {
   let clock: sinon.SinonFakeTimers;
@@ -15,9 +19,12 @@ describe('Scheduler', () => {
   let api: IQuotaApiProvider;
   let cache: CacheService;
   let scheduler: Scheduler;
+  let tempDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     clock = sinon.useFakeTimers();
+    tempDir = path.join(os.tmpdir(), `ai-status-hub-scheduler-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    await fs.mkdir(tempDir, { recursive: true });
     store = new Store();
     auth = {
       resolveToken: async () => null, // skip API path in tests, exercise local fallback
@@ -26,15 +33,18 @@ describe('Scheduler', () => {
     api = {
       fetchQuota: async () => ({ ok: false, error: 'not stubbed' }),
     };
-    cache = new CacheService();
+    cache = new CacheService(path.join(tempDir, 'cache.json'));
+    sinon.stub(cache, 'readWindowAnchors').resolves(null);
+    sinon.stub(cache, 'writeWindowAnchors').resolves();
     const localUsage = LocalUsageService.getInstance();
     scheduler = new Scheduler(store, auth, api, cache, localUsage);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     scheduler.stop();
     clock.restore();
     sinon.restore();
+    await fs.rm(tempDir, { recursive: true, force: true });
 
     (CacheService as any).instance = undefined;
     (LocalUsageService as any).instance = undefined;
@@ -86,6 +96,133 @@ describe('Scheduler', () => {
     scheduler.start();
     await clock.tickAsync(100);
     expect(store.getState().dataSource).to.equal('no-data');
+  });
+
+  it('stores official 5h and 7d window anchors when API succeeds', async () => {
+    auth.resolveToken = async () => 'token';
+    const quota = makeQuotaAt(18_000_000, 604_800_000);
+    api.fetchQuota = async () => ({ ok: true, data: quota });
+    const localUsage = LocalUsageService.getInstance();
+    sinon.stub(cache, 'write').resolves();
+    const getUsageStub = sinon.stub(localUsage, 'getLocalUsage').resolves(makeLocalUsage());
+
+    scheduler.start();
+    await clock.tickAsync(100);
+    await Promise.resolve();
+
+    const anchors = store.getState().windowAnchors!;
+    expect(anchors.source).to.equal('api');
+    expect(anchors.window5hResetAtMs).to.equal(quota.windowResetAt);
+    expect(anchors.window5hStartMs).to.equal(0);
+    expect(anchors.window7dResetAtMs).to.equal(quota.weeklyResetAt);
+    expect(anchors.window7dStartMs).to.equal(0);
+    expect(getUsageStub.firstCall.args[0]).to.include({
+      windowResetAtMs: quota.windowResetAt,
+      weeklyResetAtMs: quota.weeklyResetAt,
+    });
+
+    const writeAnchorsStub = cache.writeWindowAnchors as sinon.SinonStub;
+    expect(writeAnchorsStub.calledOnce).to.be.true;
+    expect(writeAnchorsStub.firstCall.args[0]).to.equal('codex');
+    expect(writeAnchorsStub.firstCall.args[1].window5hStartMs).to.equal(0);
+    expect(writeAnchorsStub.firstCall.args[1].window7dStartMs).to.equal(0);
+  });
+
+  it('restores window anchors from disk when API fails', async () => {
+    const diskAnchors = makeAnchors('codex', 1_000_000_000);
+    (cache.readWindowAnchors as sinon.SinonStub).resolves({ ...diskAnchors, source: 'disk' });
+    const localUsage = LocalUsageService.getInstance();
+    sinon.stub(localUsage, 'getRateLimits').resolves(null);
+    const getUsageStub = sinon.stub(localUsage, 'getLocalUsage').resolves(makeLocalUsage({
+      entries: [makeUsageEntry(diskAnchors.window7dStartMs + 1000)],
+    }));
+
+    scheduler.start();
+    await clock.tickAsync(100);
+    await Promise.resolve();
+
+    const anchors = store.getState().windowAnchors!;
+    expect(anchors.source).to.equal('disk');
+    expect(anchors.window5hStartMs).to.equal(diskAnchors.window5hStartMs);
+    expect(anchors.window7dStartMs).to.equal(diskAnchors.window7dStartMs);
+    expect(getUsageStub.firstCall.args[0]).to.include({
+      windowResetAtMs: diskAnchors.window5hResetAtMs,
+      weeklyResetAtMs: diskAnchors.window7dResetAtMs,
+    });
+  });
+
+  it('keeps Codex local rate_limits reset windows when API fails but rate_limits exist', async () => {
+    const windowResetAt = 3_000_000_000;
+    const weeklyResetAt = 3_600_000_000;
+    const rateLimits: RateLimits = {
+      primary: { used_percent: 25, resets_at: windowResetAt / 1000 },
+      secondary: { used_percent: 50, resets_at: weeklyResetAt / 1000 },
+    };
+    const localUsage = LocalUsageService.getInstance();
+    sinon.stub(localUsage, 'getRateLimits').resolves(rateLimits);
+    const getUsageStub = sinon.stub(localUsage, 'getLocalUsage').resolves(makeLocalUsage());
+
+    scheduler.start();
+    await clock.tickAsync(100);
+    await Promise.resolve();
+
+    const anchors = store.getState().windowAnchors!;
+    expect(anchors.window5hResetAtMs).to.equal(windowResetAt);
+    expect(anchors.window5hStartMs).to.equal(windowResetAt - 5 * 3600 * 1000);
+    expect(anchors.window7dResetAtMs).to.equal(weeklyResetAt);
+    expect(anchors.window7dStartMs).to.equal(weeklyResetAt - 7 * 24 * 3600 * 1000);
+    expect(getUsageStub.firstCall.args[0]).to.include({
+      windowResetAtMs: windowResetAt,
+      weeklyResetAtMs: weeklyResetAt,
+    });
+  });
+
+  it('falls back to now minus the period when API and disk anchors fail', async () => {
+    const localUsage = LocalUsageService.getInstance();
+    sinon.stub(localUsage, 'getRateLimits').resolves(null);
+    const getUsageStub = sinon.stub(localUsage, 'getLocalUsage').resolves(makeLocalUsage({
+      entries: [makeUsageEntry(Date.now())],
+    }));
+
+    scheduler.start();
+    await clock.tickAsync(100);
+    await Promise.resolve();
+
+    const anchors = store.getState().windowAnchors!;
+    expect(anchors.source).to.equal('fallback');
+    expect(anchors.window5hStartMs).to.equal(anchors.window5hResetAtMs - 5 * 3600 * 1000);
+    expect(anchors.window7dStartMs).to.equal(anchors.window7dResetAtMs - 7 * 24 * 3600 * 1000);
+    expect(getUsageStub.firstCall.args[0]).to.include({
+      windowResetAtMs: anchors.window5hResetAtMs,
+      weeklyResetAtMs: anchors.window7dResetAtMs,
+    });
+  });
+
+  it('uses anchors for Claude local JSONL usage when API and local rate_limits are unavailable', async () => {
+    store.dispatch({ type: 'SET_PROVIDER', payload: 'claude' });
+    cache.setProviderId('claude');
+    const diskAnchors = makeAnchors('claude', 2_000_000_000);
+    (cache.readWindowAnchors as sinon.SinonStub).resolves({ ...diskAnchors, source: 'disk' });
+    const localUsage = LocalUsageService.getInstance();
+    sinon.stub(localUsage, 'getRateLimits').resolves(null);
+    const getUsageStub = sinon.stub(localUsage, 'getLocalUsage').resolves(makeLocalUsage({
+      tokensIn5h: 100,
+      tokensIn7d: 200,
+      entries: [makeUsageEntry(diskAnchors.window7dStartMs + 1000, 'claude-sonnet-4')],
+    }));
+
+    scheduler.start();
+    await clock.tickAsync(100);
+    await Promise.resolve();
+
+    expect(store.getState().windowAnchors?.providerId).to.equal('claude');
+    expect(store.getState().windowAnchors?.source).to.equal('disk');
+    expect(store.getState().usageEntries.length).to.equal(1);
+    expect(store.getState().localEstimate?.tokensIn7d).to.equal(200);
+    expect(getUsageStub.firstCall.args[0]).to.include({
+      windowResetAtMs: diskAnchors.window5hResetAtMs,
+      weeklyResetAtMs: diskAnchors.window7dResetAtMs,
+    });
   });
 
   it('short tick updates local estimate with decimal precision', async () => {
@@ -656,4 +793,72 @@ describe('Scheduler', () => {
     rlStub.restore();
   });
 });
+
+function makeQuotaAt(windowResetAt: number, weeklyResetAt: number): QuotaData {
+  return {
+    weeklyLimit: 100,
+    weeklyUsed: 10,
+    weeklyUsedPct: 10,
+    weeklyResetAt,
+    windowLimit: 100,
+    windowUsed: 20,
+    windowRemaining: 80,
+    windowUsedPct: 20,
+    windowResetAt,
+    parallelLimit: 0,
+  };
+}
+
+function makeAnchors(providerId: string, resetAt: number): WindowAnchorData {
+  return {
+    providerId,
+    window5hStartMs: resetAt - 5 * 3600 * 1000,
+    window5hResetAtMs: resetAt,
+    window7dStartMs: resetAt - 7 * 24 * 3600 * 1000,
+    window7dResetAtMs: resetAt,
+    updatedAt: resetAt,
+    source: 'api',
+  };
+}
+
+function makeUsageEntry(timestamp: number, model = 'claude-haiku'): any {
+  return {
+    timestamp,
+    inputOther: 100,
+    output: 50,
+    inputCacheRead: 10,
+    inputCacheCreation: 5,
+    cost: 0.01,
+    messageId: null,
+    model,
+  };
+}
+
+function makeLocalUsage(overrides: Record<string, any> = {}): any {
+  return {
+    tokensToday: 0,
+    costToday: 0,
+    requestsToday: 0,
+    tokensIn5h: 0,
+    tokensOut5h: 0,
+    tokensCacheRead5h: 0,
+    tokensCacheCreate5h: 0,
+    requests5h: 0,
+    tokensIn7d: 0,
+    tokensOut7d: 0,
+    tokensCacheRead7d: 0,
+    tokensCacheCreate7d: 0,
+    cost7d: 0,
+    requests7d: 0,
+    cost5h: 0,
+    tokensThisCycle: 0,
+    tokensOutThisCycle: 0,
+    tokensCacheReadThisCycle: 0,
+    tokensCacheCreateThisCycle: 0,
+    costThisCycle: 0,
+    requestsThisCycle: 0,
+    entries: [],
+    ...overrides,
+  };
+}
 
