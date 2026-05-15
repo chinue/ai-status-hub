@@ -305,6 +305,13 @@ export class Scheduler {
     const token = await this.authService.resolveToken();
     let apiResult: import('../providers/base/types').ApiResult | null = null;
 
+    if (!token) {
+      const currentAuthStatus = this.store.getState().authStatus;
+      if (currentAuthStatus !== 'missing' && currentAuthStatus !== 'failed') {
+        this.store.dispatch({ type: 'AUTH_STATUS', payload: 'missing' });
+      }
+    }
+
     if (token) {
       try {
         apiResult = await this.apiService.fetchQuota(token);

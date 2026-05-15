@@ -1,5 +1,12 @@
 # ChangeLog
 
+## [0.5.16] - 2026-05-16
+
+### 修复
+
+- **Kimi 鉴权失败时状态栏卡住**：当 `resolveToken()` 返回 undefined（OAuth refresh 失败后凭证被清除或网络不通），`scheduler` 会 dispatch `AUTH_STATUS: 'missing'`，状态栏立即显示 `$(key) sign in` 登录提示，点击可跳转网页鉴权，不再一直转圈。
+- **UI 标签优化**：状态栏 tooltip 和 Dashboard 的 5h/7d 重置时间前统一添加 "Reset time:" / "重置时间：" 前缀，提升可读性。
+
 ## [0.5.15] - 2026-05-15
 
 ### 修复

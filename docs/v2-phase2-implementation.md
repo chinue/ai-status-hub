@@ -501,7 +501,8 @@ export class LocalUsageService {
     const now = Date.now();
     const todayStart = new Date().setHours(0, 0, 0, 0);
     const default5hStart = now - 5 * 3600 * 1000;
-    const window5hStart = opts?.windowResetAtMs ? opts.windowResetAtMs - 5 * 3600 * 1000 : default5hStart;
+    const window5hStart = opts?.window5hStartMs
+      ?? (opts?.windowResetAtMs ? opts.windowResetAtMs - 5 * 3600 * 1000 : default5hStart);
     const window7dStart = opts?.weeklyResetAtMs ? opts.weeklyResetAtMs - 7 * 24 * 3600 * 1000 : now - 7 * 24 * 3600 * 1000;
     const cycleStart = opts?.cycleStartMs ?? window7dStart;
 

@@ -269,6 +269,8 @@ export class DashboardPanel {
 
     const mem = estimateStateMemory(state);
     const config = ConfigService.getInstance();
+    const locale = ConfigService.resolveEffectiveLanguage(state.ui.language);
+    const t = makeT(locale);
     const maxRows = config.memoryDetailMaxRows;
 
     // Build memory detail samples for expandable rows
@@ -303,8 +305,8 @@ export class DashboardPanel {
       utilization7d: weeklyPct / 100,
       resetIn5h: (quota || anchors) ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
       resetIn7d: (quota || anchors) ? Math.max(0, Math.floor((effectiveWeeklyReset - now) / 1000)) : 0,
-      resetIn5hText: fmtResetTime(effectiveWindowReset, WINDOW_5H_MS, now),
-      resetIn7dText: fmtResetTime(effectiveWeeklyReset, WINDOW_7D_MS, now),
+      resetIn5hText: t('tooltip.nextReset') + ' ' + fmtResetTime(effectiveWindowReset, WINDOW_5H_MS, now),
+      resetIn7dText: t('tooltip.nextReset') + ' ' + fmtResetTime(effectiveWeeklyReset, WINDOW_7D_MS, now),
       limitStatus: 'allowed',
       has7dLimit: !!quota,
       providerType: 'openai',
@@ -868,6 +870,7 @@ export class DashboardPanel {
       cost: '${i18n('dashboard.cost')}',
       secondsAgo: '${i18n('dashboard.secondsAgo')}',
       refreshing: '${i18n('dashboard.refreshing')}',
+      resetTime: '${i18n('tooltip.nextReset')}',
     };
 
     let lastFetchAt = 0;
@@ -956,7 +959,7 @@ export class DashboardPanel {
     function fmtReset(ms) {
       if (!ms || ms <= Date.now()) return '';
       const totalSeconds = Math.max(0, Math.floor((ms - Date.now()) / 1000));
-      return 'resets in ' + fmtDuration(totalSeconds);
+      return labels.resetTime + ' ' + fmtDuration(totalSeconds);
     }
 
     document.getElementById('btn-refresh').addEventListener('click', () => {
