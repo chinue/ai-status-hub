@@ -187,6 +187,7 @@ export class LocalUsageService {
       }
     }
 
+    entries.sort((a, b) => a.timestamp - b.timestamp);
     empty.entries = entries;
     return empty;
   }

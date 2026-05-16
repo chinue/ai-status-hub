@@ -1,5 +1,11 @@
 # ChangeLog
 
+## [0.5.18] - 2026-05-16
+
+### 修复
+
+- **Dashboard Memory Usage 显示 stale 数据**：`LocalUsageService.aggregateFromProvider()` 返回的 `usageEntries` 未按时间戳排序，导致 Dashboard 的 `slice(-maxRows)` 取到的末尾片段可能不是最新数据。现已在聚合完成后统一按时间升序排列，Dashboard 和 CSV 导出均会正确显示最新记录。
+
 ## [0.5.17] - 2026-05-16
 
 ### 改进
