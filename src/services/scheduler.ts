@@ -310,21 +310,28 @@ export class Scheduler {
       if (currentAuthStatus !== 'missing' && currentAuthStatus !== 'failed') {
         this.store.dispatch({ type: 'AUTH_STATUS', payload: 'missing' });
       }
+      log(`Scheduler: no token for provider ${this.currentProviderId()}`);
     }
 
     if (token) {
       try {
         apiResult = await this.apiService.fetchQuota(token);
-      } catch {
+      } catch (err) {
+        log(`Scheduler: API exception for ${this.currentProviderId()}: ${(err as Error).message}`);
         apiResult = null;
       }
     }
 
     // ── Step 2: API success ──────────────────────────────────────────────────
     if (apiResult && apiResult.ok && apiResult.data) {
+      log(`Scheduler: API success for ${this.currentProviderId()}`);
       await this.processQuotaData(apiResult.data, now, 'api');
       this.store.dispatch({ type: 'LOADING_END' });
       return;
+    }
+
+    if (apiResult) {
+      log(`Scheduler: API failed for ${this.currentProviderId()}: ${apiResult.error} (authFailed=${apiResult.authFailed}, networkError=${apiResult.networkError})`);
     }
 
     // ── Step 3: API failed → fallback to local JSONL rate_limits ────────────

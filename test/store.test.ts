@@ -28,6 +28,24 @@ describe('Store', () => {
     expect(s.lastSuccessfulFetchAt).to.be.at.least(before);
   });
 
+  it('API_SUCCESS resets authStatus from failed to authenticated', () => {
+    const store = new Store();
+    store.dispatch({ type: 'AUTH_STATUS', payload: 'failed' });
+    store.dispatch({ type: 'API_ERROR', payload: { error: 'Quota exhausted', authFailed: true } });
+    expect(store.getState().authStatus).to.equal('failed');
+    store.dispatch({ type: 'API_SUCCESS', payload: makeQuota() });
+    expect(store.getState().authStatus).to.equal('authenticated');
+  });
+
+  it('API_SUCCESS resets authStatus from expired to authenticated', () => {
+    const store = new Store();
+    store.dispatch({ type: 'AUTH_STATUS', payload: 'authenticated' });
+    store.dispatch({ type: 'API_ERROR', payload: { error: 'Quota exhausted', authFailed: true } });
+    expect(store.getState().authStatus).to.equal('expired');
+    store.dispatch({ type: 'API_SUCCESS', payload: makeQuota() });
+    expect(store.getState().authStatus).to.equal('authenticated');
+  });
+
   it('API_ERROR sets error and preserves lastSuccessfulFetchAt', () => {
     const store = new Store();
     store.dispatch({ type: 'API_SUCCESS', payload: makeQuota() });

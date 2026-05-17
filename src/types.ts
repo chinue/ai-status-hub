@@ -205,7 +205,7 @@ export interface KimiUsageData {
   resetIn7dText?: string;
   limitStatus: 'allowed' | 'allowed_warning' | 'denied';
   has7dLimit: boolean;
-  providerType: 'openai' | 'api-key';
+  providerType: string;
 
   // Local JSONL aggregate
   cost5h: number;

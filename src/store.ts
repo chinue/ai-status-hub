@@ -45,7 +45,7 @@ function reducer(state: AppState, action: Action): AppState {
         lastSuccessfulFetchAt: now,
         dataSource: action.source ?? 'api',
         error: null,
-        authStatus: state.authStatus === 'missing' ? 'authenticated' : state.authStatus,
+        authStatus: state.authStatus === 'missing' || state.authStatus === 'failed' || state.authStatus === 'expired' ? 'authenticated' : state.authStatus,
         isLoading: false,
       };
     }

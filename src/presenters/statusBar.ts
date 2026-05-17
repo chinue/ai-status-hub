@@ -233,7 +233,7 @@ export class StatusBarPresenter {
       return md;
     }
 
-    if (state.authStatus === 'failed') {
+    if (state.error && state.authStatus === 'failed') {
       md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.authFailed')}`);
       return md;
     }

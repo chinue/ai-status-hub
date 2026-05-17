@@ -2,10 +2,18 @@
 // AGENTS: err->try-catch | network-fallback
 // 🔀 Provider boundary: Anthropic API rate-limit headers
 
-import fetch from 'node-fetch';
+import nodeFetch from 'node-fetch';
 import { IQuotaApiProvider, ApiResult, UnifiedQuota } from '../base/types';
+import { log } from '../../utils';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+
+// VS Code 1.80+ (Node.js 18+) has native fetch; use it when available to avoid
+// node-fetch bundling issues. Fallback to node-fetch for older VS Code versions.
+const _fetch: typeof nodeFetch =
+  typeof (globalThis as any).fetch === 'function'
+    ? ((globalThis as any).fetch as typeof nodeFetch)
+    : nodeFetch;
 
 export class QuotaExhaustedError extends Error {
   constructor(message: string) {
@@ -17,7 +25,8 @@ export class QuotaExhaustedError extends Error {
 export class ClaudeApiProvider implements IQuotaApiProvider {
   async fetchQuota(token: string): Promise<ApiResult> {
     try {
-      const response = await fetch(ANTHROPIC_API_URL, {
+      log(`Claude API: fetching quota with ${typeof (globalThis as any).fetch === 'function' ? 'native fetch' : 'node-fetch'}`);
+      const response = await _fetch(ANTHROPIC_API_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -26,7 +35,7 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 1,
           messages: [{ role: 'user', content: '.' }],
         }),
@@ -34,6 +43,7 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
 
       if (!response.ok) {
         const bodyText = await response.text().catch(() => '');
+        log(`Claude API error: HTTP ${response.status}, body=${bodyText.slice(0, 200)}`);
         if (response.status === 403) {
           return { ok: false, error: `Quota exhausted: ${bodyText}`, authFailed: true };
         }
@@ -44,12 +54,40 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
       }
 
       const data = this.parseHeaders(response.headers);
+      log(`Claude API success: window=${data.windowUsedPct.toFixed(2)}%, weekly=${data.weeklyUsedPct.toFixed(2)}%, reset5h=${data.windowResetAt}, reset7d=${data.weeklyResetAt}`);
       return { ok: true, data };
     } catch (err) {
       const msg = (err as Error).message;
+      log(`Claude API exception: ${msg}`);
       const isNetwork = /fetch|network|ECONN|ENOTFOUND|ETIMEDOUT/i.test(msg);
       return { ok: false, error: msg, networkError: isNetwork };
     }
+  }
+
+  /** Parse Anthropic reset header into remaining seconds.
+   *  Handles: Unix epoch seconds, Unix epoch milliseconds, ISO 8601 strings, relative seconds.
+   */
+  private parseResetInSeconds(resetStr: string | null | undefined, nowSec: number): number {
+    if (!resetStr) { return 0; }
+    const num = Number(resetStr);
+    if (!isNaN(num) && isFinite(num)) {
+      if (num > 1_000_000_000_000) {
+        // Milliseconds timestamp
+        return Math.max(0, Math.round(num / 1000) - nowSec);
+      }
+      if (num > 1_000_000_000) {
+        // Seconds timestamp (absolute) — round to avoid floating-point underflow
+        return Math.max(0, Math.round(num - nowSec));
+      }
+      // Small number: relative seconds from now
+      return Math.max(0, Math.round(num));
+    }
+    // Try ISO 8601
+    const parsed = Date.parse(resetStr);
+    if (!isNaN(parsed)) {
+      return Math.max(0, Math.round(parsed / 1000) - nowSec);
+    }
+    return 0;
   }
 
   private parseHeaders(headers: any): UnifiedQuota {
@@ -63,9 +101,10 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
     const util5h = clamp01(parseFloat(util5hRaw));
     const util7d = clamp01(parseFloat(util7dRaw));
 
-    const nowSec = Date.now() / 1000;
-    const resetIn5h = reset5hStr ? Math.max(0, parseInt(reset5hStr, 10) - nowSec) : 0;
-    const resetIn7d = reset7dStr ? Math.max(0, parseInt(reset7dStr, 10) - nowSec) : 0;
+    const nowMs = Date.now();
+    const nowSec = Math.floor(nowMs / 1000);
+    const resetIn5h = this.parseResetInSeconds(reset5hStr, nowSec);
+    const resetIn7d = this.parseResetInSeconds(reset7dStr, nowSec);
 
     let limitStatus: 'allowed' | 'allowed_warning' | 'denied';
     if (status5h === 'denied') {
@@ -83,12 +122,12 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
       weeklyLimit: 100,
       weeklyUsed: weeklyUsedPct,
       weeklyUsedPct,
-      weeklyResetAt: Date.now() + resetIn7d * 1000,
+      weeklyResetAt: nowMs + resetIn7d * 1000,
       windowLimit: 100,
       windowUsed: windowUsedPct,
       windowRemaining: Math.max(0, 100 - windowUsedPct),
       windowUsedPct,
-      windowResetAt: Date.now() + resetIn5h * 1000,
+      windowResetAt: nowMs + resetIn5h * 1000,
       parallelLimit: 0,
     };
   }

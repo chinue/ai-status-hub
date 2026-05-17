@@ -1,5 +1,31 @@
 # ChangeLog
 
+## [0.5.21] - 2026-05-18
+
+### 修复
+
+- **Claude 切换后仍显示 local-only 断网图标**：`ClaudeApiProvider` 现在优先使用 VS Code 内置的**原生 `fetch`**（Node.js 18+），回退到 `node-fetch`。原生 `fetch` 与 `claude-status` 参考工程一致，可避免 `node-fetch` 在特定网络/代理环境下的请求失败问题。
+- **Claude 重置时间浮点精度丢失**：`parseResetInSeconds()` 中 `nowSec` 改为 `Math.floor(Date.now() / 1000)` 整数秒，并对绝对秒级时间戳的差值使用 `Math.round()`，防止当 reset 时间戳刚好略小于浮点 `nowSec` 时被错误截断为 0。
+- **Anthropic 退役模型导致 Claude 404**：`claude-3-haiku-20240307` 已于 2026-04-20 被 Anthropic 正式退役，API 调用返回 `not_found_error`。probe 请求模型更换为当前可用的 **`claude-haiku-4-5-20251001`**。
+- **增强 API 失败诊断日志**：`scheduler.ts` 的 `doLongTick()` 现在会在 token 缺失、API 异常、API 返回错误时分别输出日志，便于通过 Output 面板定位问题。
+
+## [0.5.20] - 2026-05-17
+
+### 修复
+
+- **Claude 额度恢复后仍显示断线**：`API_SUCCESS` reducer 现在会在 `authStatus` 为 `'failed'` 或 `'expired'` 时主动恢复为 `'authenticated'`，避免额度耗尽导致的 403 错误永久锁定认证状态。
+- **Tooltip 认证失败提示与状态栏不一致**：`StatusBarPresenter.buildTooltip()` 现在和 `render()` 保持一致，仅在 `state.error && state.authStatus === 'failed'` 时才显示 auth failed，避免 API 恢复后 tooltip 仍显示旧错误。
+- **Claude `windowResetAt` 解析健壮性**：新增 `parseResetInSeconds()`，支持 Unix epoch（秒/毫秒）、ISO 8601 字符串和相对秒数四种格式，防止因 header 格式差异导致 `windowResetAt` 被错误设为当前时间、进而使窗口百分比始终归零。
+
+## [0.5.19] - 2026-05-17
+
+### 修复
+
+- **Claude 点击 login 无反应**：`ClaudeAuthProvider` 新增 `startLoginFlow()`，点击状态栏 "sign in" 后会自动打开 VS Code 集成终端并执行 `claude login`，同时轮询检测登录凭证（最多 120 秒），完成后自动刷新状态栏与 Dashboard。
+- **Claude Dashboard provider 标签错误**：`buildKimiUsageData` 中 `providerType` 不再硬编码为 `'openai'`，改为使用当前 `activeProvider`，Pricing & Settings 区域会正确显示 `claude`。
+- **Claude 今日 Token 明细始终为 0**：`tokensOutDay` / `tokensCacheReadDay` / `tokensCacheCreateDay` 改为从 `localEstimate` 的 `tokensOutToday` / `tokensCacheReadToday` / `tokensCacheCreateToday` 读取，不再固定为 0。
+- **Claude 过期 token 缓存未清除**：`resolveToken()` 检测到 token 过期时现在会同步清空 `cachedToken`，避免后续调用错误返回已过期凭证。
+
 ## [0.5.18] - 2026-05-16
 
 ### 修复

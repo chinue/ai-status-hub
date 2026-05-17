@@ -5,6 +5,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+import * as vscode from 'vscode';
 import { IAuthProvider } from '../base/types';
 import { log } from '../../utils';
 
@@ -42,6 +43,7 @@ export class ClaudeAuthProvider implements IAuthProvider {
       }
       if (isTokenExpired(creds)) {
         log('Claude OAuth token has expired');
+        this.cachedToken = undefined;
         return undefined;
       }
       this.cachedToken = token;
@@ -49,6 +51,33 @@ export class ClaudeAuthProvider implements IAuthProvider {
     } catch (err) {
       log(`Claude auth read error: ${(err as Error).message}`);
       return undefined;
+    }
+  }
+
+  async startLoginFlow(): Promise<boolean> {
+    try {
+      const terminal = vscode.window.createTerminal('Claude Login');
+      terminal.sendText('claude login', true);
+      terminal.show();
+
+      // Poll for token for up to 120 seconds
+      const deadline = Date.now() + 120_000;
+      const interval = 3000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, interval));
+        const token = await this.resolveToken();
+        if (token) {
+          void vscode.window.showInformationMessage('Claude sign-in successful.');
+          return true;
+        }
+      }
+
+      void vscode.window.showWarningMessage('Claude sign-in timed out. Please try again.');
+      return false;
+    } catch (err) {
+      log(`Claude startLoginFlow error: ${(err as Error).message}`);
+      void vscode.window.showErrorMessage(`Claude sign-in failed: ${(err as Error).message}`);
+      return false;
     }
   }
 
