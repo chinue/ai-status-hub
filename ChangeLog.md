@@ -7,6 +7,8 @@
 - **Claude 切换后仍显示 local-only 断网图标**：`ClaudeApiProvider` 现在优先使用 VS Code 内置的**原生 `fetch`**（Node.js 18+），回退到 `node-fetch`。原生 `fetch` 与 `claude-status` 参考工程一致，可避免 `node-fetch` 在特定网络/代理环境下的请求失败问题。
 - **Claude 重置时间浮点精度丢失**：`parseResetInSeconds()` 中 `nowSec` 改为 `Math.floor(Date.now() / 1000)` 整数秒，并对绝对秒级时间戳的差值使用 `Math.round()`，防止当 reset 时间戳刚好略小于浮点 `nowSec` 时被错误截断为 0。
 - **Anthropic 退役模型导致 Claude 404**：`claude-3-haiku-20240307` 已于 2026-04-20 被 Anthropic 正式退役，API 调用返回 `not_found_error`。probe 请求模型更换为当前可用的 **`claude-haiku-4-5-20251001`**。
+- **未安装 Claude Code 时无法切换 provider**：当 `authStatus === 'missing'` 时，状态栏点击命令从 `aiStatusHub.signIn` 改为 `aiStatusHub.showDashboard`，确保用户总能打开 Dashboard 切换回其他 provider。
+- **Claude 登录流程在未安装时卡住**：`ClaudeAuthProvider.startLoginFlow()` 现在会先检测系统是否安装了 `claude` 命令（`which claude` / `where claude`）。未安装时直接提示用户并提供 **Open Dashboard** 按钮，避免打开终端执行不存在的命令并轮询 120 秒。
 - **增强 API 失败诊断日志**：`scheduler.ts` 的 `doLongTick()` 现在会在 token 缺失、API 异常、API 返回错误时分别输出日志，便于通过 Output 面板定位问题。
 
 ## [0.5.20] - 2026-05-17

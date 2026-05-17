@@ -77,7 +77,8 @@ export class StatusBarPresenter {
       if (state.authStatus === 'missing') {
         this.stopUpdateAnimation();
         this.itemWeekly.text = `$(key) ${this.displayName}: sign in`;
-        this.itemWeekly.command = 'aiStatusHub.signIn';
+        // Always route to dashboard so users can switch provider even when Claude is not installed
+        this.itemWeekly.command = 'aiStatusHub.showDashboard';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWeekly.color = new vscode.ThemeColor('statusBarItem.errorForeground');
         this.itemWindow.hide();
