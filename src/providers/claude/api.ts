@@ -24,6 +24,9 @@ export class QuotaExhaustedError extends Error {
 
 export class ClaudeApiProvider implements IQuotaApiProvider {
   async fetchQuota(token: string): Promise<ApiResult> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
     try {
       log(`Claude API: fetching quota with ${typeof (globalThis as any).fetch === 'function' ? 'native fetch' : 'node-fetch'}`);
       const response = await _fetch(ANTHROPIC_API_URL, {
@@ -39,6 +42,7 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
           max_tokens: 1,
           messages: [{ role: 'user', content: '.' }],
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -59,8 +63,10 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
     } catch (err) {
       const msg = (err as Error).message;
       log(`Claude API exception: ${msg}`);
-      const isNetwork = /fetch|network|ECONN|ENOTFOUND|ETIMEDOUT/i.test(msg);
+      const isNetwork = /fetch|network|ECONN|ENOTFOUND|ETIMEDOUT|abort/i.test(msg);
       return { ok: false, error: msg, networkError: isNetwork };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

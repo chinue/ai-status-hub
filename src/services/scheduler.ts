@@ -130,7 +130,15 @@ export class Scheduler {
 
     try {
       if (isLong) {
-        await this.doLongTick();
+        // Guard: if doLongTick hangs (e.g. fetch without timeout), force it to
+        // reject so schedule() below is still executed and the scheduler does
+        // not stall forever.
+        await Promise.race([
+          this.doLongTick(),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('Tick timeout')), 60_000),
+          ),
+        ]);
         this.lastLongTick = now;
       } else {
         await this.doShortTick();

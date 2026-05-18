@@ -9,6 +9,9 @@ const API_URL = 'https://api.kimi.com/coding/v1/usages';
 
 export class KimiApiProvider implements IQuotaApiProvider {
   async fetchQuota(token: string): Promise<ApiResult> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
     try {
       const resp = await fetch(API_URL, {
         method: 'GET',
@@ -17,6 +20,7 @@ export class KimiApiProvider implements IQuotaApiProvider {
           'User-Agent': 'KimiCLI/1.6',
           Accept: 'application/json',
         },
+        signal: controller.signal,
       });
 
       if (resp.status === 401 || resp.status === 403) {
@@ -31,8 +35,10 @@ export class KimiApiProvider implements IQuotaApiProvider {
       return { ok: true, data };
     } catch (err) {
       const msg = (err as Error).message;
-      const isNetwork = /fetch|network|ECONN|ENOTFOUND|ETIMEDOUT/i.test(msg);
+      const isNetwork = /fetch|network|ECONN|ENOTFOUND|ETIMEDOUT|abort/i.test(msg);
       return { ok: false, error: msg, networkError: isNetwork };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

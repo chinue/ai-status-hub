@@ -735,6 +735,22 @@ describe('Scheduler', () => {
     rlStub.restore();
   });
 
+  it('Promise.race timeout works with fake timers', async () => {
+    const never = new Promise(() => {});
+    const timeout = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('timed out')), 5000);
+    });
+    const p = Promise.race([never, timeout]);
+    await clock.tickAsync(5000);
+    await Promise.resolve();
+    try {
+      await p;
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect((err as Error).message).to.equal('timed out');
+    }
+  });
+
   it('short tick skips dispatch when no local entries exist', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');

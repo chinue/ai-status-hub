@@ -1,5 +1,12 @@
 # ChangeLog
 
+## [0.5.23] - 2026-05-18
+
+### 修复
+
+- **Claude/Kimi 网络异常时 scheduler 彻底停止**：Claude 和 Kimi 的 `fetch` 调用**没有超时控制**，网络半开连接或代理异常时请求会无限 hang 住，导致 `scheduler.tick()` 永远不会完成，timer 无法重新调度。现在两个 provider 均增加了 `AbortController` + **30 秒超时**，超时后返回 `networkError`，UI 会正确显示断网状态。
+- **scheduler tick 无兜底保护**：即使 fetch 有了超时，作为调度器核心循环，`tick()` 现在使用 `Promise.race` 增加了**整 tick 60 秒兜底超时**，确保任何不可预知的 async 操作 hang 住时，`schedule()` 仍然会被调用，scheduler 不会彻底死亡。
+
 ## [0.5.22] - 2026-05-18
 
 ### 修复

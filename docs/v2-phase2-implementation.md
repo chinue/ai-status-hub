@@ -934,6 +934,7 @@ export class Scheduler {
 `````
 
 > **v0.5.22 修复**：`force()` 增加执行日志，便于在 Output 面板确认手动刷新已触发。
+> **v0.5.23 修复**：`tick()` 增加 `Promise.race` 60 秒兜底超时，防止 `doLongTick()` 内部任何 async 操作（如 fetch 无超时）hang 住时 scheduler 彻底停止；Claude/Kimi `fetchQuota` 增加 `AbortController` + 30 秒超时。
 
 ---
 
