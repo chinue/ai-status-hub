@@ -46,13 +46,15 @@ describe('Store', () => {
     expect(store.getState().authStatus).to.equal('authenticated');
   });
 
-  it('API_ERROR sets error and preserves lastSuccessfulFetchAt', () => {
+  it('API_ERROR sets error and updates lastFetchAt while preserving lastSuccessfulFetchAt', () => {
     const store = new Store();
     store.dispatch({ type: 'API_SUCCESS', payload: makeQuota() });
     const prevSuccess = store.getState().lastSuccessfulFetchAt;
+    const before = Date.now();
     store.dispatch({ type: 'API_ERROR', payload: { error: 'network' } });
     expect(store.getState().error).to.equal('network');
     expect(store.getState().lastSuccessfulFetchAt).to.equal(prevSuccess);
+    expect(store.getState().lastFetchAt).to.be.at.least(before);
   });
 
   it('API_ERROR with authFailed sets authStatus to expired', () => {

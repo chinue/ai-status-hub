@@ -33,7 +33,8 @@ function reducer(state: AppState, action: Action): AppState {
         quota: action.payload,
         lastFetchAt: action.fetchedAt ?? null,
         dataSource: 'cache',
-        error: null,
+        // Preserve existing error so API failures are not hidden by cache restore
+        error: state.error,
       };
 
     case 'API_SUCCESS': {
@@ -55,6 +56,8 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         error: action.payload.error,
         isLoading: false,
+        // Record the attempt time so dashboard age indicator updates even on failure
+        lastFetchAt: Date.now(),
         authStatus: action.payload.authFailed
           ? (state.authStatus === 'authenticated' ? 'expired' : 'failed')
           : state.authStatus,

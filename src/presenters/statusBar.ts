@@ -85,9 +85,10 @@ export class StatusBarPresenter {
         return;
       }
 
-      if (state.error && state.authStatus === 'failed') {
+      if (state.authStatus === 'expired' || (state.error && state.authStatus === 'failed')) {
         this.stopUpdateAnimation();
-        this.itemWeekly.text = `$(warning) ${this.displayName}: auth failed`;
+        const label = state.authStatus === 'expired' ? 'auth expired' : 'auth failed';
+        this.itemWeekly.text = `$(warning) ${this.displayName}: ${label}`;
         this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWindow.hide();
@@ -234,8 +235,9 @@ export class StatusBarPresenter {
       return md;
     }
 
-    if (state.error && state.authStatus === 'failed') {
-      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.authFailed')}`);
+    if (state.authStatus === 'expired' || (state.error && state.authStatus === 'failed')) {
+      const tip = state.authStatus === 'expired' ? t('tooltip.authExpired') : t('tooltip.authFailed');
+      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${tip}`);
       return md;
     }
 

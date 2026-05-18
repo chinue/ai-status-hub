@@ -110,6 +110,7 @@ export class Scheduler {
   /** Manual refresh: force a long tick (API fetch) immediately. */
   force(): void {
     if (!this.running) return;
+    log('Scheduler: force() called, triggering long tick');
     if (this.timer) clearTimeout(this.timer);
     // Reset lastLongTick so the next tick is guaranteed to be a long tick
     this.lastLongTick = Date.now() - this.longMs;

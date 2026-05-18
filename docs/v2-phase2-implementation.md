@@ -257,6 +257,8 @@ export class Store {
 }
 ```
 
+> **v0.5.22 修复**：`API_ERROR` 现在更新 `lastFetchAt`（记录尝试时间），使 Dashboard 刷新计时器在失败时也能归零；`CACHE_LOADED` 不再无条件清除 `error`，避免 API 401 错误被缓存恢复掩盖。
+
 ---
 
 ## 5. calc.ts
@@ -931,6 +933,8 @@ export class Scheduler {
 
 `````
 
+> **v0.5.22 修复**：`force()` 增加执行日志，便于在 Output 面板确认手动刷新已触发。
+
 ---
 
 ## 8. services/cacheService.ts
@@ -1368,6 +1372,8 @@ function buildMiniBar(util: number, width = 5): string {
   return buildBar(util, width);
 }
 ```
+
+> **v0.5.22 修复**：`render()` 与 `buildTooltip()` 现在处理 `authStatus === 'expired'`（由 401 触发），显示 `auth expired` 红色警告并提供重新登录入口。
 
 ---
 
