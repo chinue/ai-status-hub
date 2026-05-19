@@ -53,6 +53,8 @@ export interface IAuthProvider {
   invalidate(): void;
   /** Initialize SecretStorage reference (for providers that store credentials in VS Code secrets) */
   initSecrets?(secrets: import('vscode').SecretStorage): void;
+  /** Optional: return detailed auth status when resolveToken() returns undefined */
+  getAuthStatus?(): 'missing' | 'expired' | 'unknown';
 }
 
 export interface ApiResult {

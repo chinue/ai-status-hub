@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.5.24] - 2026-05-18
+
+### 修复
+
+- **Claude 状态栏显示 "sign in" 但 Claude Code 已登录**：`ClaudeAuthProvider` 现在支持多种凭证来源：
+  1. 优先读取 `ANTHROPIC_API_KEY` 环境变量（与 Claude Code CLI 行为一致）
+  2. 支持 `CLAUDE_CONFIG_DIR` 环境变量覆盖凭证路径
+  3. 回退到默认路径 `~/.claude/.credentials.json`
+- **OAuth token 过期与缺失状态混淆**：新增 `IAuthProvider.getAuthStatus()` 可选方法，`ClaudeAuthProvider` 现在能区分 token `expired`（凭证文件存在但 token 过期）和 `missing`（凭证文件不存在），状态栏会显示更准确的 `auth expired` 而非 `sign in`。
+- **增强 Claude 认证诊断日志**：日志现在记录完整的凭证路径和失败分类（`ENOENT` / 空 token / 已过期）。
+
 ## [0.5.23] - 2026-05-18
 
 ### 修复

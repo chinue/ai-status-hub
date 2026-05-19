@@ -1,6 +1,7 @@
 // DESIGN: v2-provider-abstraction.md#claude-auth
 // AGENTS: err->try-catch | disk-OK
 // 🔀 Provider boundary: reads ~/.claude/.credentials.json (Claude OAuth format)
+//   Falls back to ANTHROPIC_API_KEY env var and respects CLAUDE_CONFIG_DIR.
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -12,13 +13,19 @@ import { IAuthProvider } from '../base/types';
 import { log } from '../../utils';
 
 const execAsync = promisify(exec);
-const DEFAULT_CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
 
 interface ClaudeCredentials {
   claudeAiOauth?: {
     accessToken: string;
     expiresAt: number;
   };
+}
+
+function getCredentialsPath(): string {
+  const configDir = process.env.CLAUDE_CONFIG_DIR
+    ? path.normalize(process.env.CLAUDE_CONFIG_DIR)
+    : path.join(os.homedir(), '.claude');
+  return path.join(configDir, '.credentials.json');
 }
 
 function isTokenExpired(creds: ClaudeCredentials): boolean {
@@ -41,30 +48,55 @@ async function isClaudeInstalled(): Promise<boolean> {
 
 export class ClaudeAuthProvider implements IAuthProvider {
   private cachedToken: string | undefined;
+  private lastStatus: 'ok' | 'missing' | 'expired' = 'ok';
 
   async resolveToken(): Promise<string | undefined> {
     if (this.cachedToken) {
       return this.cachedToken;
     }
 
+    // 1. API Key (highest priority — matches Claude Code CLI behaviour)
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (apiKey) {
+      this.cachedToken = apiKey;
+      this.lastStatus = 'ok';
+      return apiKey;
+    }
+
+    // 2. OAuth credentials file
+    const credsPath = getCredentialsPath();
     try {
-      const raw = await fs.readFile(DEFAULT_CREDENTIALS_PATH, 'utf-8');
+      const raw = await fs.readFile(credsPath, 'utf-8');
       const creds: ClaudeCredentials = JSON.parse(raw);
       const token = creds.claudeAiOauth?.accessToken;
       if (!token) {
+        log(`Claude credentials file exists but accessToken is empty: ${credsPath}`);
+        this.lastStatus = 'missing';
         return undefined;
       }
       if (isTokenExpired(creds)) {
-        log('Claude OAuth token has expired');
+        log(`Claude OAuth token expired at ${creds.claudeAiOauth?.expiresAt} (path: ${credsPath})`);
         this.cachedToken = undefined;
+        this.lastStatus = 'expired';
         return undefined;
       }
       this.cachedToken = token;
+      this.lastStatus = 'ok';
       return token;
     } catch (err) {
-      log(`Claude auth read error: ${(err as Error).message}`);
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') {
+        log(`Claude credentials file not found: ${credsPath}`);
+      } else {
+        log(`Claude auth read error from ${credsPath}: ${(err as Error).message}`);
+      }
+      this.lastStatus = 'missing';
       return undefined;
     }
+  }
+
+  getAuthStatus(): 'missing' | 'expired' | 'unknown' {
+    return this.lastStatus === 'ok' ? 'unknown' : this.lastStatus;
   }
 
   async startLoginFlow(): Promise<boolean> {
@@ -107,5 +139,6 @@ export class ClaudeAuthProvider implements IAuthProvider {
 
   invalidate(): void {
     this.cachedToken = undefined;
+    this.lastStatus = 'ok';
   }
 }

@@ -315,11 +315,12 @@ export class Scheduler {
     let apiResult: import('../providers/base/types').ApiResult | null = null;
 
     if (!token) {
+      const detailStatus = this.authService.getAuthStatus?.() ?? 'missing';
       const currentAuthStatus = this.store.getState().authStatus;
-      if (currentAuthStatus !== 'missing' && currentAuthStatus !== 'failed') {
-        this.store.dispatch({ type: 'AUTH_STATUS', payload: 'missing' });
+      if (currentAuthStatus !== detailStatus && currentAuthStatus !== 'failed') {
+        this.store.dispatch({ type: 'AUTH_STATUS', payload: detailStatus });
       }
-      log(`Scheduler: no token for provider ${this.currentProviderId()}`);
+      log(`Scheduler: no token for provider ${this.currentProviderId()} (status=${detailStatus})`);
     }
 
     if (token) {
