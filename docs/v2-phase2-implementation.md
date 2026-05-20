@@ -936,6 +936,7 @@ export class Scheduler {
 > **v0.5.22 修复**：`force()` 增加执行日志，便于在 Output 面板确认手动刷新已触发。
 > **v0.5.23 修复**：`tick()` 增加 `Promise.race` 60 秒兜底超时，防止 `doLongTick()` 内部任何 async 操作（如 fetch 无超时）hang 住时 scheduler 彻底停止；Claude/Kimi `fetchQuota` 增加 `AbortController` + 30 秒超时。
 > **v0.5.24 修复**：`ClaudeAuthProvider` 支持 `ANTHROPIC_API_KEY` 环境变量和 `CLAUDE_CONFIG_DIR` 路径覆盖；scheduler 在无 token 时使用 `getAuthStatus()` 区分 `missing` 与 `expired`。
+> **v0.5.25 修复**：`ClaudeAuthProvider` 检测到 OAuth token 过期时仍返回 token 让 API 验证（配合 Claude Code 的自动刷新）；scheduler 在 API 401 时调用 `authService.invalidate()` 清除缓存。
 
 ---
 

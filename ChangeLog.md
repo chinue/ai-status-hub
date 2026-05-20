@@ -1,5 +1,13 @@
 # ChangeLog
 
+## [0.5.25] - 2026-05-18
+
+### 修复
+
+- **Claude 空闲后状态栏变红、数据无法更新**：
+  - `ClaudeAuthProvider` 检测到 OAuth token 过期时，**不再直接阻止 API 调用**，而是仍然返回 token 让 API 去验证。这样当 Claude Code VS Code 扩展在后台静默刷新 token 后，ai-status-hub 下一次 tick 就能自动恢复，无需用户手动触发。
+  - `Scheduler` 在 API 返回 401 (`authFailed`) 时，现在会调用 `authService.invalidate()` 清除缓存的 token，确保下次 `resolveToken()` 重新读取凭证文件，与 Claude Code 的自动刷新机制配合。
+
 ## [0.5.24] - 2026-05-18
 
 ### 修复

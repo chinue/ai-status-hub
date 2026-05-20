@@ -342,6 +342,9 @@ export class Scheduler {
 
     if (apiResult) {
       log(`Scheduler: API failed for ${this.currentProviderId()}: ${apiResult.error} (authFailed=${apiResult.authFailed}, networkError=${apiResult.networkError})`);
+      if (apiResult.authFailed) {
+        this.authService.invalidate();
+      }
     }
 
     // ── Step 3: API failed → fallback to local JSONL rate_limits ────────────

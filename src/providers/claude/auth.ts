@@ -78,7 +78,11 @@ export class ClaudeAuthProvider implements IAuthProvider {
         log(`Claude OAuth token expired at ${creds.claudeAiOauth?.expiresAt} (path: ${credsPath})`);
         this.cachedToken = undefined;
         this.lastStatus = 'expired';
-        return undefined;
+        // Return the expired token anyway so the scheduler can attempt the API
+        // call. If Claude Code has refreshed the token in the meantime, the file
+        // read above already got the new one. If not, the API will return 401
+        // and the scheduler falls back to local data.
+        return token;
       }
       this.cachedToken = token;
       this.lastStatus = 'ok';
