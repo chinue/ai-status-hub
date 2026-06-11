@@ -9,6 +9,7 @@ import {
   fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime,
   buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
+  resolveAuthDisplayMode, buildIndicatorSuffix,
 } from '../calc';
 import { AppState } from '../types';
 import { IProvider } from '../providers/base/types';
@@ -85,13 +86,20 @@ export class StatusBarPresenter {
         return;
       }
 
-      if (state.authStatus === 'expired' || (state.error && state.authStatus === 'failed')) {
+      // Auth errors only take over the status bar when no data is available
+      // ('blocked'). With cached quota or a local estimate ('degraded') we keep
+      // rendering usage and just append a 🔐 indicator — an expired token heals
+      // itself the next time the user runs Claude Code.
+      if (resolveAuthDisplayMode(state) === 'blocked') {
         this.stopUpdateAnimation();
         const label = state.authStatus === 'expired' ? 'auth expired' : 'auth failed';
         this.itemWeekly.text = `$(warning) ${this.displayName}: ${label}`;
         this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         this.itemWindow.hide();
+        this.buildTooltip(state).then((tooltip) => {
+          this.itemWeekly.tooltip = tooltip;
+        });
         return;
       }
 
@@ -126,26 +134,20 @@ export class StatusBarPresenter {
       const weeklyUtil = weeklyPct / 100;
       const windowUtil = windowPct / 100;
 
-      const isStale = state.lastSuccessfulFetchAt
-        ? Date.now() - state.lastSuccessfulFetchAt > STALE_THRESHOLD_MS
-        : !hasApiData;
-      const staleIndicator = isStale ? ' \uD83D\uDCA4' : '';
-      // Data source indicator: 🌐 = API, ⛓️‍💥 = local fallback
-      const sourceIndicator = state.dataSource === 'api'
-        ? ' \uD83C\uDF10'
-        : state.dataSource === 'local-only'
-          ? ' \u26D3\uFE0F\u200D\uD83D\uDCA5'
-          : '';
+      // Indicators (stale / source / auth-degraded), see calc.buildIndicatorSuffix
+      const nowMs = Date.now();
+      const windowIndicator = buildIndicatorSuffix(state, nowMs, STALE_THRESHOLD_MS, ['stale', 'auth']);
+      const weeklyIndicator = buildIndicatorSuffix(state, nowMs, STALE_THRESHOLD_MS, ['source', 'auth']);
 
       // Always render itemWindow (even during animation) so it stays visible
       if (this.config.displayMode === 'absolute') {
         if (hasApiData) {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${state.quota!.windowUsed}/${state.quota!.windowLimit}${staleIndicator}`;
+          this.itemWindow.text = `5\uFE0F\u20E3 ${state.quota!.windowUsed}/${state.quota!.windowLimit}${windowIndicator}`;
         } else {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${windowPct > 0 ? '~' + formatPercent(windowPct, 2) : '—'}${staleIndicator}`;
+          this.itemWindow.text = `5\uFE0F\u20E3 ${windowPct > 0 ? '~' + formatPercent(windowPct, 2) : '—'}${windowIndicator}`;
         }
       } else {
-        this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 2)}${staleIndicator}`;
+        this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 2)}${windowIndicator}`;
       }
       this.itemWindow.color = this.utilizationToColor(windowUtil);
       this.itemWindow.show();
@@ -158,14 +160,14 @@ export class StatusBarPresenter {
       if (this.config.displayMode === 'absolute') {
         if (hasApiData) {
           const icon = this.provider?.ui.mainIcon ?? '$(openai)';
-      this.itemWeekly.text = `${icon} ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}${sourceIndicator}`;
+      this.itemWeekly.text = `${icon} ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}${weeklyIndicator}`;
         } else {
           const icon = this.provider?.ui.mainIcon ?? '$(openai)';
-          this.itemWeekly.text = `${icon} ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 2) : '—'}${sourceIndicator}`;
+          this.itemWeekly.text = `${icon} ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 2) : '—'}${weeklyIndicator}`;
         }
       } else {
         const icon = this.provider?.ui.mainIcon ?? '$(openai)';
-        this.itemWeekly.text = `${icon} ${this.displayName}:${formatPercent(weeklyPct, 2)}${sourceIndicator}`;
+        this.itemWeekly.text = `${icon} ${this.displayName}:${formatPercent(weeklyPct, 2)}${weeklyIndicator}`;
       }
 
       this.itemWeekly.command = 'aiStatusHub.showDashboard';
@@ -235,9 +237,10 @@ export class StatusBarPresenter {
       return md;
     }
 
-    if (state.authStatus === 'expired' || (state.error && state.authStatus === 'failed')) {
+    const authMode = resolveAuthDisplayMode(state);
+    if (authMode === 'blocked') {
       const tip = state.authStatus === 'expired' ? t('tooltip.authExpired') : t('tooltip.authFailed');
-      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${tip}`);
+      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${tip}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn)`);
       return md;
     }
 
@@ -263,6 +266,10 @@ export class StatusBarPresenter {
     else if (state.dataSource === 'local-only') { sourceLabel = '&nbsp;*' + t('dashboard.estimate') + '*'; }
 
     const parts: string[] = [];
+    if (authMode === 'degraded') {
+      parts.push(`> \uD83D\uDD10 ${t('tooltip.authDegraded')} [${t('tooltip.signInAction')}](command:aiStatusHub.signIn)`);
+      parts.push('');
+    }
     parts.push(`### ${this.provider?.ui.mainIcon ?? ''} ${t('tooltip.title')}${sourceLabel}`);
     parts.push('');
 
@@ -333,19 +340,9 @@ export class StatusBarPresenter {
   private triggerUpdateAnimation(): void {
     const duration = this.config.updateAnimationDurationMs;
 
-    // Compute stale / source indicators so they remain visible during animation
+    // Compute indicators so they remain visible during animation
     const state = this.store.getState();
-    const hasApiData = !!state.quota;
-    const isStale = state.lastSuccessfulFetchAt
-      ? Date.now() - state.lastSuccessfulFetchAt > STALE_THRESHOLD_MS
-      : !hasApiData;
-    const staleIndicator = isStale ? ' \uD83D\uDCA4' : '';
-    const sourceIndicator = state.dataSource === 'api'
-      ? ' \uD83C\uDF10'
-      : state.dataSource === 'local-only'
-        ? ' \u26D3\uFE0F\u200D\uD83D\uDCA5'
-        : '';
-    const suffix = `${staleIndicator}${sourceIndicator}`;
+    const suffix = buildIndicatorSuffix(state, Date.now(), STALE_THRESHOLD_MS, ['stale', 'source', 'auth']);
 
     // If animation already running, just reset the end timer (debounce)
     if (this.updateAnimInterval) {

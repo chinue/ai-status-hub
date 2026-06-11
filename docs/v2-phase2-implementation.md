@@ -265,6 +265,15 @@ export class Store {
 
 Phase 2 在 Phase 1 基础上新增以下纯函数（Phase 1 部分同前，此处仅列出新增）：
 
+### 5.0 鉴权显示判定与状态栏指示器（v0.5.26 新增）
+
+- `resolveAuthDisplayMode(state): 'normal' | 'degraded' | 'blocked'` — 决定状态栏对鉴权错误的呈现方式：
+  - `normal`：无鉴权错误，照常渲染；
+  - `degraded`：`authStatus` 为 `expired`，或为 `failed` 且 `error` 非空，但仍有缓存 quota 或 localEstimate 可显示 → 照常渲染用量并附加 🔐 指示器（token 在用户下次使用 Claude Code 时会自动刷新，扩展自愈）；
+  - `blocked`：鉴权错误且完全无数据 → 红色错误全占显示。
+  - `authStatus === 'missing'`（从未登录）不在该函数职责内，由 presenter 在调用前单独短路。
+- `buildIndicatorSuffix(state, now, staleThresholdMs, parts)` — 统一构建状态栏 emoji 指示器后缀，固定顺序 stale(💤) → source(🌐/⛓️‍💥) → auth(🔐)；`parts` 参数选择每个状态栏项显示哪些指示器（itemWindow 用 `['stale','auth']`，itemWeekly 用 `['source','auth']`，动画期间用全部三个）。收编了原先内联在 statusBar.ts 两处的重复计算。
+
 ```typescript
 import { QuotaData, TokenPricing } from './types';
 
@@ -1157,6 +1166,15 @@ Phase 2 扩展以支持 local-only 模式下的估算显示，并新增**月亮�
 - 动画结束后恢复完整正常显示（含迷你条、错误/估算指示器等）。
 - `itemPause` 按钮在暂停状态下显示 🌕（表示休眠），活跃状态下显示 ⏸️。
 
+**鉴权降级显示（v0.5.26 新增）**：
+
+- 鉴权错误（`expired`/`failed`）不再无条件以红色全占显示，而是经 `calc.resolveAuthDisplayMode(state)` 三态判定：
+  - `degraded`（有缓存 quota 或 localEstimate）：照常渲染用量百分比，`itemWeekly`/`itemWindow` 均附加 🔐 指示器，无错误背景色，`itemWindow` 保持可见；tooltip 顶部插入警告条 `🔐 令牌已过期，使用一次 Claude Code 后会自动恢复，或 [点击重新登录]`（`tooltip.authDegraded` + `tooltip.signInAction`，登录链接触发 `aiStatusHub.signIn`），下方照常显示用量表格。
+  - `blocked`（完全无数据）：保留原有红色 `$(warning) auth expired/failed` 全占显示并隐藏 `itemWindow`；该分支现在也会更新 tooltip（含登录链接），修复了之前残留旧 tooltip 的问题。
+  - `missing`（从未登录）行为不变，仍在三态判定之前单独短路。
+- 背景：Claude OAuth token 仅在使用 Claude Code 时刷新，长期不用会良性过期；API 401 后 scheduler 回退本地数据，此时不应以错误状态遮蔽可用的用量信息。
+- 指示器（💤/🌐/⛓️‍💥/🔐）统一由 `calc.buildIndicatorSuffix` 构建，动画期间同样生效。
+
 ```typescript
 import * as vscode from 'vscode';
 import { Store } from '../store';
@@ -1650,6 +1668,10 @@ Phase 2 新增测试断言（参考 `test/` 目录已有测试风格）：
 | `cacheService.test.ts` | `write` 和 `read` 能正确序列化/反序列化含 calibration 的 CachedData |
 | `scheduler.test.ts` | `doShortTick`  dispatch `LOCAL_ESTIMATE` 且不使用 API |
 | `scheduler.test.ts` | `doLongTick` 成功后写入含 calibration 的缓存 |
+| `calc.test.ts` | `resolveAuthDisplayMode` 在 expired+有数据时返回 `degraded`，无数据时返回 `blocked`，无鉴权错误时返回 `normal`（v0.5.26） |
+| `calc.test.ts` | `buildIndicatorSuffix` 按 stale→source→auth 固定顺序拼接指示器，且遵循 `parts` 过滤（v0.5.26） |
+| `statusBar.test.ts` | 鉴权过期但有缓存数据时照常显示百分比 + 🔐，无错误背景，`itemWindow` 可见（v0.5.26） |
+| `statusBar.test.ts` | 鉴权过期且无任何数据时显示红色 `auth expired` 并隐藏 `itemWindow`（v0.5.26） |
 
 ---
 

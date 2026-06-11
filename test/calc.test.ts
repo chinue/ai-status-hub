@@ -3,6 +3,7 @@ import {
   computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost,
   createLinearEstimator, ILinearEstimator, fmtCurrency,
   resolveWeeklyPct, resolveWindowPct,
+  resolveAuthDisplayMode, buildIndicatorSuffix,
   resolveResetTime, fmtResetTime,
   estimateStateMemory, formatMemorySize,
 } from '../src/calc';
@@ -266,6 +267,92 @@ describe('calc', () => {
       expect(result).to.include('2h00m');
     });
   });
+
+  describe('resolveAuthDisplayMode', () => {
+    it('returns normal when authenticated with quota', () => {
+      const state = makeState({ quota: {}, authStatus: 'authenticated' });
+      expect(resolveAuthDisplayMode(state)).to.equal('normal');
+    });
+
+    it('returns degraded when expired with quota', () => {
+      const state = makeState({ quota: {}, authStatus: 'expired' });
+      expect(resolveAuthDisplayMode(state)).to.equal('degraded');
+    });
+
+    it('returns degraded when expired with only local estimate', () => {
+      const state = makeState({ quota: null, localEstimate: { weeklyPct: 10 }, authStatus: 'expired' });
+      expect(resolveAuthDisplayMode(state)).to.equal('degraded');
+    });
+
+    it('returns blocked when expired without any data', () => {
+      const state = makeState({ quota: null, localEstimate: null, authStatus: 'expired' });
+      expect(resolveAuthDisplayMode(state)).to.equal('blocked');
+    });
+
+    it('returns degraded when failed with error and data', () => {
+      const state = makeState({ quota: {}, authStatus: 'failed', error: 'HTTP 401' });
+      expect(resolveAuthDisplayMode(state)).to.equal('degraded');
+    });
+
+    it('returns blocked when failed with error and no data', () => {
+      const state = makeState({ quota: null, localEstimate: null, authStatus: 'failed', error: 'HTTP 401' });
+      expect(resolveAuthDisplayMode(state)).to.equal('blocked');
+    });
+
+    it('returns normal when failed without error (regression guard)', () => {
+      const state = makeState({ quota: null, localEstimate: null, authStatus: 'failed' });
+      expect(resolveAuthDisplayMode(state)).to.equal('normal');
+    });
+
+    it('returns normal for missing and unknown (handled elsewhere)', () => {
+      expect(resolveAuthDisplayMode(makeState({ authStatus: 'missing' }))).to.equal('normal');
+      expect(resolveAuthDisplayMode(makeState({ authStatus: 'unknown' }))).to.equal('normal');
+    });
+  });
+
+  describe('buildIndicatorSuffix', () => {
+    const THRESHOLD = 120_000;
+
+    it('shows only source indicator for fresh api data', () => {
+      const now = Date.now();
+      const state = makeState({ quota: {}, authStatus: 'authenticated', dataSource: 'api', lastSuccessfulFetchAt: now });
+      expect(buildIndicatorSuffix(state, now, THRESHOLD, ['source', 'auth'])).to.equal(' \uD83C\uDF10');
+    });
+
+    it('combines stale, source and auth indicators in fixed order', () => {
+      const now = Date.now();
+      const state = makeState({
+        quota: null, localEstimate: { weeklyPct: 10 },
+        authStatus: 'expired', dataSource: 'local-only',
+        lastSuccessfulFetchAt: now - THRESHOLD - 1,
+      });
+      expect(buildIndicatorSuffix(state, now, THRESHOLD, ['stale', 'source', 'auth']))
+        .to.equal(' \uD83D\uDCA4 \u26D3\uFE0F\u200D\uD83D\uDCA5 \uD83D\uDD10');
+    });
+
+    it('respects the parts filter', () => {
+      const now = Date.now();
+      const state = makeState({
+        quota: null, localEstimate: { weeklyPct: 10 },
+        authStatus: 'expired', dataSource: 'local-only',
+        lastSuccessfulFetchAt: now - THRESHOLD - 1,
+      });
+      expect(buildIndicatorSuffix(state, now, THRESHOLD, ['stale', 'auth']))
+        .to.equal(' \uD83D\uDCA4 \uD83D\uDD10');
+    });
+
+    it('treats missing lastSuccessfulFetchAt without quota as stale', () => {
+      const now = Date.now();
+      const state = makeState({ quota: null, localEstimate: { weeklyPct: 10 } });
+      expect(buildIndicatorSuffix(state, now, THRESHOLD, ['stale'])).to.equal(' \uD83D\uDCA4');
+    });
+
+    it('omits auth indicator when auth is normal', () => {
+      const now = Date.now();
+      const state = makeState({ quota: {}, authStatus: 'authenticated', dataSource: 'api', lastSuccessfulFetchAt: now });
+      expect(buildIndicatorSuffix(state, now, THRESHOLD, ['auth'])).to.equal('');
+    });
+  });
 });
 
 function makeQuota(partial: Partial<QuotaData> = {}): QuotaData {
@@ -277,7 +364,7 @@ function makeQuota(partial: Partial<QuotaData> = {}): QuotaData {
   };
 }
 
-function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null; usageEntries?: import('../src/types').UsageEntry[]; estHistory?: import('../src/types').EstHistoryEntry[] }): AppState {
+function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?: Partial<import('../src/types').LocalEstimate> | null; usageEntries?: import('../src/types').UsageEntry[]; estHistory?: import('../src/types').EstHistoryEntry[]; authStatus?: AppState['authStatus']; error?: string; dataSource?: AppState['dataSource']; lastSuccessfulFetchAt?: number }): AppState {
   const base: AppState = {
     quota: null,
     lastFetchAt: null,
@@ -340,6 +427,18 @@ function makeState(partial: { quota?: Partial<QuotaData> | null; localEstimate?:
   }
   if (partial.estHistory) {
     base.estHistory = partial.estHistory;
+  }
+  if (partial.authStatus) {
+    base.authStatus = partial.authStatus;
+  }
+  if (partial.error !== undefined) {
+    base.error = partial.error;
+  }
+  if (partial.dataSource) {
+    base.dataSource = partial.dataSource;
+  }
+  if (partial.lastSuccessfulFetchAt !== undefined) {
+    base.lastSuccessfulFetchAt = partial.lastSuccessfulFetchAt;
   }
   return base;
 }

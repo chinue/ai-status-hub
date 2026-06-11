@@ -250,6 +250,60 @@ export function resolveWindowPct(state: AppState): number {
   return 0;
 }
 
+/** Resolve how the status bar should present the current auth state.
+ *
+ *  - 'normal'   — no auth error; render usage as usual.
+ *  - 'degraded' — auth expired/failed but cached quota or local estimate is
+ *                 available; render usage with a \uD83D\uDD10 indicator instead of a
+ *                 blocking error (token recovers automatically once the user
+ *                 runs Claude Code again).
+ *  - 'blocked'  — auth expired/failed and no data at all; show the full
+ *                 error state.
+ *
+ *  `authStatus === 'missing'` (never signed in) is NOT handled here; the
+ *  presenter short-circuits it before calling this function.
+ */
+export function resolveAuthDisplayMode(state: AppState): 'normal' | 'degraded' | 'blocked' {
+  const authError =
+    state.authStatus === 'expired' ||
+    (state.authStatus === 'failed' && !!state.error);
+  if (!authError) return 'normal';
+  const hasData = !!state.quota || !!state.localEstimate;
+  return hasData ? 'degraded' : 'blocked';
+}
+
+export type IndicatorPart = 'stale' | 'source' | 'auth';
+
+/** Build the emoji indicator suffix appended to status bar items.
+ *  Order is fixed: stale (\uD83D\uDCA4) → source (\uD83C\uDF10 / \u26D3\uFE0F\u200D\uD83D\uDCA5) → auth (\uD83D\uDD10).
+ *  `parts` selects which indicators a given status bar item displays.
+ */
+export function buildIndicatorSuffix(
+  state: AppState,
+  now: number,
+  staleThresholdMs: number,
+  parts: IndicatorPart[],
+): string {
+  let suffix = '';
+  if (parts.includes('stale')) {
+    const isStale = state.lastSuccessfulFetchAt
+      ? now - state.lastSuccessfulFetchAt > staleThresholdMs
+      : !state.quota;
+    if (isStale) { suffix += ' \uD83D\uDCA4'; }
+  }
+  if (parts.includes('source')) {
+    if (state.dataSource === 'api') {
+      suffix += ' \uD83C\uDF10';
+    } else if (state.dataSource === 'local-only') {
+      suffix += ' \u26D3\uFE0F\u200D\uD83D\uDCA5';
+    }
+  }
+  if (parts.includes('auth') && resolveAuthDisplayMode(state) === 'degraded') {
+    suffix += ' \uD83D\uDD10';
+  }
+  return suffix;
+}
+
 // ---------------------------------------------------------------------------
 // Border Table Drawing (reusable, CJK-aware)
 // ---------------------------------------------------------------------------

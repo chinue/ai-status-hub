@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.5.26] - 2026-06-11
+
+### 改进
+
+- **Claude token 良性过期不再红色报警（优雅降级显示）**：长时间不使用 Claude Code 时 OAuth token 会过期（token 只在使用 Claude Code 时刷新），此前状态栏会被红色 `auth expired` 全占显示并隐藏所有用量信息——即使本地估算/缓存数据完全可用。现在：
+  - 鉴权错误经 `calc.resolveAuthDisplayMode()` 三态判定：有缓存 quota 或本地估算数据时进入 **degraded** 模式——状态栏照常显示用量百分比，附加 🔐 指示器，无红色背景，5h 窗口项保持可见；tooltip 顶部显示警告条"令牌已过期，使用一次 Claude Code 后会自动恢复，或点击重新登录"（含登录链接），下方照常显示用量表格。
+  - 完全无数据时（**blocked**）才保留红色 `auth expired/failed` 全占显示，且该分支现在也会更新 tooltip（修复旧 tooltip 残留问题）并附登录链接。
+  - `missing`（从未登录）行为不变。
+  - 状态栏指示器（💤 stale / 🌐 api / ⛓️‍💥 local / 🔐 auth degraded）统一收编到 `calc.buildIndicatorSuffix()` 纯函数，消除 statusBar.ts 中两处重复内联计算，动画期间指示器同步生效。
+  - 新增 i18n key：`tooltip.authDegraded`、`tooltip.signInAction`（中英双语）。
+
 ## [0.5.25] - 2026-05-18
 
 ### 修复
