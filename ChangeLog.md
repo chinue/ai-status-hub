@@ -1,5 +1,20 @@
 # ChangeLog
 
+## [0.5.27] - 2026-06-11
+
+### 修复
+
+- **Claude/Kimi 模型单价读取失效（成本计算偏低约 60%）**：`config.getPricing()` 生成的设置 key 为全小写（`claudeopus` 等），与 package.json 注册的驼峰 key（`claudeOpus`/`claudeSonnet`/`claudeHaiku`）及 Kimi 的 `k2_6` 不一致。VS Code 配置读取大小写敏感，导致注册默认值和用户自定义值都读不到，全部回退到通用兜底价（input $2 / output $10 / cacheWrite $2）。例如 `claude-opus-4-8` 实际应按 $5/$25/$6.25 计费。现已统一为与注册名一致的 key，计算公式本身无误。
+
+### 新增
+
+- **Claude Fable 5 定价**：新增 `aiStatusHub.pricing.models.claudeFable.*` 设置与内置默认价（input $10 / output $50 / cacheRead $1 / cacheWrite $12.5 每百万 token），模型名含 `fable` 时自动匹配。
+- **用户自定义模型价格**：新增 `aiStatusHub.pricing.customModels` 设置（设置页原生"添加项"按钮 + 键/值输入框）。键为模型名关键词（子串匹配，不区分大小写），值为 `input,output,cacheRead,cacheWrite`（USD/百万 token，兼容中文逗号），如 `10,50,1,12.5`。优先级高于内置模型价格，可用于覆盖任意模型单价。解析逻辑为 `calc.parseCustomPricing()` 纯函数，非法输入安全忽略。
+
+### 改进
+
+- **Official Pricing 链接更新**：Claude provider 的官方定价页改为 `https://platform.claude.com/docs/en/about-claude/pricing`（原 anthropic.com/pricing），`pricing.officialDate` 默认值更新为 `2026-06-11`。
+
 ## [0.5.26] - 2026-06-11
 
 ### 改进

@@ -190,7 +190,7 @@ export interface IPricingProvider {
 ```
 
 **实现差异**：
-- **Claude**：多模型（opus `$15/$75`、sonnet `$3/$15`、haiku `$0.25/$1.25`），USD
+- **Claude**：多模型（fable `$10/$50`、opus `$5/$25`、sonnet `$3/$15`、haiku `$1/$5`，input/output 每百万 token），USD；另支持 `aiStatusHub.pricing.customModels` 用户自定义模型价格（键=模型名关键词，值=`input,output,cacheRead,cacheWrite`，优先级最高）
 - **Kimi**：当前单模型 k2.6，RMB，定价由 Provider 配置
 
 ### 3.5 UI 文案/图标接口

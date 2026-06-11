@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import {
-  computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost,
+  computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost, parseCustomPricing,
   createLinearEstimator, ILinearEstimator, fmtCurrency,
   resolveWeeklyPct, resolveWindowPct,
   resolveAuthDisplayMode, buildIndicatorSuffix,
@@ -68,6 +68,82 @@ describe('calc', () => {
         pricing,
       );
       expect(cost).to.equal(10.5); // 3 + 7.5
+    });
+
+    it('calculates Claude Fable cost (1M of each token type)', () => {
+      const pricing: TokenPricing = {
+        inputPerMillion: 10,
+        outputPerMillion: 50,
+        cacheReadPerMillion: 1,
+        cacheCreatePerMillion: 12.5,
+      };
+      const cost = calculateCost(
+        { inputOther: 1_000_000, output: 1_000_000, inputCacheRead: 1_000_000, inputCacheCreation: 1_000_000 },
+        pricing,
+      );
+      expect(cost).to.equal(73.5); // 10 + 50 + 1 + 12.5
+    });
+  });
+
+  describe('parseCustomPricing', () => {
+    it('parses "input,output,cacheRead,cacheWrite" string', () => {
+      expect(parseCustomPricing('10,50,1,12.5')).to.deep.equal({
+        inputPerMillion: 10,
+        outputPerMillion: 50,
+        cacheReadPerMillion: 1,
+        cacheCreatePerMillion: 12.5,
+      });
+    });
+
+    it('tolerates whitespace around numbers', () => {
+      expect(parseCustomPricing(' 3 , 15 , 0.3 , 3.75 ')).to.deep.equal({
+        inputPerMillion: 3,
+        outputPerMillion: 15,
+        cacheReadPerMillion: 0.3,
+        cacheCreatePerMillion: 3.75,
+      });
+    });
+
+    it('accepts full-width (Chinese) commas', () => {
+      expect(parseCustomPricing('10，50，1，12.5')).to.deep.equal({
+        inputPerMillion: 10,
+        outputPerMillion: 50,
+        cacheReadPerMillion: 1,
+        cacheCreatePerMillion: 12.5,
+      });
+    });
+
+    it('accepts zero prices', () => {
+      expect(parseCustomPricing('0,0,0,0')).to.deep.equal({
+        inputPerMillion: 0,
+        outputPerMillion: 0,
+        cacheReadPerMillion: 0,
+        cacheCreatePerMillion: 0,
+      });
+    });
+
+    it('returns null for too few values', () => {
+      expect(parseCustomPricing('10,50,1')).to.equal(null);
+    });
+
+    it('returns null for too many values', () => {
+      expect(parseCustomPricing('10,50,1,12.5,99')).to.equal(null);
+    });
+
+    it('returns null for negative values', () => {
+      expect(parseCustomPricing('10,-50,1,12.5')).to.equal(null);
+    });
+
+    it('returns null for non-numeric values', () => {
+      expect(parseCustomPricing('10,abc,1,12.5')).to.equal(null);
+    });
+
+    it('returns null for empty string', () => {
+      expect(parseCustomPricing('')).to.equal(null);
+    });
+
+    it('returns null for empty segments', () => {
+      expect(parseCustomPricing('10,,1,12.5')).to.equal(null);
     });
   });
 

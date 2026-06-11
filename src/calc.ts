@@ -130,6 +130,23 @@ export function calculateCost(usage: TokenUsage, pricing: TokenPricing): number 
   return isFinite(cost) && cost >= 0 ? cost : 0;
 }
 
+/** 解析用户自定义模型价格字符串 "input,output,cacheRead,cacheWrite"（USD/百万 token）。
+ *  兼容中文逗号与空格；必须恰好 4 个有限非负数，否则返回 null。
+ *  示例：parseCustomPricing('10,50,1,12.5')
+ */
+export function parseCustomPricing(value: string): TokenPricing | null {
+  const parts = value.split(/[,，]/).map(s => s.trim());
+  if (parts.length !== 4) { return null; }
+  const nums = parts.map(s => (s === '' ? NaN : Number(s)));
+  if (nums.some(n => !isFinite(n) || n < 0)) { return null; }
+  return {
+    inputPerMillion: nums[0],
+    outputPerMillion: nums[1],
+    cacheReadPerMillion: nums[2],
+    cacheCreatePerMillion: nums[3],
+  };
+}
+
 /** Format a token count with k/M suffix. */
 export function fmtTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';

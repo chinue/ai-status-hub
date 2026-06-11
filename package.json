@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.5.26",
+  "version": "0.5.27",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -302,6 +302,34 @@
           "order": 83,
           "description": "gpt-5 cache-write token price per million (USD)."
         },
+        "aiStatusHub.pricing.models.claudeFable.inputPerMillion": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "order": 86,
+          "description": "Claude Fable input token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.claudeFable.outputPerMillion": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "order": 87,
+          "description": "Claude Fable output token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.claudeFable.cacheReadPerMillion": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "order": 88,
+          "description": "Claude Fable cache-read token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.claudeFable.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 12.5,
+          "minimum": 0,
+          "order": 89,
+          "description": "Claude Fable cache-write token price per million (USD)."
+        },
         "aiStatusHub.pricing.models.claudeOpus.inputPerMillion": {
           "type": "number",
           "default": 5,
@@ -386,6 +414,15 @@
           "order": 101,
           "description": "Claude Haiku cache-write token price per million (USD)."
         },
+        "aiStatusHub.pricing.customModels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "order": 105,
+          "markdownDescription": "Custom model pricing (takes priority over built-in models). Key = model name keyword (substring match, case-insensitive, e.g. `fable-turbo`); Value = `input,output,cacheRead,cacheWrite` in USD per million tokens, e.g. `10,50,1,12.5`."
+        },
         "aiStatusHub.pricing.kimi.models.k2_6.inputPerMillion": {
           "type": "number",
           "default": 6.5,
@@ -422,7 +459,7 @@
         },
         "aiStatusHub.pricing.officialDate": {
           "type": "string",
-          "default": "2026-05-13",
+          "default": "2026-06-11",
           "order": 85,
           "description": "Pricing publish date displayed next to the official pricing link (YYYY-MM-DD)."
         },

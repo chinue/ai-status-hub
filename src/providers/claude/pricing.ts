@@ -7,6 +7,12 @@ import { ConfigService } from '../../config';
 const USD: Currency = { code: 'USD', symbol: '$' };
 
 export const DEFAULT_CLAUDE_PRICING = {
+  fable: {
+    inputPerMillion: 10.00,
+    outputPerMillion: 50.00,
+    cacheReadPerMillion: 1.00,
+    cacheCreatePerMillion: 12.50,
+  },
   opus: {
     inputPerMillion: 5.00,
     outputPerMillion: 25.00,
@@ -35,6 +41,9 @@ export class ClaudePricingProvider implements IPricingProvider {
     // Read from config so users can customize; config.getPricing handles model family mapping
     const cfgPricing = ConfigService.getInstance().getPricing(modelName);
     const m = modelName.toLowerCase();
+    if (m.includes('fable')) {
+      return { ...DEFAULT_CLAUDE_PRICING.fable, ...cfgPricing };
+    }
     if (m.includes('opus')) {
       return { ...DEFAULT_CLAUDE_PRICING.opus, ...cfgPricing };
     }

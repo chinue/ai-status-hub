@@ -2,6 +2,7 @@
 // AGENTS: fmt->calc.ts | err->try-catch | i18n->makeT() | no-disk-IO
 import * as vscode from 'vscode';
 import { DisplayMode, LanguageSetting, TokenPricing } from './types';
+import { parseCustomPricing } from './calc';
 
 const CFG_SECTION = 'aiStatusHub';
 
@@ -194,7 +195,7 @@ export class ConfigService {
     // Provider defaults
     switch (this.activeProviderId) {
       case 'kimi': return 'https://www.moonshot.cn/pricing';
-      case 'claude': return 'https://www.anthropic.com/pricing';
+      case 'claude': return 'https://platform.claude.com/docs/en/about-claude/pricing';
       case 'glm': return 'https://open.bigmodel.cn/pricing';
       case 'cursor': return 'https://cursor.com/pricing';
       case 'codex':
@@ -203,18 +204,31 @@ export class ConfigService {
   }
 
   get pricingOfficialDate(): string {
-    return this.cfg.get<string>('pricing.officialDate', '2026-05-13');
+    return this.cfg.get<string>('pricing.officialDate', '2026-06-11');
   }
 
   getPricing(modelName: string): TokenPricing {
     const m = modelName.toLowerCase();
+
+    // User-defined custom pricing takes priority (key = model name keyword, substring match)
+    const custom = this.cfg.get<Record<string, string>>('pricing.customModels', {});
+    for (const [keyword, priceStr] of Object.entries(custom)) {
+      const k = keyword.trim().toLowerCase();
+      if (k && m.includes(k)) {
+        const parsed = parseCustomPricing(String(priceStr));
+        if (parsed) { return parsed; }
+      }
+    }
+
+    // Setting keys must match package.json registration exactly (case-sensitive)
     let key = m.replace(/[^a-z0-9]/g, '');
     // Claude family mapping
-    if (m.includes('opus')) { key = 'claudeopus'; }
-    else if (m.includes('sonnet')) { key = 'claudesonnet'; }
-    else if (m.includes('haiku')) { key = 'claudehaiku'; }
+    if (m.includes('fable')) { key = 'claudeFable'; }
+    else if (m.includes('opus')) { key = 'claudeOpus'; }
+    else if (m.includes('sonnet')) { key = 'claudeSonnet'; }
+    else if (m.includes('haiku')) { key = 'claudeHaiku'; }
     // Kimi family mapping
-    else if (m.includes('kimi')) { key = 'kimik2_6'; }
+    else if (m.includes('kimi')) { key = 'k2_6'; }
 
     // Provider-private config takes priority: pricing.{provider}.models.{key}
     const providerPrefix = `pricing.${this.activeProviderId}.models.${key}`;
