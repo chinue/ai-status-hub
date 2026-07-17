@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.5.27",
+  "version": "0.5.28",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -450,6 +450,34 @@
           "minimum": 0,
           "order": 113,
           "description": "Kimi k2.6 cache-write token price per million (CNY)."
+        },
+        "aiStatusHub.pricing.kimi.models.k3.inputPerMillion": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "order": 114,
+          "description": "Kimi k3 input token price per million (CNY)."
+        },
+        "aiStatusHub.pricing.kimi.models.k3.outputPerMillion": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "order": 115,
+          "description": "Kimi k3 output token price per million (CNY)."
+        },
+        "aiStatusHub.pricing.kimi.models.k3.cacheReadPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 116,
+          "description": "Kimi k3 cache-read token price per million (CNY)."
+        },
+        "aiStatusHub.pricing.kimi.models.k3.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "order": 117,
+          "description": "Kimi k3 cache-write token price per million (CNY)."
         },
         "aiStatusHub.pricing.officialUrl": {
           "type": "string",

@@ -162,7 +162,7 @@ export interface ILocalUsageProvider {
 
 **实现差异**：
 - **Claude**：`~/.claude/projects/<hash>/wire.jsonl`，`type === 'assistant'`，`message.usage`
-- **Kimi**：`~/.kimi/sessions/<session-id>/<conversation-id>/wire.jsonl`，`type === 'StatusUpdate'`，`message.payload.token_usage`
+- **Kimi**：双位置递归扫描 `wire.jsonl`。k3.0：`~/.kimi-code/sessions/wd_*/<session-id>/agents/main/wire.jsonl`，`type === 'usage.record'`，`usage.{inputOther,output,inputCacheRead,inputCacheCreation}`，model 归一化为 `kimi-k3`；k2.6 legacy：`~/.kimi/sessions/<session-id>/<conversation-id>/wire.jsonl`，`type === 'StatusUpdate'`，`message.payload.token_usage`
 
 ### 3.4 定价接口
 
@@ -191,7 +191,7 @@ export interface IPricingProvider {
 
 **实现差异**：
 - **Claude**：多模型（fable `$10/$50`、opus `$5/$25`、sonnet `$3/$15`、haiku `$1/$5`，input/output 每百万 token），USD；另支持 `aiStatusHub.pricing.customModels` 用户自定义模型价格（键=模型名关键词，值=`input,output,cacheRead,cacheWrite`，优先级最高）
-- **Kimi**：当前单模型 k2.6，RMB，定价由 Provider 配置
+- **Kimi**：多模型（k3 `¥20/¥100`、k2.6 `¥6.5/¥27`，input/output 每百万 token），RMB，定价由 Provider 配置，模型族映射 `kimiModelFamily()`；无 model 字段的旧格式条目回退 k2.6 定价
 
 ### 3.5 UI 文案/图标接口
 

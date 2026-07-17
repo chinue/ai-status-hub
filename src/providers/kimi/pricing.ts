@@ -6,20 +6,39 @@ import { ConfigService } from '../../config';
 
 const CNY: Currency = { code: 'CNY', symbol: '¥' };
 
-export const DEFAULT_KIMI_PRICING: TokenPricing = {
-  inputPerMillion: 6.50,
-  outputPerMillion: 27.00,
-  cacheReadPerMillion: 1.10,
-  cacheCreatePerMillion: 6.50,
+// Official prices (CNY per 1M tokens). k3: Kimi Open Platform, published 2026-07-16.
+export const DEFAULT_KIMI_PRICING = {
+  k3: {
+    inputPerMillion: 20.00,
+    outputPerMillion: 100.00,
+    cacheReadPerMillion: 2.00,
+    cacheCreatePerMillion: 20.00,
+  },
+  k2_6: {
+    inputPerMillion: 6.50,
+    outputPerMillion: 27.00,
+    cacheReadPerMillion: 1.10,
+    cacheCreatePerMillion: 6.50,
+  },
 };
+
+export type KimiModelFamily = keyof typeof DEFAULT_KIMI_PRICING;
+
+/** Map a model name to its pricing family. Unknown/legacy kimi models fall back to k2_6. */
+export function kimiModelFamily(modelName: string): KimiModelFamily {
+  return modelName.toLowerCase().includes('k3') ? 'k3' : 'k2_6';
+}
 
 export class KimiPricingProvider implements IPricingProvider {
   readonly currency = CNY;
+  // Legacy wire entries carry no model field and belong to the k2.6 era,
+  // so the fallback stays k2.6 to keep historical costs accurate.
   readonly defaultModelName = 'kimi-k2.6';
 
-  getPricing(_modelName: string): TokenPricing {
-    // Kimi currently uses a single model pricing; read from config so users can customize
-    return ConfigService.getInstance().getPricing('kimi-k2.6');
+  getPricing(modelName: string): TokenPricing {
+    // Read from config so users can customize; config.getPricing handles model family mapping
+    const cfgPricing = ConfigService.getInstance().getPricing(modelName);
+    return { ...DEFAULT_KIMI_PRICING[kimiModelFamily(modelName)], ...cfgPricing };
   }
 
   calculateCost(usage: TokenUsage, pricing: TokenPricing): number {

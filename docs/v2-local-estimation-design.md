@@ -20,8 +20,17 @@ Kimi API 的配额接口有调用频率限制（5h 窗口约 1000 次，7d 窗�
 
 ### 2.1 日志文件位置
 
+k3.0（Kimi Code）起 session 迁移至 `~/.kimi-code`，解析器同时扫描新旧两个位置：
+
 ```
-~/.kimi/sessions/
+~/.kimi-code/sessions/                 ← k3.0 新位置
+└── wd_<project>_<hash>/
+    └── <session-id>/
+        └── agents/
+            └── main/
+                └── wire.jsonl        ← 目标文件
+
+~/.kimi/sessions/                      ← k2.6 旧位置（只读兼容）
 ├── <session-id-1>/
 │   ├── <conversation-id-1>/
 │   │   └── wire.jsonl          ← 目标文件
@@ -31,9 +40,37 @@ Kimi API 的配额接口有调用频率限制（5h 窗口约 1000 次，7d 窗�
     └── ...
 ```
 
+枚举方式为递归查找两个根目录下所有 `wire.jsonl`（深度上限 6 层）。两个目录数据不重叠（迁移后新目录不含旧格式记录），不会重复计数。
+
 ### 2.2 日志文件格式
 
-每行一个 JSON 对象，我们只关心 `type === 'StatusUpdate'` 的消息：
+每行一个 JSON 对象。k3.0 与 k2.6 的用量记录格式不同，解析器两种都支持。
+
+**k3.0（Kimi Code）`usage.record` 格式**：
+
+```json
+{
+  "type": "usage.record",
+  "model": "kimi-code/k3",
+  "usage": {
+    "inputOther": 977,
+    "output": 334,
+    "inputCacheRead": 25600,
+    "inputCacheCreation": 0
+  },
+  "usageScope": "turn",
+  "time": 1784255459897
+}
+```
+
+**关键字段**：
+- `time`：Unix 时间戳（毫秒）
+- `model`：模型别名（如 `kimi-code/k3`），经 `normalizeKimiModel()` 归一化为 `kimi-k3`
+- `usage.inputOther` / `output` / `inputCacheRead` / `inputCacheCreation`：四类 token 数
+- `usageScope`：仅统计 `'turn'`（逐轮增量）；其他 scope（如未来的累计值）跳过
+- 无 messageId：每个 session 独立 wire 文件，不会跨文件重复
+
+**k2.6 旧格式**：只关心 `type === 'StatusUpdate'` 的消息：
 
 ```json
 {
@@ -60,6 +97,7 @@ Kimi API 的配额接口有调用频率限制（5h 窗口约 1000 次，7d 窗�
 - `message.payload.token_usage.output`：输出 token
 - `message.payload.token_usage.input_cache_read`：缓存读取 token
 - `message.payload.token_usage.input_cache_creation`：缓存写入 token
+- 旧格式无 model 字段，计费/展示回退为 `kimi-k2.6`
 
 ### 2.3 读取策略
 
@@ -187,7 +225,15 @@ function calculateCost(tokens: {
 }
 ```
 
-**默认定价**（kimi-k2.6 RMB）：
+**默认定价**（RMB，按模型族区分，见 `src/providers/kimi/pricing.ts`）：
+
+kimi-k3（Kimi 开放平台 2026-07-16 公示）：
+- Input（cache miss）：¥20.00 / 1M tokens
+- Output：¥100.00 / 1M tokens
+- Cache read（cache hit）：¥2.00 / 1M tokens
+- Cache creation：¥20.00 / 1M tokens
+
+kimi-k2.6：
 - Input（cache miss）：¥6.50 / 1M tokens
 - Output：¥27.00 / 1M tokens
 - Cache read（cache hit）：¥1.10 / 1M tokens
@@ -546,7 +592,7 @@ async function init(store: Store): Promise<void> {
 
 | 场景 | 处理 |
 |---|---|
-| `~/.kimi/sessions` 不存在 | 返回空聚合结果，所有计数为 0 |
+| `~/.kimi-code/sessions` 与 `~/.kimi/sessions` 均不存在 | 返回空聚合结果，所有计数为 0 |
 | 单个文件读取失败 | 跳过该文件，继续处理其他文件 |
 | JSON parse 失败 | 跳过该行，继续处理下一行 |
 | 文件被占用 | 跳过，下次 tick 重试 |

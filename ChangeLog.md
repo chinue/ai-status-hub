@@ -1,5 +1,15 @@
 # ChangeLog
 
+## [0.5.28] - 2026-07-17
+
+### 新增
+
+- **Kimi k3.0 支持（按模型区分用量与定价）**：
+  - **新 session 路径**：k3.0（Kimi Code）session 已迁移至 `~/.kimi-code/sessions/wd_<项目>_<hash>/<session-id>/agents/main/wire.jsonl`。`KimiLocalParser` 改为递归扫描 `~/.kimi-code/sessions` 与旧路径 `~/.kimi/sessions` 两个位置，旧 k2.6 数据继续只读兼容，互不重复计数。
+  - **新用量格式**：解析 k3.0 的 `usage.record` 事件（`usage.{inputOther,output,inputCacheRead,inputCacheCreation}`，毫秒时间戳 `time`，仅统计 `usageScope: 'turn'`），旧 `StatusUpdate` 格式保持兼容。
+  - **模型区分**：`model` 字段（如 `kimi-code/k3`）经 `normalizeKimiModel()` 归一化为 `kimi-k3`，Dashboard 的"模型使用量"与按模型图表自动分开展示 k3 / k2.6；无 model 字段的旧格式条目回退 `kimi-k2.6`，历史成本不受影响。
+  - **k3 官方定价**（Kimi 开放平台 2026-07-16 公示）：input ¥20 / output ¥100 / cacheRead ¥2 / cacheWrite ¥20 每百万 token；k2.6 价格不变。`KimiPricingProvider` 按模型族分派定价（与 Claude 同构），新增设置项 `aiStatusHub.pricing.kimi.models.k3.*` 可自定义。
+
 ## [0.5.27] - 2026-06-11
 
 ### 修复

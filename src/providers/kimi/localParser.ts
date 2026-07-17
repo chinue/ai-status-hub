@@ -8,7 +8,18 @@ import * as os from 'os';
 import { ILocalUsageProvider, UnifiedUsageEntry, RateLimits } from '../base/types';
 import { log } from '../../utils';
 
-const SESSIONS_DIR = path.join(os.homedir(), '.kimi', 'sessions');
+// k3.0 (Kimi Code) sessions live in ~/.kimi-code; ~/.kimi is the legacy k2.6 location.
+const DEFAULT_SESSIONS_DIRS = [
+  path.join(os.homedir(), '.kimi-code', 'sessions'),
+  path.join(os.homedir(), '.kimi', 'sessions'),
+];
+
+/** Normalize raw model aliases ('kimi-code/k3') to canonical names ('kimi-k3'). */
+export function normalizeKimiModel(model: unknown): string | undefined {
+  if (typeof model !== 'string' || !model.trim()) return undefined;
+  const last = model.trim().split('/').pop()!.toLowerCase();
+  return last.startsWith('kimi') ? last : `kimi-${last}`;
+}
 
 interface FileState {
   mtimeMs: number;
@@ -19,6 +30,11 @@ interface FileState {
 export class KimiLocalParser implements ILocalUsageProvider {
   private fileStates = new Map<string, FileState>();
   private latestRateLimits: RateLimits | null = null;
+  private readonly sessionsDirs: string[];
+
+  constructor(sessionsDirs?: string[]) {
+    this.sessionsDirs = sessionsDirs ?? DEFAULT_SESSIONS_DIRS;
+  }
 
   async scanSessions(opts?: {
     window5hStartMs?: number;
@@ -26,7 +42,7 @@ export class KimiLocalParser implements ILocalUsageProvider {
     dataRetentionDays?: number;
     force?: boolean;
   }): Promise<UnifiedUsageEntry[]> {
-    const files = await this.enumerateWireJsonl(SESSIONS_DIR);
+    const files = await this.enumerateWireJsonl();
 
     // Remove stale fileStates for deleted files
     const currentFiles = new Set(files);
@@ -108,6 +124,30 @@ export class KimiLocalParser implements ILocalUsageProvider {
   private parseLine(line: string): UnifiedUsageEntry | null {
     try {
       const json = JSON.parse(line);
+
+      // k3.0 (Kimi Code) format:
+      // {"type":"usage.record","model":"kimi-code/k3","usage":{...},"usageScope":"turn","time":<ms>}
+      if (json.type === 'usage.record') {
+        // Only per-turn increments are additive; skip any cumulative scopes.
+        if (json.usageScope && json.usageScope !== 'turn') return null;
+        const u = json.usage;
+        if (!u) return null;
+        const timestamp = typeof json.time === 'number' ? json.time : Date.now();
+
+        return {
+          timestamp,
+          inputOther: toInt(u.inputOther),
+          output: toInt(u.output),
+          inputCacheRead: toInt(u.inputCacheRead),
+          inputCacheCreation: toInt(u.inputCacheCreation),
+          cost: 0, // cost is calculated later by LocalUsageService using provider pricing
+          messageId: null,
+          model: normalizeKimiModel(json.model),
+        };
+      }
+
+      // k2.6 legacy format:
+      // {"timestamp":<s>,"message":{"type":"StatusUpdate","payload":{"token_usage":{...},"message_id":...}}}
       if (json.message?.type !== 'StatusUpdate') return null;
       const payload = json.message.payload;
       if (!payload?.token_usage) return null;
@@ -123,34 +163,38 @@ export class KimiLocalParser implements ILocalUsageProvider {
         inputCacheCreation: toInt(tu.input_cache_creation),
         cost: 0, // cost is calculated later by LocalUsageService using provider pricing
         messageId: payload.message_id ?? null,
-        model: payload.model ?? undefined,
+        model: normalizeKimiModel(payload.model),
       };
     } catch {
       return null;
     }
   }
 
-  private async enumerateWireJsonl(dir: string): Promise<string[]> {
+  private async enumerateWireJsonl(): Promise<string[]> {
     const results: string[] = [];
-    try {
-      const sessionDirs = await fs.readdir(dir, { withFileTypes: true });
-      for (const sessionDir of sessionDirs) {
-        if (!sessionDir.isDirectory()) continue;
-        const sessionPath = path.join(dir, sessionDir.name);
-        try {
-          const convDirs = await fs.readdir(sessionPath, { withFileTypes: true });
-          for (const convDir of convDirs) {
-            if (!convDir.isDirectory()) continue;
-            const wirePath = path.join(sessionPath, convDir.name, 'wire.jsonl');
-            try {
-              await fs.access(wirePath);
-              results.push(wirePath);
-            } catch { /* ignore missing */ }
-          }
-        } catch { /* ignore unreadable session dir */ }
-      }
-    } catch { /* ignore */ }
+    for (const dir of this.sessionsDirs) {
+      await this.walkWireJsonl(dir, 0, results);
+    }
     return results;
+  }
+
+  /** Recursively collect wire.jsonl files (legacy layout: 2 levels, k3.0 layout: 4 levels). */
+  private async walkWireJsonl(dir: string, depth: number, results: string[]): Promise<void> {
+    if (depth > 6) return;
+    let items: import('fs').Dirent[];
+    try {
+      items = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return; // ignore missing/unreadable dirs
+    }
+    for (const item of items) {
+      const p = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        await this.walkWireJsonl(p, depth + 1, results);
+      } else if (item.isFile() && item.name === 'wire.jsonl') {
+        results.push(p);
+      }
+    }
   }
 }
 

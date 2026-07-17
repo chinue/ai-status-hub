@@ -228,6 +228,7 @@ export class ConfigService {
     else if (m.includes('sonnet')) { key = 'claudeSonnet'; }
     else if (m.includes('haiku')) { key = 'claudeHaiku'; }
     // Kimi family mapping
+    else if (m.includes('k3')) { key = 'k3'; }
     else if (m.includes('kimi')) { key = 'k2_6'; }
 
     // Provider-private config takes priority: pricing.{provider}.models.{key}
