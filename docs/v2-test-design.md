@@ -691,6 +691,16 @@ describe('StatusBarPresenter', () => {
 
 ---
 
+### Claude API
+
+`test/claudeApi.test.ts` 测试 OAuth usage 与 header 两条路径：`limits[]` 中 Fable `weekly_scoped` 解析、共享窗口 fallback、异常 payload、`null`/空字符串占位额度过滤、5 分钟缓存及显式失效、429 `Retry-After` 退避、API Key endpoint/header 分流、Messages fallback，以及 `7d_oi` header 的正常解析、字段缺失和利用率钳制。Scheduler 测试额外覆盖 Messages fallback 缺少 Fable 字段时保留未过期缓存窗口，以及手动刷新使 Provider 缓存失效。
+
+### Dashboard Current Usage
+
+`test/dashboard.test.ts` 验证 Fable 数据仅对 Claude Provider 暴露，并检查 Fable 进度条位于总 7d 进度条之后。
+
+---
+
 ## 5. 测试运行命令
 
 ```bash

@@ -25,6 +25,9 @@ export interface UnifiedQuota {
   weeklyUsed: number;
   weeklyUsedPct: number;
   weeklyResetAt: number;
+  /** Claude's optional, model-scoped Fable weekly quota. */
+  fableWeeklyUsedPct?: number;
+  fableWeeklyResetAt?: number;
   windowLimit: number;
   windowUsed: number;
   windowRemaining: number;
@@ -55,6 +58,14 @@ export interface IAuthProvider {
   initSecrets?(secrets: import('vscode').SecretStorage): void;
   /** Optional: return detailed auth status when resolveToken() returns undefined */
   getAuthStatus?(): 'missing' | 'expired' | 'unknown';
+  /** Identify how the resolved credential must be sent to provider APIs. */
+  getCredentialType?(): CredentialType;
+}
+
+export type CredentialType = 'oauth' | 'api-key' | 'unknown';
+
+export interface FetchQuotaOptions {
+  credentialType?: CredentialType;
 }
 
 export interface ApiResult {
@@ -66,7 +77,9 @@ export interface ApiResult {
 }
 
 export interface IQuotaApiProvider {
-  fetchQuota(token: string): Promise<ApiResult>;
+  fetchQuota(token: string, options?: FetchQuotaOptions): Promise<ApiResult>;
+  /** Clear successful response caches before an explicit user refresh. */
+  invalidateCache?(): void;
 }
 
 export interface RateLimits {

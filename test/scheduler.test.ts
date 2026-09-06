@@ -128,6 +128,29 @@ describe('Scheduler', () => {
     expect(writeAnchorsStub.firstCall.args[1].window7dStartMs).to.equal(0);
   });
 
+  it('preserves an unexpired cached Fable window when the API fallback omits it', async () => {
+    store.dispatch({ type: 'SET_PROVIDER', payload: 'claude' });
+    store.dispatch({
+      type: 'CACHE_LOADED',
+      payload: {
+        ...makeQuotaAt(18_000_000, 604_800_000),
+        fableWeeklyUsedPct: 56,
+        fableWeeklyResetAt: 500_000_000,
+      },
+    });
+    auth.resolveToken = async () => 'token';
+    api.fetchQuota = async () => ({ ok: true, data: makeQuotaAt(18_000_000, 604_800_000) });
+    sinon.stub(cache, 'write').resolves();
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(makeLocalUsage());
+
+    scheduler.start();
+    await clock.tickAsync(100);
+    await Promise.resolve();
+
+    expect(store.getState().quota?.fableWeeklyUsedPct).to.equal(56);
+    expect(store.getState().quota?.fableWeeklyResetAt).to.equal(500_000_000);
+  });
+
   it('restores window anchors from disk when API fails', async () => {
     const diskAnchors = makeAnchors('codex', 1_000_000_000);
     (cache.readWindowAnchors as sinon.SinonStub).resolves({ ...diskAnchors, source: 'disk' });
@@ -336,6 +359,17 @@ describe('Scheduler', () => {
     expect(rlStub.callCount).to.equal(2);
 
     rlStub.restore();
+  });
+
+  it('force() invalidates provider API caches before the forced long tick', () => {
+    let invalidations = 0;
+    api.invalidateCache = () => { invalidations += 1; };
+
+    scheduler.start();
+    scheduler.force();
+    scheduler.stop();
+
+    expect(invalidations).to.equal(1);
   });
 
   it('short tick dispatches full usage detail in LOCAL_ESTIMATE', async () => {
@@ -877,4 +911,3 @@ function makeLocalUsage(overrides: Record<string, any> = {}): any {
     ...overrides,
   };
 }
-

@@ -111,6 +111,7 @@ export class Scheduler {
   force(): void {
     if (!this.running) return;
     log('Scheduler: force() called, triggering long tick');
+    this.apiService.invalidateCache?.();
     if (this.timer) clearTimeout(this.timer);
     // Reset lastLongTick so the next tick is guaranteed to be a long tick
     this.lastLongTick = Date.now() - this.longMs;
@@ -325,7 +326,9 @@ export class Scheduler {
 
     if (token) {
       try {
-        apiResult = await this.apiService.fetchQuota(token);
+        apiResult = await this.apiService.fetchQuota(token, {
+          credentialType: this.authService.getCredentialType?.() ?? 'unknown',
+        });
       } catch (err) {
         log(`Scheduler: API exception for ${this.currentProviderId()}: ${(err as Error).message}`);
         apiResult = null;
@@ -447,6 +450,19 @@ export class Scheduler {
   ): Promise<void> {
     const oldQuota = this.store.getState().quota;
     const providerId = this.currentProviderId();
+    if (
+      providerId === 'claude'
+      && quotaData.fableWeeklyUsedPct == null
+      && oldQuota?.fableWeeklyUsedPct != null
+      && oldQuota.fableWeeklyResetAt != null
+      && oldQuota.fableWeeklyResetAt > now
+    ) {
+      quotaData = {
+        ...quotaData,
+        fableWeeklyUsedPct: oldQuota.fableWeeklyUsedPct,
+        fableWeeklyResetAt: oldQuota.fableWeeklyResetAt,
+      };
+    }
     const windowResetAt = quotaData.windowResetAt > 0
       ? quotaData.windowResetAt
       : resolveResetTime(quotaData.windowResetAt, WINDOW_5H_MS, now).resetAt;

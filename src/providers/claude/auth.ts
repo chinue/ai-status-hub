@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { IAuthProvider } from '../base/types';
+import { CredentialType, IAuthProvider } from '../base/types';
 import { log } from '../../utils';
 
 const execAsync = promisify(exec);
@@ -48,6 +48,7 @@ async function isClaudeInstalled(): Promise<boolean> {
 
 export class ClaudeAuthProvider implements IAuthProvider {
   private cachedToken: string | undefined;
+  private credentialType: CredentialType = 'unknown';
   private lastStatus: 'ok' | 'missing' | 'expired' = 'ok';
 
   async resolveToken(): Promise<string | undefined> {
@@ -59,6 +60,7 @@ export class ClaudeAuthProvider implements IAuthProvider {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey) {
       this.cachedToken = apiKey;
+      this.credentialType = 'api-key';
       this.lastStatus = 'ok';
       return apiKey;
     }
@@ -77,6 +79,7 @@ export class ClaudeAuthProvider implements IAuthProvider {
       if (isTokenExpired(creds)) {
         log(`Claude OAuth token expired at ${creds.claudeAiOauth?.expiresAt} (path: ${credsPath})`);
         this.cachedToken = undefined;
+        this.credentialType = 'oauth';
         this.lastStatus = 'expired';
         // Return the expired token anyway so the scheduler can attempt the API
         // call. If Claude Code has refreshed the token in the meantime, the file
@@ -85,6 +88,7 @@ export class ClaudeAuthProvider implements IAuthProvider {
         return token;
       }
       this.cachedToken = token;
+      this.credentialType = 'oauth';
       this.lastStatus = 'ok';
       return token;
     } catch (err) {
@@ -101,6 +105,10 @@ export class ClaudeAuthProvider implements IAuthProvider {
 
   getAuthStatus(): 'missing' | 'expired' | 'unknown' {
     return this.lastStatus === 'ok' ? 'unknown' : this.lastStatus;
+  }
+
+  getCredentialType(): CredentialType {
+    return this.credentialType;
   }
 
   async startLoginFlow(): Promise<boolean> {
@@ -143,6 +151,7 @@ export class ClaudeAuthProvider implements IAuthProvider {
 
   invalidate(): void {
     this.cachedToken = undefined;
+    this.credentialType = 'unknown';
     this.lastStatus = 'ok';
   }
 }

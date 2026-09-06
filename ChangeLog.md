@@ -1,5 +1,36 @@
 # ChangeLog
 
+## [0.5.31] - 2026-09-07
+
+### 修复
+
+- **Claude Fable 5 空值误判**（`src/providers/claude/api.ts`）：`null`、空字符串等占位百分比不再被转换成 `0%`，共享窗口会继续使用 `limits[]` fallback，Fable 占位额度不会生成虚假进度条。
+- **Claude 手动刷新仍返回旧数据**（`src/services/scheduler.ts`、`src/providers/base/types.ts`）：`force()` 现在会使 Provider 成功响应缓存失效，下一次 long tick 重新获取 usage；服务端限流退避仍然有效。
+- **Claude usage 429 重复请求**（`src/providers/claude/api.ts`）：解析 `Retry-After` 秒数或 HTTP 日期，缺失时默认退避 5 分钟，退避期间直接走 Messages fallback。
+- **Claude API Key 鉴权路径错误**（`src/providers/claude/auth.ts`、`src/providers/claude/api.ts`）：显式传递凭据类型；API Key 跳过 OAuth-only usage endpoint，并使用 `x-api-key` 请求 Messages API，OAuth 继续使用 Bearer 与 beta header。
+
+### 测试
+
+- **Claude 刷新、限流和凭据回归覆盖**（`test/claudeApi.test.ts`、`test/scheduler.test.ts`）：覆盖空值 fallback、Fable 空额度、显式缓存失效、429 退避、API Key header 分流和手动刷新缓存失效。
+
+## [0.5.30] - 2026-09-06
+
+### 修复
+
+- **Claude Fable 5 进度条不显示**（`src/providers/claude/api.ts`、`src/services/scheduler.ts`）：改为优先读取 `GET /api/oauth/usage` 的 Fable `weekly_scoped` 配额，并加入 5 分钟缓存；OAuth usage 不可用时保留 Messages header 回退，并沿用尚未重置的最后有效 Fable 窗口。
+- **VSIX 误包含本地用量 CSV**（`.vscodeignore`）：排除整个 `bin/**`，防止导出的 usage、quota 和 estimator CSV 被打进发布包。
+
+### 测试
+
+- **Claude API 与 Dashboard 回归覆盖**（`test/claudeApi.test.ts`、`test/dashboard.test.ts`）：覆盖 OAuth usage 解析、缓存、fallback，以及 Fable 进度条的 Provider 条件和排列位置。
+
+## [0.5.29] - 2026-09-06
+
+### 新增
+
+- **Claude Fable 5 独立 7d 用量进度条**（`src/providers/claude/api.ts`、`src/presenters/dashboard.ts`）：解析 `anthropic-ratelimit-unified-7d_oi-utilization/reset`，并在 Current Usage 的总 7d 进度条下显示 Fable 5 百分比与重置时间；仅 Claude 且 API 返回该模型级额度时显示。
+- **Fable 配额解析回归测试**（`test/claudeApi.test.ts`）：覆盖正常解析、字段缺失和百分比边界钳制。
+
 ## [0.5.28] - 2026-07-17
 
 ### 新增

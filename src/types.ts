@@ -5,6 +5,9 @@ export interface QuotaData {
   weeklyUsed: number;
   weeklyUsedPct: number;
   weeklyResetAt: number;
+  /** Claude's optional, model-scoped Fable weekly quota. */
+  fableWeeklyUsedPct?: number;
+  fableWeeklyResetAt?: number;
   windowLimit: number;
   windowUsed: number;
   windowRemaining: number;
@@ -199,12 +202,15 @@ export interface KimiUsageData {
   // API data
   utilization5h: number;
   utilization7d: number;
+  utilizationFable7d?: number;
   resetIn5h: number;
   resetIn7d: number;
   resetIn5hText?: string;
   resetIn7dText?: string;
+  resetInFable7dText?: string;
   limitStatus: 'allowed' | 'allowed_warning' | 'denied';
   has7dLimit: boolean;
+  hasFable7dLimit: boolean;
   providerType: string;
 
   // Local JSONL aggregate

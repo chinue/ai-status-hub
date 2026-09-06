@@ -96,6 +96,8 @@ export interface QuotaData {
   weeklyUsed: number;
   weeklyUsedPct: number;
   weeklyResetAt: number;
+  fableWeeklyUsedPct?: number;  // Claude Fable 独立 7d 窗口（可选）
+  fableWeeklyResetAt?: number;
 
   windowLimit: number;
   windowUsed: number;
@@ -115,12 +117,13 @@ export interface ApiResult {
 }
 
 export interface IQuotaApiProvider {
-  fetchQuota(token: string): Promise<ApiResult>;
+  fetchQuota(token: string, options?: FetchQuotaOptions): Promise<ApiResult>;
+  invalidateCache?(): void;
 }
 ```
 
 **实现差异**：
-- **Claude**：`GET` Anthropic API，从 response headers 解析 `anthropic-ratelimit-*` 字段
+- **Claude**：OAuth 登录时优先 `GET /api/oauth/usage`，从 `five_hour` / `seven_day` 读取总额度，并从 `limits[]` 中匹配 `kind: weekly_scoped` 且 `scope.model.display_name` 含 `fable` 的模型级 7d 配额。`null`、空字符串等占位百分比视为缺失并继续使用 `limits[]` fallback。成功响应在 Provider 内缓存 5 分钟；用户手动刷新通过 `invalidateCache()` 绕过成功缓存，但服务端 429 的 `Retry-After` 退避仍会保留。API Key 凭据跳过 OAuth-only usage endpoint，并使用 `x-api-key` 请求 Messages API；OAuth 使用 Bearer 和 beta header。Messages 返回的 `7d_oi-{utilization,reset}` 仍作为 Fable 兼容来源。
 - **Kimi**：`POST/GET` Kimi API，从 JSON body 解析 `usage` + `limits[]`
 
 ### 3.3 本地用量接口

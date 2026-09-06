@@ -303,12 +303,17 @@ export class DashboardPanel {
     return {
       utilization5h: windowPct / 100,
       utilization7d: weeklyPct / 100,
+      utilizationFable7d: quota?.fableWeeklyUsedPct == null ? undefined : quota.fableWeeklyUsedPct / 100,
       resetIn5h: (quota || anchors) ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
       resetIn7d: (quota || anchors) ? Math.max(0, Math.floor((effectiveWeeklyReset - now) / 1000)) : 0,
       resetIn5hText: t('tooltip.nextReset') + ' ' + fmtResetTime(effectiveWindowReset, WINDOW_5H_MS, now),
       resetIn7dText: t('tooltip.nextReset') + ' ' + fmtResetTime(effectiveWeeklyReset, WINDOW_7D_MS, now),
+      resetInFable7dText: quota?.fableWeeklyResetAt == null
+        ? undefined
+        : t('tooltip.nextReset') + ' ' + fmtResetTime(quota.fableWeeklyResetAt, WINDOW_7D_MS, now),
       limitStatus: 'allowed',
       has7dLimit: !!quota,
+      hasFable7dLimit: state.activeProvider === 'claude' && quota?.fableWeeklyUsedPct != null,
       providerType: state.activeProvider,
       cost5h: le?.cost5h ?? 0,
       costDay: le?.costToday ?? 0,
@@ -772,6 +777,16 @@ export class DashboardPanel {
       <div class="progress-meta-row">
         <span class="progress-meta" id="meta-7d"></span>
         <span class="progress-cost" id="cost-7d"></span>
+      </div>
+    </div>
+    <div class="progress-row" id="row-fable-7d" style="display:none;">
+      <div class="progress-labels">
+        <span>${i18n('dashboard.fable5Window')}</span>
+        <span id="lbl-fable-7d">—</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="fill-fable-7d" style="width:0%"></div></div>
+      <div class="progress-meta-row">
+        <span class="progress-meta" id="meta-fable-7d"></span>
       </div>
     </div>
     <div class="memory-section" style="margin-top:10px;">
@@ -1287,6 +1302,19 @@ export class DashboardPanel {
       document.getElementById('badge-7d').textContent = isEstimate ? labels.estimate : '';
       document.getElementById('meta-7d').textContent = usage.resetIn7dText || '';
       document.getElementById('cost-7d').textContent = usage.cost7d > 0 ? labels.cost + CURRENCY_SYMBOL + usage.cost7d.toFixed(2) : '';
+
+      const fableRow = document.getElementById('row-fable-7d');
+      if (fableRow) {
+        fableRow.style.display = usage.hasFable7dLimit ? '' : 'none';
+      }
+      if (usage.hasFable7dLimit) {
+        const wFable7d = Math.min(100, usage.utilizationFable7d * 100 || 0);
+        const fillFable7d = document.getElementById('fill-fable-7d');
+        fillFable7d.style.width = wFable7d + '%';
+        fillFable7d.className = 'progress-fill' + (wFable7d >= 75 ? ' warning' : '') + (wFable7d >= 90 ? ' error' : '');
+        document.getElementById('lbl-fable-7d').textContent = wFable7d.toFixed(2) + '%';
+        document.getElementById('meta-fable-7d').textContent = usage.resetInFable7dText || '';
+      }
 
       // Memory breakdown
       const memBtn = document.getElementById('memory-toggle');

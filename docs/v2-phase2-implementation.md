@@ -32,6 +32,8 @@
 - `CacheService` 负责所有窗口锚点磁盘 I/O，schema 为 `ai-status-hub-window-anchors-v1`，文件位于 provider 隔离缓存目录，例如 `~/.codex/ai-status-hub-window-anchors-claude.json`。
 - 插件 `deactivate` 时通过 `CacheService.writeWindowAnchors(providerId, data)` 写入最后有效锚点；`SIGN_OUT` 清空当前锚点，provider 激活后由 Scheduler 重新从 API / 磁盘 / fallback 设置。
 - Claude JSONL 不要求保存官方窗口起点；Claude API 403、用量耗尽或网络失败时，本地 usage、Detailed Usage、heatmap、Cost Curve 仍共用同一组锚点窗口。
+- Claude OAuth usage 临时不可用并回退 Messages headers 时，如果新响应缺少 Fable 模型级窗口，Scheduler 会保留缓存中尚未到达 `fableWeeklyResetAt` 的最后有效 Fable 百分比；窗口到期后自动丢弃，避免无限展示陈旧额度。
+- `force()` 在安排强制 long tick 前调用 Provider 可选的 `invalidateCache()`，保证手动刷新绕过成功响应缓存；Provider 自己维护的服务端限流退避不被清除。
 
 ---
 
@@ -60,6 +62,8 @@ v2/
 ## 3. types.ts
 
 Phase 2 在 Phase 1 基础上新增/扩展以下内容（其余同 Phase 1）：
+
+当前统一 `QuotaData` 还允许 Claude 附带可选的 `fableWeeklyUsedPct` / `fableWeeklyResetAt`，用于承载模型级 Fable 7d 配额；其他 Provider 不设置这两个字段。
 
 ```typescript
 export type DataSource = 'api' | 'cache' | 'stale' | 'no-credentials' | 'no-data' | 'local-only';
@@ -946,6 +950,7 @@ export class Scheduler {
 > **v0.5.23 修复**：`tick()` 增加 `Promise.race` 60 秒兜底超时，防止 `doLongTick()` 内部任何 async 操作（如 fetch 无超时）hang 住时 scheduler 彻底停止；Claude/Kimi `fetchQuota` 增加 `AbortController` + 30 秒超时。
 > **v0.5.24 修复**：`ClaudeAuthProvider` 支持 `ANTHROPIC_API_KEY` 环境变量和 `CLAUDE_CONFIG_DIR` 路径覆盖；scheduler 在无 token 时使用 `getAuthStatus()` 区分 `missing` 与 `expired`。
 > **v0.5.25 修复**：`ClaudeAuthProvider` 检测到 OAuth token 过期时仍返回 token 让 API 验证（配合 Claude Code 的自动刷新）；scheduler 在 API 401 时调用 `authService.invalidate()` 清除缓存。
+> **v0.5.31 修复**：Claude usage 严格拒绝 `null`/空字符串百分比并继续 fallback；手动刷新清除成功缓存；HTTP 429 遵循 `Retry-After`；API Key 与 OAuth 通过 `getCredentialType()` 走各自正确的 endpoint/header 路径。
 
 ---
 

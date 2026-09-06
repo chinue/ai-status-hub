@@ -194,7 +194,7 @@ body {
 
 **标题**：`CURRENT USAGE`（大写，0.75em，letter-spacing 0.08em，灰色）
 
-**内容**：1~2 条进度条（5h 必显示，7d 可选）
+**内容**：1~3 条进度条（5h 必显示，7d 可选；Claude 返回模型级额度时追加 Fable 5 独立 7d 进度条）
 
 每条进度条结构：
 ```
@@ -221,6 +221,12 @@ body {
 - `denied`：`--vscode-editorError-foreground`（红色）
 
 **宽度动画**：`transition: width 0.3s ease`
+
+**Claude Fable 5 独立额度**：
+- `activeProvider === 'claude'` 且 quota 含 `fableWeeklyUsedPct` 时，在总 7d 进度条正下方显示 `Fable 5 · 7d window`
+- 百分比优先来自 Claude OAuth usage 响应的 Fable `weekly_scoped` 项，header 路径的 `anthropic-ratelimit-unified-7d_oi-{utilization,reset}` 作为兼容回退
+- Fable 行始终显示百分比；达到 75% / 90% 时复用 warning / error 配色
+- API 未返回模型级字段时隐藏整行，其他 Provider 不显示该进度条
 
 ---
 
@@ -520,11 +526,14 @@ interface KimiUsageData {
   // API 数据
   utilization5h: number;      // 0~1
   utilization7d: number;      // 0~1
+  utilizationFable7d?: number;// Claude Fable 独立 7d，用量 0~1
   resetIn5h: number;          // 秒
   resetIn7d: number;          // 秒
+  resetInFable7dText?: string;
   limitStatus: 'allowed' | 'allowed_warning' | 'denied';
   has7dLimit: boolean;
-  providerType: 'kimi-ai' | 'api-key';
+  hasFable7dLimit: boolean;
+  providerType: string;
 
   // 本地 JSONL 聚合
   cost5h: number;
