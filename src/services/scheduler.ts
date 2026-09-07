@@ -455,12 +455,28 @@ export class Scheduler {
       && quotaData.fableWeeklyUsedPct == null
       && oldQuota?.fableWeeklyUsedPct != null
       && oldQuota.fableWeeklyResetAt != null
-      && oldQuota.fableWeeklyResetAt > now
     ) {
       quotaData = {
         ...quotaData,
         fableWeeklyUsedPct: oldQuota.fableWeeklyUsedPct,
         fableWeeklyResetAt: oldQuota.fableWeeklyResetAt,
+      };
+    }
+    if (
+      providerId === 'claude'
+      && quotaData.fableWeeklyUsedPct != null
+      && quotaData.fableWeeklyResetAt != null
+      && quotaData.fableWeeklyResetAt > 0
+      && quotaData.fableWeeklyResetAt <= now
+    ) {
+      quotaData = {
+        ...quotaData,
+        fableWeeklyUsedPct: 0,
+        fableWeeklyResetAt: resolveResetTime(
+          quotaData.fableWeeklyResetAt,
+          WINDOW_7D_MS,
+          now,
+        ).resetAt,
       };
     }
     const windowResetAt = quotaData.windowResetAt > 0

@@ -316,6 +316,8 @@ function estimate(currentCost: number): number {
 | **本地度量 c** | `costThisCycle` | `cost5h` |
 | **估算公式** | `p7d = weeklyP + weeklyK * (costThisCycle - weeklyC)` | `p5h = windowP + windowK * (cost5h - windowC)` |
 
+<a id="quota-percentage-resolution"></a>
+
 ### 5.2 估算 vs API 的优先级
 
 ```
@@ -333,6 +335,8 @@ API 不可用（限流/网络错误）
   → fallback 到 currentCost
   → 显示提示：数据基于本地日志估算
 ```
+
+Claude Fable 5 使用独立的 `resolveFableWeeklyPct()`：从未观察到该额度时返回 `undefined` 并隐藏进度条；额度存在且重置时间到达后立即返回 `0`，保持进度条可见。`resolveResetTime()` 对 `resetAt <= now` 必须推进到严格晚于 `now` 的下一个周期，包括刚好落在重置时刻的边界。
 
 ### 5.3 状态流转
 

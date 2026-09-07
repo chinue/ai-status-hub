@@ -1,3 +1,4 @@
+// DESIGN: v2-local-estimation-design.md#quota-percentage-resolution
 // AGENTS: pure-fn | fmt-here | no-side-effect
 import { QuotaData, TokenPricing, AppState, UsageEntry } from './types';
 
@@ -94,7 +95,7 @@ export function resolveResetTime(
     return { resetAt: resetAtMs, isEstimated: false };
   }
   // 已过期：推算下一个周期
-  const periodsPassed = Math.ceil((now - resetAtMs) / periodMs);
+  const periodsPassed = Math.floor((now - resetAtMs) / periodMs) + 1;
   const nextResetAt = resetAtMs + periodsPassed * periodMs;
   return { resetAt: nextResetAt, isEstimated: true };
 }
@@ -265,6 +266,20 @@ export function resolveWindowPct(state: AppState): number {
   }
   if (le && le.calibratedAt !== null) return le.windowPct;
   return 0;
+}
+
+/** Resolve Claude's optional Fable weekly percentage.
+ *  Once its reset time arrives, keep the known limit visible but reset usage.
+ */
+export function resolveFableWeeklyPct(state: AppState, now = Date.now()): number | undefined {
+  const quota = state.quota;
+  if (quota?.fableWeeklyUsedPct == null) return undefined;
+  if (quota.fableWeeklyResetAt != null
+      && quota.fableWeeklyResetAt > 0
+      && quota.fableWeeklyResetAt <= now) {
+    return 0;
+  }
+  return quota.fableWeeklyUsedPct;
 }
 
 /** Resolve how the status bar should present the current auth state.

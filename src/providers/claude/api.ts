@@ -12,6 +12,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const USAGE_REQUEST_TIMEOUT_MS = 10_000;
 const USAGE_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_USAGE_RETRY_MS = 5 * 60 * 1000;
+const CLAUDE_CODE_USER_AGENT = 'claude-code/2.1.257 (external, ai-status-hub)';
 
 interface HeaderReader {
   get(name: string): string | null;
@@ -20,6 +21,11 @@ interface HeaderReader {
 interface UsageWindow {
   usedPct: number;
   resetAt: number;
+}
+
+interface OAuthUsageResult {
+  quota: UnifiedQuota | null;
+  fableWindow: UsageWindow | null;
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -32,7 +38,7 @@ function finiteNumber(value: unknown): number | null {
 function retryAfterDeadline(value: string | null, now: number): number {
   if (value) {
     const seconds = Number(value);
-    if (Number.isFinite(seconds) && seconds >= 0) return now + seconds * 1000;
+    if (Number.isFinite(seconds) && seconds > 0) return now + seconds * 1000;
     const absolute = Date.parse(value);
     if (Number.isFinite(absolute) && absolute > now) return absolute;
   }
@@ -52,14 +58,40 @@ function parseAbsoluteReset(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function parseUsageWindow(value: unknown, percentKey: 'utilization' | 'percent'): UsageWindow | null {
+function parseUsageWindow(value: unknown, ...percentKeys: Array<'utilization' | 'percent'>): UsageWindow | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
-  const usedPct = finiteNumber(record[percentKey]);
+  const usedPct = percentKeys
+    .map(key => finiteNumber(record[key]))
+    .find(candidate => candidate != null) ?? null;
   if (usedPct == null) return null;
   const resetAt = parseAbsoluteReset(record.resets_at);
   if (usedPct === 0 && resetAt === 0) return null;
   return { usedPct: clampPercent(usedPct), resetAt };
+}
+
+function parseClaudeFableWindow(data: Record<string, unknown>): UsageWindow | null {
+  if (!Array.isArray(data.limits)) return null;
+  const fableLimit = data.limits.find(item => {
+    if (!item || typeof item !== 'object') return false;
+    const limit = item as Record<string, unknown>;
+    if (limit.kind !== 'weekly_scoped') return false;
+    const scope = limit.scope && typeof limit.scope === 'object'
+      ? limit.scope as Record<string, unknown>
+      : null;
+    const model = scope?.model && typeof scope.model === 'object'
+      ? scope.model as Record<string, unknown>
+      : null;
+    const identifiers = [
+      model?.display_name,
+      model?.id,
+      limit.label,
+      limit.name,
+      limit.display_name,
+    ];
+    return identifiers.some(value => typeof value === 'string' && value.toLowerCase().includes('fable'));
+  });
+  return parseUsageWindow(fableLimit, 'percent', 'utilization');
 }
 
 /** Parse Claude's OAuth usage payload, including model-scoped Fable weekly limits. */
@@ -77,16 +109,7 @@ export function parseClaudeUsageResponse(payload: unknown): UnifiedQuota | null 
     ?? parseUsageWindow(findLimit('weekly_all'), 'percent');
   if (!window5h || !window7d) return null;
 
-  const fableLimit = limits.find(limit => {
-    if (limit.kind !== 'weekly_scoped') return false;
-    const scope = limit.scope;
-    if (!scope || typeof scope !== 'object') return false;
-    const model = (scope as Record<string, unknown>).model;
-    if (!model || typeof model !== 'object') return false;
-    const displayName = (model as Record<string, unknown>).display_name;
-    return typeof displayName === 'string' && displayName.toLowerCase().includes('fable');
-  });
-  const fableWindow = parseUsageWindow(fableLimit, 'percent');
+  const fableWindow = parseClaudeFableWindow(data);
 
   return {
     weeklyLimit: 100,
@@ -205,7 +228,8 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
 
     const canUseOAuthUsage = options?.credentialType !== 'api-key'
       && !(this.usageRetry?.token === token && this.usageRetry.until > Date.now());
-    const usageQuota = canUseOAuthUsage ? await this.fetchOAuthUsage(token) : null;
+    const usageResult = canUseOAuthUsage ? await this.fetchOAuthUsage(token) : null;
+    const usageQuota = usageResult?.quota ?? null;
     if (usageQuota) {
       this.usageCache = { token, quota: usageQuota, expiresAt: Date.now() + USAGE_CACHE_TTL_MS };
       this.usageRetry = null;
@@ -256,6 +280,14 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
       }
 
       const data = parseClaudeQuotaHeaders(response.headers);
+      if (usageResult?.fableWindow) {
+        data.fableWeeklyUsedPct = usageResult.fableWindow.usedPct;
+        if (usageResult.fableWindow.resetAt > 0) {
+          data.fableWeeklyResetAt = usageResult.fableWindow.resetAt;
+        }
+        this.usageCache = { token, quota: data, expiresAt: Date.now() + USAGE_CACHE_TTL_MS };
+        this.usageRetry = null;
+      }
       log(`Claude API success: window=${data.windowUsedPct.toFixed(2)}%, weekly=${data.weeklyUsedPct.toFixed(2)}%, reset5h=${data.windowResetAt}, reset7d=${data.weeklyResetAt}`);
       return { ok: true, data };
     } catch (err) {
@@ -268,7 +300,7 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
     }
   }
 
-  private async fetchOAuthUsage(token: string): Promise<UnifiedQuota | null> {
+  private async fetchOAuthUsage(token: string): Promise<OAuthUsageResult | null> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), USAGE_REQUEST_TIMEOUT_MS);
     try {
@@ -278,7 +310,7 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
           Authorization: `Bearer ${token}`,
           'anthropic-beta': 'oauth-2025-04-20',
           'content-type': 'application/json',
-          'user-agent': 'claude-cli (external, cli)',
+          'user-agent': CLAUDE_CODE_USER_AGENT,
         },
         signal: controller.signal,
       });
@@ -295,7 +327,13 @@ export class ClaudeApiProvider implements IQuotaApiProvider {
 
       const bodyText = await response.text();
       try {
-        return parseClaudeUsageResponse(JSON.parse(bodyText));
+        const payload = JSON.parse(bodyText);
+        if (!payload || typeof payload !== 'object') return null;
+        const data = payload as Record<string, unknown>;
+        return {
+          quota: parseClaudeUsageResponse(data),
+          fableWindow: parseClaudeFableWindow(data),
+        };
       } catch (err) {
         log(`Claude usage API parse error: ${(err as Error).message}`);
         return null;

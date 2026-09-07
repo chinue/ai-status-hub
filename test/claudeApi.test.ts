@@ -133,6 +133,64 @@ describe('Claude OAuth usage response', () => {
     ]);
   });
 
+  it('merges a partial Fable-only usage response with Messages quota headers', async () => {
+    const headerValues: Record<string, string> = {
+      'anthropic-ratelimit-unified-5h-utilization': '0.1',
+      'anthropic-ratelimit-unified-7d-utilization': '0.2',
+    };
+    const fakeFetch = async (url: string) => {
+      if (url.endsWith('/api/oauth/usage')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            five_hour: null,
+            seven_day: null,
+            limits: [{
+              kind: 'weekly_scoped',
+              percent: 7,
+              resets_at: '2026-09-14T00:00:00Z',
+              scope: { model: { display_name: 'Fable' } },
+            }],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: (name: string) => headerValues[name] ?? null },
+        text: async () => '',
+      };
+    };
+
+    const result = await new ClaudeApiProvider(fakeFetch as any).fetchQuota('oauth-token');
+
+    expect(result.ok).to.equal(true);
+    expect(result.data?.weeklyUsedPct).to.equal(20);
+    expect(result.data?.fableWeeklyUsedPct).to.equal(7);
+    expect(result.data?.fableWeeklyResetAt).to.equal(Date.parse('2026-09-14T00:00:00Z'));
+  });
+
+  it('sends a claude-code User-Agent to the OAuth usage endpoint', async () => {
+    let userAgent: string | undefined;
+    const fakeFetch = async (_url: string, init?: { headers?: Record<string, string> }) => {
+      userAgent = init?.headers?.['user-agent'];
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          five_hour: { utilization: 1, resets_at: '2026-09-07T05:00:00Z' },
+          seven_day: { utilization: 2, resets_at: '2026-09-14T00:00:00Z' },
+          limits: [],
+        }),
+      };
+    };
+
+    await new ClaudeApiProvider(fakeFetch as any).fetchQuota('oauth-token');
+
+    expect(userAgent).to.match(/claude-code\/\d+/);
+  });
+
   it('honors Retry-After after the usage endpoint returns 429', async () => {
     const calls: string[] = [];
     const fakeFetch = async (url: string) => {
@@ -165,6 +223,34 @@ describe('Claude OAuth usage response', () => {
     ]);
   });
 
+  it('uses the default backoff when Retry-After is zero', async () => {
+    let usageCalls = 0;
+    const fakeFetch = async (url: string) => {
+      if (url.endsWith('/api/oauth/usage')) {
+        usageCalls += 1;
+        return {
+          ok: false,
+          status: 429,
+          headers: { get: () => '0' },
+          text: async () => '',
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        text: async () => '',
+      };
+    };
+    const provider = new ClaudeApiProvider(fakeFetch as any);
+
+    await provider.fetchQuota('oauth-token');
+    provider.invalidateCache();
+    await provider.fetchQuota('oauth-token');
+
+    expect(usageCalls).to.equal(1);
+  });
+
   it('parses shared windows and the Fable model-scoped weekly limit', () => {
     const quota = parseClaudeUsageResponse({
       five_hour: { utilization: 12.5, resets_at: '2026-09-06T05:00:00Z' },
@@ -182,6 +268,23 @@ describe('Claude OAuth usage response', () => {
     expect(quota!.weeklyUsedPct).to.equal(34.5);
     expect(quota!.fableWeeklyUsedPct).to.equal(56.5);
     expect(quota!.fableWeeklyResetAt).to.equal(Date.parse('2026-09-12T08:30:00Z'));
+  });
+
+  it('accepts label and utilization variants for a Fable scoped limit', () => {
+    const quota = parseClaudeUsageResponse({
+      limits: [
+        { kind: 'session', percent: 10, resets_at: '2026-09-07T05:00:00Z' },
+        { kind: 'weekly_all', percent: 20, resets_at: '2026-09-14T00:00:00Z' },
+        {
+          kind: 'weekly_scoped',
+          label: 'Weekly Fable 5.1',
+          utilization: 8,
+          resets_at: '2026-09-14T00:00:00Z',
+        },
+      ],
+    });
+
+    expect(quota?.fableWeeklyUsedPct).to.equal(8);
   });
 
   it('falls back to limits[] for shared windows', () => {

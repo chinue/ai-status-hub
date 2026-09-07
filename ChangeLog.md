@@ -1,5 +1,28 @@
 # ChangeLog
 
+## [0.5.33] - 2026-09-07
+
+### 修复
+
+- **Claude 下 Fable 5 进度条再次消失**（`src/presenters/dashboard.ts`）：Fable 行现在由 Claude Provider 身份决定并固定显示，HTML 首屏也直接可见；scoped 权威数据暂不可用时显示 `0%`，不再因字段缺失、鉴权、限流或 Webview 消息时序隐藏整行。
+- **Fable 部分 usage 响应被整体丢弃**（`src/providers/claude/api.ts`）：当 OAuth usage 只有 `weekly_scoped`、缺少 session/weekly_all 时，将 Fable 部分结果与 Messages headers 的总额度合并。
+- **Fable scoped 字段兼容与限流修复**（`src/providers/claude/api.ts`）：模型标识兼容 model display name/id 和 limit label/name，百分比兼容 `percent`/`utilization`；OAuth usage User-Agent 改为 `claude-code/<version>` 形式；`Retry-After: 0` 改用默认 5 分钟退避。
+
+### 测试
+
+- **Fable 可见性与响应变体回归覆盖**（`test/claudeApi.test.ts`、`test/dashboard.test.ts`）：覆盖 Claude 无 scoped 数据时固定显示、Fable-only 响应合并、字段变体、User-Agent 和零值 Retry-After。
+
+## [0.5.32] - 2026-09-07
+
+### 修复
+
+- **Fable 5 重置后未清零且进度条消失**（`src/calc.ts`、`src/presenters/dashboard.ts`、`src/services/scheduler.ts`）：已知 Fable 窗口到达重置时间后立即显示 `0%`；后续 API 暂时省略模型级字段时保留进度条并将重置时间推进到下一 7d 周期，新权威数据返回后正常覆盖。
+- **重置时刻边界未推进周期**（`src/calc.ts`）：`resetAt` 恰好等于当前时间时现在会严格推进一个完整周期，不再停留在已经到达的重置点。
+
+### 测试
+
+- **Fable 重置状态回归覆盖**（`test/calc.test.ts`、`test/dashboard.test.ts`、`test/scheduler.test.ts`）：覆盖重置后百分比清零、进度条持续显示、API 字段缺失时保留额度，以及精确重置时刻的下一周期计算。
+
 ## [0.5.31] - 2026-09-07
 
 ### 修复

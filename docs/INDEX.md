@@ -16,7 +16,7 @@
 | `src/extension.ts` | `v2-phase2-implementation.md#extensionts` | 扩展激活、命令注册、状态恢复 |
 | `src/store.ts` | `v2-phase2-implementation.md#storets` | Redux-like 状态管理、reducer 逻辑 |
 | `src/config.ts` | `v2-phase2-implementation.md#configts` | 配置读取、默认值、变更监听 |
-| `src/calc.ts` | `v2-local-estimation-design.md` | 本地估算算法、格式化函数 |
+| `src/calc.ts` | `v2-local-estimation-design.md#quota-percentage-resolution` | 本地估算算法、格式化函数、额度重置解析 |
 | `src/types.ts` | `v2-phase2-implementation.md#typests` | 全局类型定义 |
 | `src/i18n.ts` | `CODING_STANDARDS.md#5-i18n-强制规范` | 翻译字典、语言切换 |
 | `src/utils.ts` | `v2-phase2-implementation.md` | 通用工具（日志、SecretStorage） |

@@ -32,7 +32,7 @@
 - `CacheService` 负责所有窗口锚点磁盘 I/O，schema 为 `ai-status-hub-window-anchors-v1`，文件位于 provider 隔离缓存目录，例如 `~/.codex/ai-status-hub-window-anchors-claude.json`。
 - 插件 `deactivate` 时通过 `CacheService.writeWindowAnchors(providerId, data)` 写入最后有效锚点；`SIGN_OUT` 清空当前锚点，provider 激活后由 Scheduler 重新从 API / 磁盘 / fallback 设置。
 - Claude JSONL 不要求保存官方窗口起点；Claude API 403、用量耗尽或网络失败时，本地 usage、Detailed Usage、heatmap、Cost Curve 仍共用同一组锚点窗口。
-- Claude OAuth usage 临时不可用并回退 Messages headers 时，如果新响应缺少 Fable 模型级窗口，Scheduler 会保留缓存中尚未到达 `fableWeeklyResetAt` 的最后有效 Fable 百分比；窗口到期后自动丢弃，避免无限展示陈旧额度。
+- Claude OAuth usage 临时不可用并回退 Messages headers 时，如果新响应缺少 Fable 模型级窗口，Scheduler 会保留最后一次已知 Fable 窗口。重置时间到达后将用量清零并把 reset 推算到下一 7d 周期，使进度条保持可见；新权威数据到达后覆盖该估算状态。
 - `force()` 在安排强制 long tick 前调用 Provider 可选的 `invalidateCache()`，保证手动刷新绕过成功响应缓存；Provider 自己维护的服务端限流退避不被清除。
 
 ---

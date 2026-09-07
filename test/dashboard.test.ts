@@ -35,6 +35,32 @@ describe('Dashboard Current Usage', () => {
     expect(codexUsage.hasFable7dLimit).to.equal(false);
   });
 
+  it('keeps the Fable row visible at 0% after its reset time', () => {
+    const expiredQuota = {
+      ...quota,
+      fableWeeklyResetAt: Date.now() - 1000,
+    };
+    const usage = buildUsage({ ...defaultState(), activeProvider: 'claude', quota: expiredQuota });
+
+    expect(usage.hasFable7dLimit).to.equal(true);
+    expect(usage.utilizationFable7d).to.equal(0);
+  });
+
+  it('shows a 0% Fable row for Claude while scoped usage is temporarily unavailable', () => {
+    const quotaWithoutFable = { ...quota };
+    delete quotaWithoutFable.fableWeeklyUsedPct;
+    delete quotaWithoutFable.fableWeeklyResetAt;
+
+    const usage = buildUsage({
+      ...defaultState(),
+      activeProvider: 'claude',
+      quota: quotaWithoutFable,
+    });
+
+    expect(usage.hasFable7dLimit).to.equal(true);
+    expect(usage.utilizationFable7d).to.equal(0);
+  });
+
   it('places the Fable progress row below the shared 7d row', () => {
     const state = { ...defaultState(), activeProvider: 'claude', quota };
     const html = (DashboardPanel.prototype as any).getHtml.call(
@@ -45,5 +71,6 @@ describe('Dashboard Current Usage', () => {
 
     expect(html.indexOf('id="row-fable-7d"')).to.be.greaterThan(html.indexOf('id="fill-7d"'));
     expect(html).to.include('Fable 5 · 7d window');
+    expect(html).to.include('id="row-fable-7d" style=""');
   });
 });

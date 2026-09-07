@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import {
   computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost, parseCustomPricing,
   createLinearEstimator, ILinearEstimator, fmtCurrency,
-  resolveWeeklyPct, resolveWindowPct,
+  resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct,
   resolveAuthDisplayMode, buildIndicatorSuffix,
   resolveResetTime, fmtResetTime,
   estimateStateMemory, formatMemorySize,
@@ -287,6 +287,26 @@ describe('calc', () => {
     });
   });
 
+  describe('resolveFableWeeklyPct', () => {
+    it('returns 0 after the Fable reset while keeping the limit available', () => {
+      const now = Date.now();
+      const state = makeState({
+        quota: {
+          weeklyUsedPct: 62,
+          windowUsedPct: 89,
+          fableWeeklyUsedPct: 56,
+          fableWeeklyResetAt: now - 1000,
+        },
+      });
+
+      expect(resolveFableWeeklyPct(state, now)).to.equal(0);
+    });
+
+    it('returns undefined when no Fable limit has ever been observed', () => {
+      expect(resolveFableWeeklyPct(makeState({ quota: null }))).to.equal(undefined);
+    });
+  });
+
   describe('resolveResetTime', () => {
     it('returns original resetAt when not expired', () => {
       const now = 1000000;
@@ -312,6 +332,12 @@ describe('calc', () => {
       const result = resolveResetTime(expired, period, now);
       expect(result.resetAt).to.equal(expired + period);
       expect(result.isEstimated).to.be.true;
+    });
+
+    it('advances one full period when resetAt equals now', () => {
+      const now = 10 * 3600 * 1000;
+      const period = 5 * 3600 * 1000;
+      expect(resolveResetTime(now, period, now).resetAt).to.equal(now + period);
     });
 
     it('computes next cycle after multiple periods', () => {

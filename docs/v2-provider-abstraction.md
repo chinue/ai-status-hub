@@ -123,7 +123,7 @@ export interface IQuotaApiProvider {
 ```
 
 **实现差异**：
-- **Claude**：OAuth 登录时优先 `GET /api/oauth/usage`，从 `five_hour` / `seven_day` 读取总额度，并从 `limits[]` 中匹配 `kind: weekly_scoped` 且 `scope.model.display_name` 含 `fable` 的模型级 7d 配额。`null`、空字符串等占位百分比视为缺失并继续使用 `limits[]` fallback。成功响应在 Provider 内缓存 5 分钟；用户手动刷新通过 `invalidateCache()` 绕过成功缓存，但服务端 429 的 `Retry-After` 退避仍会保留。API Key 凭据跳过 OAuth-only usage endpoint，并使用 `x-api-key` 请求 Messages API；OAuth 使用 Bearer 和 beta header。Messages 返回的 `7d_oi-{utilization,reset}` 仍作为 Fable 兼容来源。
+- **Claude**：OAuth 登录时优先 `GET /api/oauth/usage`，从 `five_hour` / `seven_day` 读取总额度，并从 `limits[]` 中匹配 `kind: weekly_scoped` 的 Fable 模型级 7d 配额。标识兼容 `scope.model.display_name`、model id、`label`/`name`，百分比兼容 `percent` 与 `utilization`。即使 usage 响应缺少 session/weekly_all，Fable 部分结果也会与 Messages headers 的总额度合并。请求 User-Agent 包含 `claude-code/<version>`；`null`、空字符串等占位百分比视为缺失。成功响应缓存 5 分钟；用户手动刷新绕过成功缓存，但服务端 429 的 `Retry-After` 退避仍会保留，非正数按默认 5 分钟处理。API Key 凭据跳过 OAuth-only usage endpoint，并使用 `x-api-key` 请求 Messages API；OAuth 使用 Bearer 和 beta header。Messages 返回的 `7d_oi-{utilization,reset}` 仍作为 Fable 兼容来源。
 - **Kimi**：`POST/GET` Kimi API，从 JSON body 解析 `usage` + `limits[]`
 
 ### 3.3 本地用量接口

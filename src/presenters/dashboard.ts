@@ -7,7 +7,7 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, fmtResetTime, resolveResetTime, estimateStateMemory, formatMemorySize } from '../calc';
+import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, resolveResetTime, estimateStateMemory, formatMemorySize } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
   AppState, UsageEntry, DashboardMessage, KimiUsageData, DashboardAggregates,
@@ -261,6 +261,8 @@ export class DashboardPanel {
     // Use the same resolution logic as statusBar/tooltip for consistency
     const weeklyPct = resolveWeeklyPct(state);
     const windowPct = resolveWindowPct(state);
+    const fableWeeklyPct = resolveFableWeeklyPct(state, now);
+    const isClaude = state.activeProvider === 'claude';
     const anchors = state.windowAnchors?.providerId === state.activeProvider ? state.windowAnchors : null;
     const effectiveWindowReset = anchors?.window5hResetAtMs
       ?? resolveResetTime(quota?.windowResetAt, WINDOW_5H_MS, now).resetAt;
@@ -303,7 +305,7 @@ export class DashboardPanel {
     return {
       utilization5h: windowPct / 100,
       utilization7d: weeklyPct / 100,
-      utilizationFable7d: quota?.fableWeeklyUsedPct == null ? undefined : quota.fableWeeklyUsedPct / 100,
+      utilizationFable7d: isClaude ? (fableWeeklyPct ?? 0) / 100 : undefined,
       resetIn5h: (quota || anchors) ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
       resetIn7d: (quota || anchors) ? Math.max(0, Math.floor((effectiveWeeklyReset - now) / 1000)) : 0,
       resetIn5hText: t('tooltip.nextReset') + ' ' + fmtResetTime(effectiveWindowReset, WINDOW_5H_MS, now),
@@ -313,7 +315,7 @@ export class DashboardPanel {
         : t('tooltip.nextReset') + ' ' + fmtResetTime(quota.fableWeeklyResetAt, WINDOW_7D_MS, now),
       limitStatus: 'allowed',
       has7dLimit: !!quota,
-      hasFable7dLimit: state.activeProvider === 'claude' && quota?.fableWeeklyUsedPct != null,
+      hasFable7dLimit: isClaude,
       providerType: state.activeProvider,
       cost5h: le?.cost5h ?? 0,
       costDay: le?.costToday ?? 0,
@@ -779,7 +781,7 @@ export class DashboardPanel {
         <span class="progress-cost" id="cost-7d"></span>
       </div>
     </div>
-    <div class="progress-row" id="row-fable-7d" style="display:none;">
+    <div class="progress-row" id="row-fable-7d" style="${activeProvider === 'claude' ? '' : 'display:none;'}">
       <div class="progress-labels">
         <span>${i18n('dashboard.fable5Window')}</span>
         <span id="lbl-fable-7d">—</span>

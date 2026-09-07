@@ -151,6 +151,35 @@ describe('Scheduler', () => {
     expect(store.getState().quota?.fableWeeklyResetAt).to.equal(500_000_000);
   });
 
+  it('keeps an expired cached Fable window visible at 0% when the API omits it', async () => {
+    const now = 700_000_000;
+    const expiredReset = now - 1000;
+    clock.setSystemTime(now);
+    store.dispatch({ type: 'SET_PROVIDER', payload: 'claude' });
+    store.dispatch({
+      type: 'CACHE_LOADED',
+      payload: {
+        ...makeQuotaAt(now + 18_000_000, now + 604_800_000),
+        fableWeeklyUsedPct: 56,
+        fableWeeklyResetAt: expiredReset,
+      },
+    });
+    auth.resolveToken = async () => 'token';
+    api.fetchQuota = async () => ({
+      ok: true,
+      data: makeQuotaAt(now + 18_000_000, now + 604_800_000),
+    });
+    sinon.stub(cache, 'write').resolves();
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(makeLocalUsage());
+
+    scheduler.start();
+    await clock.tickAsync(100);
+    await Promise.resolve();
+
+    expect(store.getState().quota?.fableWeeklyUsedPct).to.equal(0);
+    expect(store.getState().quota?.fableWeeklyResetAt).to.equal(expiredReset + 604_800_000);
+  });
+
   it('restores window anchors from disk when API fails', async () => {
     const diskAnchors = makeAnchors('codex', 1_000_000_000);
     (cache.readWindowAnchors as sinon.SinonStub).resolves({ ...diskAnchors, source: 'disk' });

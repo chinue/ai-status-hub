@@ -693,11 +693,11 @@ describe('StatusBarPresenter', () => {
 
 ### Claude API
 
-`test/claudeApi.test.ts` 测试 OAuth usage 与 header 两条路径：`limits[]` 中 Fable `weekly_scoped` 解析、共享窗口 fallback、异常 payload、`null`/空字符串占位额度过滤、5 分钟缓存及显式失效、429 `Retry-After` 退避、API Key endpoint/header 分流、Messages fallback，以及 `7d_oi` header 的正常解析、字段缺失和利用率钳制。Scheduler 测试额外覆盖 Messages fallback 缺少 Fable 字段时保留未过期缓存窗口，以及手动刷新使 Provider 缓存失效。
+`test/claudeApi.test.ts` 测试 OAuth usage 与 header 两条路径：`limits[]` 中 Fable `weekly_scoped` 解析、`label`/model id 与 `percent`/`utilization` 字段变体、Fable-only 部分响应和 Messages 总额度合并、共享窗口 fallback、异常 payload、`null`/空字符串占位额度过滤、5 分钟缓存及显式失效、429 `Retry-After`（含零值）退避、`claude-code/<version>` User-Agent、API Key endpoint/header 分流、Messages fallback，以及 `7d_oi` header 的正常解析、字段缺失和利用率钳制。Scheduler 测试额外覆盖 Messages fallback 缺少 Fable 字段时保留未过期缓存窗口、过期窗口清零并推进到下一周期，以及手动刷新使 Provider 缓存失效。
 
 ### Dashboard Current Usage
 
-`test/dashboard.test.ts` 验证 Fable 数据仅对 Claude Provider 暴露，并检查 Fable 进度条位于总 7d 进度条之后。
+`test/dashboard.test.ts` 验证 Fable 行仅对 Claude Provider 暴露、HTML 首屏不带隐藏样式、scoped 数据暂不可用时以 `0%` 固定显示、重置后保持可见且归零，并检查 Fable 进度条位于总 7d 进度条之后。`test/calc.test.ts` 覆盖 Fable 百分比重置解析及 `resetAt === now` 的严格下一周期边界。
 
 ---
 
