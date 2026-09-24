@@ -148,6 +148,29 @@ export function parseCustomPricing(value: string): TokenPricing | null {
   };
 }
 
+/** 将模型名映射为定价配置键（须与 package.json 中 pricing.*.models.<key> 完全一致，区分大小写）。
+ *  示例：pricingModelKey('claude-opus-5-5') → 'claudeOpus5_5'；pricingModelKey('gpt-6-sol') → 'gpt6Sol'
+ */
+export function pricingModelKey(modelName: string): string {
+  const m = modelName.toLowerCase();
+  // Claude family
+  if (m.includes('fable')) { return 'claudeFable'; }
+  if (/opus[\s._-]*5[\s._-]+5/.test(m)) { return 'claudeOpus5_5'; }
+  if (m.includes('opus')) { return 'claudeOpus'; }
+  if (m.includes('sonnet')) { return 'claudeSonnet'; }
+  if (m.includes('haiku')) { return 'claudeHaiku'; }
+  // GPT-6 family (bare "gpt-6" falls back to the flagship Astra)
+  if (/gpt[\s._-]*6/.test(m)) {
+    if (m.includes('luna')) { return 'gpt6Luna'; }
+    if (m.includes('sol')) { return 'gpt6Sol'; }
+    return 'gpt6Astra';
+  }
+  // Kimi family
+  if (m.includes('k3')) { return 'k3'; }
+  if (m.includes('kimi')) { return 'k2_6'; }
+  return m.replace(/[^a-z0-9]/g, '');
+}
+
 /** Format a token count with k/M suffix. */
 export function fmtTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';

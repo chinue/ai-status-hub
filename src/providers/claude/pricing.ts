@@ -3,6 +3,7 @@
 
 import { IPricingProvider, Currency, TokenPricing, TokenUsage } from '../base/types';
 import { ConfigService } from '../../config';
+import { pricingModelKey } from '../../calc';
 
 const USD: Currency = { code: 'USD', symbol: '$' };
 
@@ -12,6 +13,12 @@ export const DEFAULT_CLAUDE_PRICING = {
     outputPerMillion: 50.00,
     cacheReadPerMillion: 1.00,
     cacheCreatePerMillion: 12.50,
+  },
+  opus5_5: {
+    inputPerMillion: 4.00,
+    outputPerMillion: 20.00,
+    cacheReadPerMillion: 0.20,
+    cacheCreatePerMillion: 5.00,
   },
   opus: {
     inputPerMillion: 5.00,
@@ -43,6 +50,9 @@ export class ClaudePricingProvider implements IPricingProvider {
     const m = modelName.toLowerCase();
     if (m.includes('fable')) {
       return { ...DEFAULT_CLAUDE_PRICING.fable, ...cfgPricing };
+    }
+    if (pricingModelKey(m) === 'claudeOpus5_5') {
+      return { ...DEFAULT_CLAUDE_PRICING.opus5_5, ...cfgPricing };
     }
     if (m.includes('opus')) {
       return { ...DEFAULT_CLAUDE_PRICING.opus, ...cfgPricing };

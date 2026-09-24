@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import {
-  computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost, parseCustomPricing,
+  computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost, parseCustomPricing, pricingModelKey,
   createLinearEstimator, ILinearEstimator, fmtCurrency,
   resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct,
   resolveAuthDisplayMode, buildIndicatorSuffix,
@@ -82,6 +82,35 @@ describe('calc', () => {
         pricing,
       );
       expect(cost).to.equal(73.5); // 10 + 50 + 1 + 12.5
+    });
+  });
+
+  describe('pricingModelKey', () => {
+    it('maps Claude Opus 5.5 to its own key before the generic opus family', () => {
+      expect(pricingModelKey('claude-opus-5-5')).to.equal('claudeOpus5_5');
+      expect(pricingModelKey('Claude Opus 5.5')).to.equal('claudeOpus5_5');
+      expect(pricingModelKey('claude-opus-5-5[1m]')).to.equal('claudeOpus5_5');
+      expect(pricingModelKey('claude-opus-5')).to.equal('claudeOpus');
+      expect(pricingModelKey('claude-opus-4-8')).to.equal('claudeOpus');
+    });
+
+    it('maps other Claude families', () => {
+      expect(pricingModelKey('claude-fable-5-1')).to.equal('claudeFable');
+      expect(pricingModelKey('claude-sonnet-5')).to.equal('claudeSonnet');
+      expect(pricingModelKey('claude-haiku-4-5')).to.equal('claudeHaiku');
+    });
+
+    it('maps GPT-6 variants, defaulting to Astra', () => {
+      expect(pricingModelKey('gpt-6-astra')).to.equal('gpt6Astra');
+      expect(pricingModelKey('gpt-6-sol')).to.equal('gpt6Sol');
+      expect(pricingModelKey('GPT-6 Luna')).to.equal('gpt6Luna');
+      expect(pricingModelKey('gpt-6')).to.equal('gpt6Astra');
+    });
+
+    it('keeps Kimi mapping and strips punctuation for others', () => {
+      expect(pricingModelKey('kimi-k3')).to.equal('k3');
+      expect(pricingModelKey('kimi-k2.6')).to.equal('k2_6');
+      expect(pricingModelKey('gpt-5')).to.equal('gpt5');
     });
   });
 

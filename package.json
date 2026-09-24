@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.5.33",
+  "version": "0.5.34",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -274,6 +274,90 @@
           "order": 5,
           "description": "Currency for cost display. auto: infer from provider (Codex/Claude/Cursor → USD, Kimi/GLM → CNY). USD: US Dollar. CNY: Chinese Yuan."
         },
+        "aiStatusHub.pricing.models.gpt6Astra.inputPerMillion": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "order": 120,
+          "description": "GPT-6 Astra input token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Astra.outputPerMillion": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "order": 121,
+          "description": "GPT-6 Astra output token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Astra.cacheReadPerMillion": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "order": 122,
+          "description": "GPT-6 Astra cache-read token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Astra.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 12.5,
+          "minimum": 0,
+          "order": 123,
+          "description": "GPT-6 Astra cache-write token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Sol.inputPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 124,
+          "description": "GPT-6 Sol input token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Sol.outputPerMillion": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "order": 125,
+          "description": "GPT-6 Sol output token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Sol.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "order": 126,
+          "description": "GPT-6 Sol cache-read token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Sol.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 2.5,
+          "minimum": 0,
+          "order": 127,
+          "description": "GPT-6 Sol cache-write token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Luna.inputPerMillion": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "order": 128,
+          "description": "GPT-6 Luna input token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Luna.outputPerMillion": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "order": 129,
+          "description": "GPT-6 Luna output token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Luna.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.01,
+          "minimum": 0,
+          "order": 130,
+          "description": "GPT-6 Luna cache-read token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.gpt6Luna.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 0.125,
+          "minimum": 0,
+          "order": 131,
+          "description": "GPT-6 Luna cache-write token price per million (USD)."
+        },
         "aiStatusHub.pricing.models.gpt5.inputPerMillion": {
           "type": "number",
           "default": 2,
@@ -329,6 +413,34 @@
           "minimum": 0,
           "order": 89,
           "description": "Claude Fable cache-write token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.claudeOpus5_5.inputPerMillion": {
+          "type": "number",
+          "default": 4,
+          "minimum": 0,
+          "order": 106,
+          "description": "Claude Opus 5.5 input token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.claudeOpus5_5.outputPerMillion": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "order": 107,
+          "description": "Claude Opus 5.5 output token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.claudeOpus5_5.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "order": 108,
+          "description": "Claude Opus 5.5 cache-read token price per million (USD)."
+        },
+        "aiStatusHub.pricing.models.claudeOpus5_5.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "order": 109,
+          "description": "Claude Opus 5.5 cache-write token price per million (USD)."
         },
         "aiStatusHub.pricing.models.claudeOpus.inputPerMillion": {
           "type": "number",
@@ -487,7 +599,7 @@
         },
         "aiStatusHub.pricing.officialDate": {
           "type": "string",
-          "default": "2026-06-11",
+          "default": "2026-09-24",
           "order": 85,
           "description": "Pricing publish date displayed next to the official pricing link (YYYY-MM-DD)."
         },

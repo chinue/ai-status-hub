@@ -193,7 +193,9 @@ export interface IPricingProvider {
 ```
 
 **实现差异**：
-- **Claude**：多模型（fable `$10/$50`、opus `$5/$25`、sonnet `$3/$15`、haiku `$1/$5`，input/output 每百万 token），USD；另支持 `aiStatusHub.pricing.customModels` 用户自定义模型价格（键=模型名关键词，值=`input,output,cacheRead,cacheWrite`，优先级最高）
+- **Codex**：多模型（gpt-6-astra `$10/$50`、gpt-6-sol `$2/$10`、gpt-6-luna `$0.1/$0.5`、gpt-5 `$2/$10`，input/output 每百万 token），USD；裸 `gpt-6` 按 Astra 计价；暂不区分 >272K 长上下文档位
+- 模型名→配置键统一由 `calc.ts#pricingModelKey()` 映射（键须与 `package.json` 中 `pricing.*.models.<key>` 一致）
+- **Claude**：多模型（fable `$10/$50`、opus 5.5 `$4/$20`（cache read `$0.2`）、opus `$5/$25`、sonnet `$3/$15`、haiku `$1/$5`，input/output 每百万 token），USD；另支持 `aiStatusHub.pricing.customModels` 用户自定义模型价格（键=模型名关键词，值=`input,output,cacheRead,cacheWrite`，优先级最高）
 - **Kimi**：多模型（k3 `¥20/¥100`、k2.6 `¥6.5/¥27`，input/output 每百万 token），RMB，定价由 Provider 配置，模型族映射 `kimiModelFamily()`；无 model 字段的旧格式条目回退 k2.6 定价
 
 ### 3.5 UI 文案/图标接口

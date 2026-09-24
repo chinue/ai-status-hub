@@ -2,7 +2,7 @@
 // AGENTS: fmt->calc.ts | err->try-catch | i18n->makeT() | no-disk-IO
 import * as vscode from 'vscode';
 import { DisplayMode, LanguageSetting, TokenPricing } from './types';
-import { parseCustomPricing } from './calc';
+import { parseCustomPricing, pricingModelKey } from './calc';
 
 const CFG_SECTION = 'aiStatusHub';
 
@@ -204,7 +204,7 @@ export class ConfigService {
   }
 
   get pricingOfficialDate(): string {
-    return this.cfg.get<string>('pricing.officialDate', '2026-06-11');
+    return this.cfg.get<string>('pricing.officialDate', '2026-09-24');
   }
 
   getPricing(modelName: string): TokenPricing {
@@ -221,15 +221,7 @@ export class ConfigService {
     }
 
     // Setting keys must match package.json registration exactly (case-sensitive)
-    let key = m.replace(/[^a-z0-9]/g, '');
-    // Claude family mapping
-    if (m.includes('fable')) { key = 'claudeFable'; }
-    else if (m.includes('opus')) { key = 'claudeOpus'; }
-    else if (m.includes('sonnet')) { key = 'claudeSonnet'; }
-    else if (m.includes('haiku')) { key = 'claudeHaiku'; }
-    // Kimi family mapping
-    else if (m.includes('k3')) { key = 'k3'; }
-    else if (m.includes('kimi')) { key = 'k2_6'; }
+    const key = pricingModelKey(m);
 
     // Provider-private config takes priority: pricing.{provider}.models.{key}
     const providerPrefix = `pricing.${this.activeProviderId}.models.${key}`;

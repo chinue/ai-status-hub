@@ -1,5 +1,21 @@
 # ChangeLog
 
+## [0.5.34] - 2026-09-24
+
+### 新增
+
+- **Claude Opus 5.5 定价**（`src/providers/claude/pricing.ts`、`package.json`）：$4 / $20 每百万 token，cache read $0.20、cache write $5.00；`claude-opus-5-5` 独立计价，不再按 Opus 5 的 $5 / $25 计算。
+- **GPT-6 定价（Codex）**（`package.json`）：gpt-6-astra $10 / $50（cache $1 / $12.5）、gpt-6-sol $2 / $10（cache $0.2 / $2.5）、gpt-6-luna $0.1 / $0.5（cache $0.01 / $0.125）；裸 `gpt-6` 按 Astra 计价。暂未区分 >272K 长上下文档位。
+- 官方定价日期更新为 2026-09-24。
+
+### 重构
+
+- **模型名→定价配置键映射抽取为纯函数** `pricingModelKey()`（`src/calc.ts`），`ConfigService.getPricing()` 与 Claude Provider 共用。
+
+### 测试
+
+- **`pricingModelKey` 映射覆盖**（`test/calc.test.ts`）：Opus 5.5 与 Opus 5/4.8 区分、GPT-6 三档及默认档、Kimi 与其他模型兼容。
+
 ## [0.5.33] - 2026-09-07
 
 ### 修复
