@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { StatusBarPresenter } from '../src/presenters/statusBar';
 import { Store } from '../src/store';
+import * as sinon from 'sinon';
+import * as vscode from 'vscode';
 
 describe('StatusBarPresenter', () => {
   let store: Store;
@@ -21,9 +23,9 @@ describe('StatusBarPresenter', () => {
     expect(weeklyText).to.include('Codex');
   });
 
-  it('hides window item when auth missing', () => {
+  it('uses a single item when auth is missing', () => {
     store.dispatch({ type: 'AUTH_STATUS', payload: 'missing' });
-    expect((presenter as any).itemWindow.visible).to.be.false;
+    expect((presenter as any).itemWindow).to.be.undefined;
   });
 
   it('shows weekly percentage after API_SUCCESS', () => {
@@ -60,7 +62,7 @@ describe('StatusBarPresenter', () => {
     // After pause: weekly item shows only the provider icon, window hidden
     expect((presenter as any).itemWeekly.visible).to.be.true;
     expect((presenter as any).itemWeekly.text).to.equal('$(openai)');
-    expect((presenter as any).itemWindow.visible).to.be.false;
+    expect((presenter as any).itemWindow).to.be.undefined;
 
     store.dispatch({ type: 'UI_SET_PAUSED', payload: false });
     // After resume: data items visible again
@@ -87,8 +89,8 @@ describe('StatusBarPresenter', () => {
     expect(weeklyText).to.include('\uD83D\uDD10');
     expect(weeklyText).to.not.include('auth expired');
     expect((presenter as any).itemWeekly.backgroundColor).to.be.undefined;
-    expect((presenter as any).itemWindow.visible).to.be.true;
-    expect(((presenter as any).itemWindow.text as string)).to.include('\uD83D\uDD10');
+    expect((presenter as any).itemWindow).to.be.undefined;
+    expect(weeklyText).to.include(' | 5️⃣ 25.00%');
   });
 
   it('shows blocking error when auth expires without any data', () => {
@@ -97,6 +99,28 @@ describe('StatusBarPresenter', () => {
 
     const weeklyText = (presenter as any).itemWeekly.text as string;
     expect(weeklyText).to.include('auth expired');
-    expect((presenter as any).itemWindow.visible).to.be.false;
+    expect((presenter as any).itemWindow).to.be.undefined;
+  });
+
+  it('creates one cell, uses weekly remaining quota for color, and opens its own dashboard', async () => {
+    presenter.dispose();
+    const create = sinon.spy(vscode.window, 'createStatusBarItem');
+    presenter = new StatusBarPresenter(store);
+    try {
+      expect(create.callCount).to.equal(1);
+      store.dispatch({ type: 'API_SUCCESS', payload: {
+        weeklyLimit: 100, weeklyUsed: 90, weeklyUsedPct: 90, weeklyResetAt: Date.now() + 86400000,
+        windowLimit: 100, windowUsed: 5, windowRemaining: 95, windowUsedPct: 5, windowResetAt: Date.now() + 18000000,
+        parallelLimit: 0,
+      } });
+      await Promise.resolve();
+      const item = (presenter as any).itemWeekly;
+      expect(item.text).to.include('$(openai) Codex:90.00% | 5️⃣ 5.00%');
+      expect(item.color).to.equal('#FF0000');
+      expect(item.command).to.include({ command: 'aiStatusHub.showDashboard' });
+      expect(item.command.arguments).to.deep.equal(['codex']);
+      expect(item.tooltip.value).to.include('5h');
+      expect(item.tooltip.value).to.include('7d');
+    } finally { create.restore(); }
   });
 });

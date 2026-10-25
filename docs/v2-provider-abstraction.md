@@ -193,10 +193,60 @@ export interface IPricingProvider {
 ```
 
 **实现差异**：
-- **Codex**：多模型（gpt-6-astra `$10/$50`、gpt-6-sol `$2/$10`、gpt-6-luna `$0.1/$0.5`、gpt-5 `$2/$10`，input/output 每百万 token），USD；裸 `gpt-6` 按 Astra 计价；暂不区分 >272K 长上下文档位
-- 模型名→配置键统一由 `calc.ts#pricingModelKey()` 映射（键须与 `package.json` 中 `pricing.*.models.<key>` 一致）
-- **Claude**：多模型（fable `$10/$50`、opus 5.5 `$4/$20`（cache read `$0.2`）、opus `$5/$25`、sonnet `$3/$15`、haiku `$1/$5`，input/output 每百万 token），USD；另支持 `aiStatusHub.pricing.customModels` 用户自定义模型价格（键=模型名关键词，值=`input,output,cacheRead,cacheWrite`，优先级最高）
-- **Kimi**：多模型（k3 `¥20/¥100`、k2.6 `¥6.5/¥27`，input/output 每百万 token），RMB，定价由 Provider 配置，模型族映射 `kimiModelFamily()`；无 model 字段的旧格式条目回退 k2.6 定价
+- **Codex**：USD；GPT-6 Astra、GPT-6 Sol、GPT-6 Luna 保持原价，新增 GPT-6.1 Sol 和 GPT-5.6 Sol 独立配置，避免新版本使用旧版本缓存价或通用 fallback。
+- **Claude**：USD；新增 Fable/Mythos 5.1、Sonnet 5/5.5、Haiku 5.5 独立配置，保留旧版模型价格。
+- **Kimi**：CNY；新增 K3.1 Pro、K2.7 Code 及各自 Highspeed 版；无 model 字段的旧格式条目仍回退 K2.6。
+- 模型名→配置键统一由 `calc.ts#pricingModelKey()` 映射（键须与 `package.json` 中 `pricing.*.models.<key>` 一致）；`kimiModelFamily()` 复用该映射。
+- 用户自定义 `aiStatusHub.pricing.customModels` 优先级最高，其次 Provider 专属配置，再次全局配置和默认价格。零价格覆盖有效。
+
+#### Claude pricing
+
+核验日期：2026-10-25。单位：USD / 百万 tokens；缓存写入使用默认 5 分钟档。
+
+| 模型 | 配置键 | 输入 | 输出 | 缓存命中 | 缓存写入 |
+|---|---|---:|---:|---:|---:|
+| Fable / Mythos 5.1 | claudeFable5_1 | 10 | 50 | 0.25 | 12.5 |
+| Fable / Mythos 5 | claudeFable | 10 | 50 | 1 | 12.5 |
+| Opus 5.5 | claudeOpus5_5 | 4 | 20 | 0.2 | 5 |
+| Opus 5 / 4.5–4.8 | claudeOpus | 5 | 25 | 0.5 | 6.25 |
+| Sonnet 5.5 | claudeSonnet5_5 | 2 | 10 | 0.1 | 2.5 |
+| Sonnet 5 | claudeSonnet5 | 2 | 10 | 0.2 | 2.5 |
+| Sonnet 4 / 4.5 / 4.6 | claudeSonnet | 3 | 15 | 0.3 | 3.75 |
+| Haiku 5.5（输入 ≤100K） | claudeHaiku5_5 | 0.1 | 0.5 | 0.01 | 0.125 |
+| Haiku 4.5 | claudeHaiku | 1 | 5 | 0.1 | 1.25 |
+
+来源：[Claude 官方定价](https://platform.claude.com/docs/en/about-claude/pricing)。Haiku 5.5 输入 >100K 的官方费率为 0.5 / 2.5 / 0.05 / 0.625；当前按模型固定四项单价的数据结构无法自动选档，因此默认使用 ≤100K 档，可通过自定义价格覆盖。
+
+#### Codex pricing
+
+核验日期：2026-10-25。单位：USD / 百万 tokens；Standard、短上下文、默认 30 分钟缓存写入。
+
+| 模型 | 配置键 | 输入 | 输出 | 缓存命中 | 缓存写入 |
+|---|---|---:|---:|---:|---:|
+| GPT-6 Astra | gpt6Astra | 10 | 50 | 1 | 12.5 |
+| GPT-6.1 Sol | gpt6_1Sol | 2 | 10 | 0.1 | 2.5 |
+| GPT-6 Sol | gpt6Sol | 2 | 10 | 0.2 | 2.5 |
+| GPT-6 Luna | gpt6Luna | 0.1 | 0.5 | 0.01 | 0.125 |
+| GPT-5.6 Sol / GPT-5.6 | gpt5_6Sol | 4 | 20 | 0.4 | 5 |
+
+来源：[OpenAI API 定价](https://developers.openai.com/api/docs/pricing)、[GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)。GPT-5.6 Sol 促销价至少持续至 2026-11-21，需届时复核。裸 `gpt-6` 保持 Astra fallback；API 等价费用不代表订阅实际账单或额度消耗。
+
+#### Kimi pricing
+
+核验日期：2026-10-25。单位：CNY / 百万 tokens；K3 使用默认 5 分钟缓存写入，K2 的缓存创建字段沿用输入价以兼容本地日志分类，并非额外缓存写入费。
+
+| 模型 | 配置键 | 输入 | 输出 | 缓存命中 | 缓存写入/创建 |
+|---|---|---:|---:|---:|---:|
+| K3.1 Pro | k3_1Pro | 13 | 68 | 1.3 | 13 |
+| K3.1 Pro Highspeed | k3_1ProHighspeed | 26 | 136 | 1.3 | 26 |
+| K3 | k3 | 20 | 100 | 2 | 20 |
+| K2.7 Code | k2_7Code | 6.5 | 27 | 1.3 | 6.5 |
+| K2.7 Code Highspeed | k2_7CodeHighspeed | 13 | 54 | 2.6 | 13 |
+| K2.6 | k2_6 | 6.5 | 27 | 1.1 | 6.5 |
+
+来源：[Kimi 开放平台定价](https://platform.kimi.com/docs/pricing/chat)、[K3.1 Pro 官方价格说明](https://www.kimi.com/resources/kimi-k3-1-pro-pricing)。支持 `kimi-code/k3.1-pro`、`kimi-code/k2.7-code-highspeed` 等前缀别名，不把新版归入 K3/K2.6。
+
+**当前估算范围**：仍使用每模型固定四项费率；本次未增加长上下文自动加价、缓存 TTL 分档、Fast/Ultrafast/Batch/Flex、区域溢价或历史价格生效日期。旧模型的默认值保留；未知模型保持原有 fallback。回归测试见 `test/modelPricing.test.ts`，通过模拟 VS Code 实际注册默认值验证映射、费用合计、版本边界及自定义覆盖。
 
 ### 3.5 UI 文案/图标接口
 
@@ -370,3 +420,11 @@ coding-status-ex/
 > **代码层面 90% 可复用，但产品层面不建议在 Kimi v2 开发期间引入 Provider 抽象。**
 >
 > 先独立做稳 Kimi v2，待架构验证通过后，再将通用模块提取为 `@coding-status/core` 公共库。Provider 抽象是未来扩展的**技术储备**，而非当前的开发负担。
+
+### 多 Provider 同时监控（0.6.0）
+
+`extension.ts` 为每个 Provider 单独实例化依赖服务，替代反复修改全局服务上下文的做法。Claude、Codex、Kimi PricingProvider 调用 `ConfigService.getPricing(modelName, providerId)` 时显式指定自身 Provider，确保并发后台估算读取正确的私有费率；不修改既有费率、自定义关键词覆盖与 fallback 顺序。详见 [多模型仪表盘交互](v2-dashboard-design.md#多模型选择与状态栏联动0602026-10-25)。
+
+### Codex 限额窗口兼容（2026-10-25）
+
+Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空。API Provider 保留 headers 的窗口时长，交由 `calc.ts#codexRateLimitsToQuota` 统一映射；不再固定认为 primary 是五小时。`UnifiedQuota.has5hLimit` 为 false 表示没有五小时额度，undefined 兼容旧缓存及其他 Provider。

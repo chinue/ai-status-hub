@@ -227,6 +227,8 @@ function calculateCost(tokens: {
 
 **默认定价**（RMB，按模型族区分，见 `src/providers/kimi/pricing.ts`）：
 
+2026-10-25 新增 K3.1 Pro（含 Highspeed）与 K2.7 Code（含 Highspeed），完整四项费率、模型映射和估算边界见 [Provider 定价设计](v2-provider-abstraction.md#kimi-pricing)。`pricingModelKey()` 统一维护三家模型的版本映射，Kimi Provider 复用映射，防止 K3.1 套用 K3 价格。
+
 kimi-k3（Kimi 开放平台 2026-07-16 公示）：
 - Input（cache miss）：¥20.00 / 1M tokens
 - Output：¥100.00 / 1M tokens
@@ -656,3 +658,17 @@ src/
 ---
 
 *文档结束。本地估算的所有逻辑（扫描、聚合、校准、估算、缓存）均在此文档中描述，无需参考旧代码。*
+
+### 多模型状态栏格式与估算隔离（0.6.0）
+
+`calc.ts` 新增纯函数 `formatProviderStatus()`，将周与 5h 窗口合并为同一状态栏文本，复用 resolveWeeklyPct / resolveWindowPct 与来源提示，兼容百分比、绝对值和动画。`remainingQuotaColor()` 根据周剩余额度选择现有颜色阈值，边界及非有限值有测试覆盖。
+
+每个 Provider 由扩展入口分配独立 LocalUsageService、Store 和 Scheduler，后台价格解析显式携带 Provider ID，避免切换仪表盘导致其他模型金额或校准受影响。UsageEntry 结构、retention 策略和聚合算法保持不变。
+
+### Codex 每周单窗口适配（2026-10-25）
+
+`calc.ts` 的 `codexRateLimitsToQuota` 按 `window_minutes` 区分 300 分钟和 10080 分钟；无时长的旧记录保留 primary=5h、secondary=7d 兼容行为。只有 primary=10080 的记录映射到周额度，并返回 `has5hLimit=false`。API headers 与本地 rate_limits 使用同一转换函数，避免错误锚点把有效成本窗口推到未来。COST 仍为本地 Token × 模型单价的估算值。
+
+### 无五小时限额的本地分析（0.6.3）
+
+`codexRateLimitsToQuota` 在 `has5hLimit=false` 时将本地分析终点设为当前时刻，避免 now+5h 导致起点为 now，从而排除已有记录。该终点仅供成本分析使用，不显示为套餐重置时间。

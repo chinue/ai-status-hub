@@ -4,6 +4,12 @@ export type Locale = 'en' | 'zh-CN';
 
 export const dict: Record<Locale, Record<string, string>> = {
   en: {
+    'dashboard.providers': 'Models',
+    'dashboard.showProvider': 'Show {provider} in the status bar',
+    'tooltip.loginCommand': 'Run "{provider} login" in your terminal to authenticate.',
+    'statusBar.signIn': 'sign in',
+    'statusBar.authExpired': 'auth expired',
+    'statusBar.authFailed': 'auth failed',
     'tooltip.title': 'Code Assistant Usage',
     'tooltip.notLoggedIn': 'Sign in to see your usage data.\nRun "AI Status Hub: Sign In" or set an API key.',
     'tooltip.authFailed': 'Authentication failed. Please sign in again.',
@@ -130,6 +136,12 @@ export const dict: Record<Locale, Record<string, string>> = {
     'provider.auto': 'Auto',
   },
   'zh-CN': {
+    'dashboard.providers': '模型',
+    'dashboard.showProvider': '在状态栏显示 {provider}',
+    'tooltip.loginCommand': '请在终端运行“{provider} login”进行身份验证。',
+    'statusBar.signIn': '请登录',
+    'statusBar.authExpired': '认证已过期',
+    'statusBar.authFailed': '认证失败',
     'tooltip.title': '\u7f16\u7a0b\u52a9\u624b\u7528\u91cf',
     'tooltip.notLoggedIn': '\u8bf7\u767b\u5f55\u540e\u67e5\u770b\u7528\u91cf\u6570\u636e\u3002\n\u8fd0\u884c "AI Status Hub: Sign In" \u6216\u8bbe\u7f6e API Key\u3002',
     'tooltip.authFailed': '\u8ba4\u8bc1\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55\u3002',

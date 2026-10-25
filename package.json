@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.5.34",
+  "version": "0.6.3",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -599,7 +599,7 @@
         },
         "aiStatusHub.pricing.officialDate": {
           "type": "string",
-          "default": "2026-09-24",
+          "default": "2026-10-25",
           "order": 85,
           "description": "Pricing publish date displayed next to the official pricing link (YYYY-MM-DD)."
         },
@@ -613,6 +613,303 @@
           "type": "number",
           "default": 0,
           "description": "Internal: pause state broadcast signal (timestamp). Do not modify manually."
+        },
+        "aiStatusHub.pricing.models.gpt6_1Sol.inputPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 140,
+          "description": "GPT-6.1 Sol input token price per million (USD). / GPT-6.1 Sol 每百万 输入 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.gpt6_1Sol.outputPerMillion": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "order": 141,
+          "description": "GPT-6.1 Sol output token price per million (USD). / GPT-6.1 Sol 每百万 输出 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.gpt6_1Sol.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "order": 142,
+          "description": "GPT-6.1 Sol cache-read token price per million (USD). / GPT-6.1 Sol 每百万 缓存命中 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.gpt6_1Sol.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 2.5,
+          "minimum": 0,
+          "order": 143,
+          "description": "GPT-6.1 Sol cache-write (default TTL) token price per million (USD). / GPT-6.1 Sol 每百万 缓存写入（默认 TTL） token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.gpt5_6Sol.inputPerMillion": {
+          "type": "number",
+          "default": 4,
+          "minimum": 0,
+          "order": 144,
+          "description": "GPT-5.6 Sol input token price per million (USD). / GPT-5.6 Sol 每百万 输入 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.gpt5_6Sol.outputPerMillion": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "order": 145,
+          "description": "GPT-5.6 Sol output token price per million (USD). / GPT-5.6 Sol 每百万 输出 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.gpt5_6Sol.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.4,
+          "minimum": 0,
+          "order": 146,
+          "description": "GPT-5.6 Sol cache-read token price per million (USD). / GPT-5.6 Sol 每百万 缓存命中 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.gpt5_6Sol.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "order": 147,
+          "description": "GPT-5.6 Sol cache-write (default TTL) token price per million (USD). / GPT-5.6 Sol 每百万 缓存写入（默认 TTL） token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeFable5_1.inputPerMillion": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "order": 148,
+          "description": "Claude Fable / Mythos 5.1 input token price per million (USD). / Claude Fable / Mythos 5.1 每百万 输入 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeFable5_1.outputPerMillion": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "order": 149,
+          "description": "Claude Fable / Mythos 5.1 output token price per million (USD). / Claude Fable / Mythos 5.1 每百万 输出 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeFable5_1.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.25,
+          "minimum": 0,
+          "order": 150,
+          "description": "Claude Fable / Mythos 5.1 cache-read token price per million (USD). / Claude Fable / Mythos 5.1 每百万 缓存命中 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeFable5_1.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 12.5,
+          "minimum": 0,
+          "order": 151,
+          "description": "Claude Fable / Mythos 5.1 cache-write (default TTL) token price per million (USD). / Claude Fable / Mythos 5.1 每百万 缓存写入（默认 TTL） token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5_5.inputPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 152,
+          "description": "Claude Sonnet 5.5 input token price per million (USD). / Claude Sonnet 5.5 每百万 输入 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5_5.outputPerMillion": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "order": 153,
+          "description": "Claude Sonnet 5.5 output token price per million (USD). / Claude Sonnet 5.5 每百万 输出 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5_5.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "order": 154,
+          "description": "Claude Sonnet 5.5 cache-read token price per million (USD). / Claude Sonnet 5.5 每百万 缓存命中 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5_5.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 2.5,
+          "minimum": 0,
+          "order": 155,
+          "description": "Claude Sonnet 5.5 cache-write (default TTL) token price per million (USD). / Claude Sonnet 5.5 每百万 缓存写入（默认 TTL） token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5.inputPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 156,
+          "description": "Claude Sonnet 5 input token price per million (USD). / Claude Sonnet 5 每百万 输入 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5.outputPerMillion": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "order": 157,
+          "description": "Claude Sonnet 5 output token price per million (USD). / Claude Sonnet 5 每百万 输出 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "order": 158,
+          "description": "Claude Sonnet 5 cache-read token price per million (USD). / Claude Sonnet 5 每百万 缓存命中 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeSonnet5.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 2.5,
+          "minimum": 0,
+          "order": 159,
+          "description": "Claude Sonnet 5 cache-write (default TTL) token price per million (USD). / Claude Sonnet 5 每百万 缓存写入（默认 TTL） token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeHaiku5_5.inputPerMillion": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "order": 160,
+          "description": "Claude Haiku 5.5 (<=100K input) input token price per million (USD). / Claude Haiku 5.5 (<=100K input) 每百万 输入 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeHaiku5_5.outputPerMillion": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "order": 161,
+          "description": "Claude Haiku 5.5 (<=100K input) output token price per million (USD). / Claude Haiku 5.5 (<=100K input) 每百万 输出 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeHaiku5_5.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.01,
+          "minimum": 0,
+          "order": 162,
+          "description": "Claude Haiku 5.5 (<=100K input) cache-read token price per million (USD). / Claude Haiku 5.5 (<=100K input) 每百万 缓存命中 token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.models.claudeHaiku5_5.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 0.125,
+          "minimum": 0,
+          "order": 163,
+          "description": "Claude Haiku 5.5 (<=100K input) cache-write (default TTL) token price per million (USD). / Claude Haiku 5.5 (<=100K input) 每百万 缓存写入（默认 TTL） token 价格（USD）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1Pro.inputPerMillion": {
+          "type": "number",
+          "default": 13,
+          "minimum": 0,
+          "order": 164,
+          "description": "Kimi K3.1 Pro input token price per million (CNY). / Kimi K3.1 Pro 每百万 输入 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1Pro.outputPerMillion": {
+          "type": "number",
+          "default": 68,
+          "minimum": 0,
+          "order": 165,
+          "description": "Kimi K3.1 Pro output token price per million (CNY). / Kimi K3.1 Pro 每百万 输出 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1Pro.cacheReadPerMillion": {
+          "type": "number",
+          "default": 1.3,
+          "minimum": 0,
+          "order": 166,
+          "description": "Kimi K3.1 Pro cache-read token price per million (CNY). / Kimi K3.1 Pro 每百万 缓存命中 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1Pro.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 13,
+          "minimum": 0,
+          "order": 167,
+          "description": "Kimi K3.1 Pro cache-write (default TTL) token price per million (CNY). / Kimi K3.1 Pro 每百万 缓存写入（默认 TTL） token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1ProHighspeed.inputPerMillion": {
+          "type": "number",
+          "default": 26,
+          "minimum": 0,
+          "order": 168,
+          "description": "Kimi K3.1 Pro Highspeed input token price per million (CNY). / Kimi K3.1 Pro Highspeed 每百万 输入 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1ProHighspeed.outputPerMillion": {
+          "type": "number",
+          "default": 136,
+          "minimum": 0,
+          "order": 169,
+          "description": "Kimi K3.1 Pro Highspeed output token price per million (CNY). / Kimi K3.1 Pro Highspeed 每百万 输出 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1ProHighspeed.cacheReadPerMillion": {
+          "type": "number",
+          "default": 1.3,
+          "minimum": 0,
+          "order": 170,
+          "description": "Kimi K3.1 Pro Highspeed cache-read token price per million (CNY). / Kimi K3.1 Pro Highspeed 每百万 缓存命中 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k3_1ProHighspeed.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 26,
+          "minimum": 0,
+          "order": 171,
+          "description": "Kimi K3.1 Pro Highspeed cache-write (default TTL) token price per million (CNY). / Kimi K3.1 Pro Highspeed 每百万 缓存写入（默认 TTL） token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7Code.inputPerMillion": {
+          "type": "number",
+          "default": 6.5,
+          "minimum": 0,
+          "order": 172,
+          "description": "Kimi K2.7 Code input token price per million (CNY). / Kimi K2.7 Code 每百万 输入 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7Code.outputPerMillion": {
+          "type": "number",
+          "default": 27,
+          "minimum": 0,
+          "order": 173,
+          "description": "Kimi K2.7 Code output token price per million (CNY). / Kimi K2.7 Code 每百万 输出 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7Code.cacheReadPerMillion": {
+          "type": "number",
+          "default": 1.3,
+          "minimum": 0,
+          "order": 174,
+          "description": "Kimi K2.7 Code cache-read token price per million (CNY). / Kimi K2.7 Code 每百万 缓存命中 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7Code.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 6.5,
+          "minimum": 0,
+          "order": 175,
+          "description": "Kimi K2.7 Code cache-write (default TTL) token price per million (CNY). / Kimi K2.7 Code 每百万 缓存写入（默认 TTL） token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7CodeHighspeed.inputPerMillion": {
+          "type": "number",
+          "default": 13,
+          "minimum": 0,
+          "order": 176,
+          "description": "Kimi K2.7 Code Highspeed input token price per million (CNY). / Kimi K2.7 Code Highspeed 每百万 输入 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7CodeHighspeed.outputPerMillion": {
+          "type": "number",
+          "default": 54,
+          "minimum": 0,
+          "order": 177,
+          "description": "Kimi K2.7 Code Highspeed output token price per million (CNY). / Kimi K2.7 Code Highspeed 每百万 输出 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7CodeHighspeed.cacheReadPerMillion": {
+          "type": "number",
+          "default": 2.6,
+          "minimum": 0,
+          "order": 178,
+          "description": "Kimi K2.7 Code Highspeed cache-read token price per million (CNY). / Kimi K2.7 Code Highspeed 每百万 缓存命中 token 价格（CNY）。"
+        },
+        "aiStatusHub.pricing.kimi.models.k2_7CodeHighspeed.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 13,
+          "minimum": 0,
+          "order": 179,
+          "description": "Kimi K2.7 Code Highspeed cache-write (default TTL) token price per million (CNY). / Kimi K2.7 Code Highspeed 每百万 缓存写入（默认 TTL） token 价格（CNY）。"
+        },
+        "aiStatusHub.statusBar.providers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "kimi",
+              "claude",
+              "glm",
+              "cursor"
+            ]
+          },
+          "uniqueItems": true,
+          "scope": "window",
+          "order": 6,
+          "description": "Models shown in the status bar. Each selected model has its own item. Unset: follow the active model; empty list: hide all. / 状态栏显示的模型，每个已选模型显示一项。未设置时跟随当前模型，空列表则全部隐藏。"
         }
       }
     }

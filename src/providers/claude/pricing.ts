@@ -8,6 +8,18 @@ import { pricingModelKey } from '../../calc';
 const USD: Currency = { code: 'USD', symbol: '$' };
 
 export const DEFAULT_CLAUDE_PRICING = {
+  fable5_1: {
+    inputPerMillion: 10, outputPerMillion: 50, cacheReadPerMillion: 0.25, cacheCreatePerMillion: 12.5,
+  },
+  sonnet5_5: {
+    inputPerMillion: 2, outputPerMillion: 10, cacheReadPerMillion: 0.1, cacheCreatePerMillion: 2.5,
+  },
+  sonnet5: {
+    inputPerMillion: 2, outputPerMillion: 10, cacheReadPerMillion: 0.2, cacheCreatePerMillion: 2.5,
+  },
+  haiku5_5: {
+    inputPerMillion: 0.1, outputPerMillion: 0.5, cacheReadPerMillion: 0.01, cacheCreatePerMillion: 0.125,
+  },
   fable: {
     inputPerMillion: 10.00,
     outputPerMillion: 50.00,
@@ -46,12 +58,22 @@ export class ClaudePricingProvider implements IPricingProvider {
 
   getPricing(modelName: string): TokenPricing {
     // Read from config so users can customize; config.getPricing handles model family mapping
-    const cfgPricing = ConfigService.getInstance().getPricing(modelName);
+    const cfgPricing = ConfigService.getInstance().getPricing(modelName, 'claude');
     const m = modelName.toLowerCase();
-    if (m.includes('fable')) {
+    const key = pricingModelKey(m);
+    const newDefaults: Record<string, TokenPricing> = {
+      claudeFable5_1: DEFAULT_CLAUDE_PRICING.fable5_1,
+      claudeSonnet5_5: DEFAULT_CLAUDE_PRICING.sonnet5_5,
+      claudeSonnet5: DEFAULT_CLAUDE_PRICING.sonnet5,
+      claudeHaiku5_5: DEFAULT_CLAUDE_PRICING.haiku5_5,
+    };
+    if (Object.prototype.hasOwnProperty.call(newDefaults, key)) {
+      return { ...newDefaults[key], ...cfgPricing };
+    }
+    if (key === 'claudeFable') {
       return { ...DEFAULT_CLAUDE_PRICING.fable, ...cfgPricing };
     }
-    if (pricingModelKey(m) === 'claudeOpus5_5') {
+    if (key === 'claudeOpus5_5') {
       return { ...DEFAULT_CLAUDE_PRICING.opus5_5, ...cfgPricing };
     }
     if (m.includes('opus')) {

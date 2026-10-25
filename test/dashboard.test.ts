@@ -2,8 +2,11 @@
 
 import { expect } from 'chai';
 import { DashboardPanel } from '../src/presenters/dashboard';
-import { defaultState } from '../src/store';
+import { defaultState, Store } from '../src/store';
 import { AppState, QuotaData } from '../src/types';
+import * as sinon from 'sinon';
+import * as vscode from 'vscode';
+import { Script } from 'vm';
 
 describe('Dashboard Current Usage', () => {
   const quota: QuotaData = {
@@ -72,5 +75,69 @@ describe('Dashboard Current Usage', () => {
     expect(html.indexOf('id="row-fable-7d"')).to.be.greaterThan(html.indexOf('id="fill-7d"'));
     expect(html).to.include('Fable 5 · 7d window');
     expect(html).to.include('id="row-fable-7d" style=""');
+  });
+
+  it('lists every provider with separate checkbox and dashboard button', () => {
+    const stub = sinon.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, fallback: unknown) => key === 'statusBar.providers' ? ['codex', 'kimi'] : fallback,
+    } as any);
+    try {
+      const html = (DashboardPanel.prototype as any).getHtml.call(
+        { store: { getState: () => ({ ...defaultState(), activeProvider: 'kimi' }) } }, 'nonce', 'en',
+      );
+      expect(html).not.to.include('id="provider-select"');
+      for (const id of ['codex', 'kimi', 'claude', 'glm', 'cursor']) {
+        expect(html).to.include(`data-provider-check="${id}"`);
+        expect(html).to.include(`data-provider-open="${id}"`);
+      }
+      expect(html).to.match(/data-provider-check="kimi"[^>]* checked/);
+      expect(html).not.to.match(/data-provider-check="claude"[^>]* checked/);
+      expect(html).to.include('data-provider-open="kimi" aria-pressed="true"');
+      for (const match of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) {
+        expect(() => new Script(match[1])).not.to.throw();
+      }
+    } finally { stub.restore(); }
+  });
+
+  it('serializes rapid checkbox updates and rejects malformed messages', async () => {
+    let selected = ['codex'];
+    const stub = sinon.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, fallback: unknown) => key === 'statusBar.providers' ? selected : fallback,
+      update: async (_key: string, value: string[]) => { await Promise.resolve(); selected = value; },
+    } as any);
+    try {
+      const target = { selectionUpdate: Promise.resolve() };
+      const send = (msg: any) => (DashboardPanel.prototype as any).handleMessage.call(target, msg);
+      send(null);
+      send({ type: 'setStatusBarProvider', providerId: 'unknown', checked: true });
+      send({ type: 'setStatusBarProvider', providerId: 'kimi', checked: 'yes' });
+      send({ type: 'setStatusBarProvider', providerId: 'kimi', checked: true });
+      send({ type: 'setStatusBarProvider', providerId: 'claude', checked: true });
+      await target.selectionUpdate;
+      expect(selected).to.deep.equal(['codex', 'kimi', 'claude']);
+      for (const providerId of selected) send({ type: 'setStatusBarProvider', providerId, checked: false });
+      await target.selectionUpdate;
+      expect(selected).to.deep.equal([]);
+    } finally { stub.restore(); }
+  });
+
+  it('unsubscribes the old model when the dashboard switches stores', () => {
+    const oldStore = new Store();
+    const newStore = new Store();
+    newStore.dispatch({ type: 'SET_PROVIDER', payload: 'kimi' });
+    DashboardPanel.createOrShow(oldStore);
+    const panel = (DashboardPanel as any).instance;
+    const update = sinon.stub(panel, 'sendUpdate');
+    try {
+      DashboardPanel.createOrShow(newStore);
+      oldStore.dispatch({ type: 'AUTH_STATUS', payload: 'missing' });
+      expect(update.callCount).to.equal(0);
+      newStore.dispatch({ type: 'AUTH_STATUS', payload: 'missing' });
+      expect(update.callCount).to.equal(1);
+      expect(update.firstCall.args[0].activeProvider).to.equal('kimi');
+    } finally {
+      update.restore();
+      panel.dispose();
+    }
   });
 });

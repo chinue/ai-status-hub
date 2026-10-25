@@ -259,3 +259,9 @@ Dashboard 的 WebView 无法直接导入后端模块。当前方案：
 - [ ] **外部数据（API、文件、用户输入）已有类型/范围校验**
 - [ ] 66+ 测试全部通过
 - [ ] `node esbuild.js --production` 编译成功
+
+### 0.6.0 双语状态栏与多实例约定
+
+新增 `dashboard.providers`、`dashboard.showProvider`、`tooltip.loginCommand`、`statusBar.signIn`、`statusBar.authExpired`、`statusBar.authFailed`，均同时维护 en/zh-CN，并由 makeT 使用。状态栏双窗口文本与周剩余配色分别封装到 calc.ts 的 formatProviderStatus、remainingQuotaColor，Presenter 不内联计算。
+
+扩展多 Provider 编排仅实例化与调用已有磁盘服务，不引入直接磁盘访问。多实例估算内存预算见 v2-phase2-implementation.md 的“多 Provider 运行实例”章节。

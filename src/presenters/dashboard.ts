@@ -24,17 +24,15 @@ export class DashboardPanel {
   private disposables: vscode.Disposable[] = [];
   private nonce: string;
   private historyService = HistoryService.getInstance();
-  private currencySymbol: string;
 
-  private lastProvider: string;
+  private unsubscribeStore?: () => void;
+  private selectionUpdate = Promise.resolve();
 
   private constructor(private store: Store) {
     this.nonce = crypto.randomBytes(16).toString('hex');
     const config = ConfigService.getInstance();
-    this.currencySymbol = config.currency.symbol;
     const locale = config.effectiveLanguage;
     const i18n = makeT(locale);
-    this.lastProvider = store.getState().activeProvider;
 
     this.panel = vscode.window.createWebviewPanel(
       'aiStatusHubDashboard',
@@ -43,29 +41,39 @@ export class DashboardPanel {
       { enableScripts: true, retainContextWhenHidden: true }
     );
 
-    this.panel.webview.html = this.getHtml(this.nonce, locale);
-
     this.panel.webview.onDidReceiveMessage(
       (msg) => this.handleMessage(msg),
       undefined,
       this.disposables
     );
 
-    const unsub = store.subscribe((state) => {
-      if (state.activeProvider !== this.lastProvider) {
-        this.lastProvider = state.activeProvider;
-        const currentLocale = config.effectiveLanguage;
-        this.panel.webview.html = this.getHtml(this.nonce, currentLocale);
-      }
-      this.sendUpdate(state);
-    });
-    this.disposables.push({ dispose: unsub });
+    this.bindStore(store);
 
     this.panel.onDidDispose(() => this.dispose(), undefined, this.disposables);
   }
 
+  private bindStore(store: Store): void {
+    this.unsubscribeStore?.();
+    this.store = store;
+    const config = ConfigService.getInstance();
+    this.panel.webview.html = this.getHtml(this.nonce, config.effectiveLanguage);
+    this.unsubscribeStore = store.subscribe(state => this.sendUpdate(state));
+  }
+
+  static switchStore(store: Store): void {
+    if (DashboardPanel.instance) DashboardPanel.instance.bindStore(store);
+  }
+
+  static updateSelection(): void {
+    if (!DashboardPanel.instance) return;
+    void DashboardPanel.instance.panel.webview.postMessage({
+      type: 'providerSelection', selected: ConfigService.getInstance().statusBarProviders,
+    });
+  }
+
   static createOrShow(store: Store): void {
     if (DashboardPanel.instance) {
+      if (DashboardPanel.instance.store !== store) DashboardPanel.instance.bindStore(store);
       DashboardPanel.instance.panel.reveal(vscode.ViewColumn.Beside);
       return;
     }
@@ -73,12 +81,13 @@ export class DashboardPanel {
   }
 
   private handleMessage(msg: any): void {
+    if (!msg || typeof msg !== 'object') return;
     switch (msg.type) {
       case 'ready':
         this.sendUpdate(this.store.getState());
         break;
       case 'refresh':
-        vscode.commands.executeCommand('aiStatusHub.refresh');
+        vscode.commands.executeCommand('aiStatusHub.refresh', this.store.getState().activeProvider);
         break;
       case 'toggleMode': {
         const next = ConfigService.getInstance().displayMode === 'percent' ? 'absolute' : 'percent';
@@ -93,8 +102,23 @@ export class DashboardPanel {
         void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kayuii.ai-status-hub');
         break;
       case 'setProvider': {
-        const cfg = ConfigService.getInstance();
-        void cfg.setProvider(msg.payload as string);
+        if (typeof msg.payload === 'string' && getProviderInfo(msg.payload)) {
+          void vscode.commands.executeCommand('aiStatusHub.showDashboard', msg.payload);
+        }
+        break;
+      }
+      case 'setStatusBarProvider': {
+        if (typeof msg.providerId !== 'string' || !getProviderInfo(msg.providerId) || typeof msg.checked !== 'boolean') break;
+        this.selectionUpdate = this.selectionUpdate.then(async () => {
+          const config = ConfigService.getInstance();
+          const selected = new Set(config.statusBarProviders);
+          if (msg.checked) selected.add(msg.providerId);
+          else selected.delete(msg.providerId);
+          if (await config.setStatusBarProviders([...selected])) {
+            await vscode.commands.executeCommand('aiStatusHub.syncStatusBars');
+          }
+          DashboardPanel.updateSelection();
+        }).catch(err => console.error('Provider selection update failed', err));
         break;
       }
       case 'getCostCurveOptions': {
@@ -233,7 +257,7 @@ export class DashboardPanel {
     const anchors = state.windowAnchors;
     if (anchors?.providerId === state.activeProvider) {
       return {
-        window5hStart: anchors.window5hStartMs,
+        window5hStart: state.quota?.has5hLimit === false ? now - WINDOW_5H_MS : anchors.window5hStartMs,
         window7dStart: anchors.window7dStartMs,
       };
     }
@@ -242,7 +266,7 @@ export class DashboardPanel {
       const effectiveWindowReset = resolveResetTime(quota.windowResetAt, WINDOW_5H_MS, now).resetAt;
       const effectiveWeeklyReset = resolveResetTime(quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt;
       return {
-        window5hStart: effectiveWindowReset - WINDOW_5H_MS,
+        window5hStart: quota.has5hLimit === false ? now - WINDOW_5H_MS : effectiveWindowReset - WINDOW_5H_MS,
         window7dStart: effectiveWeeklyReset - WINDOW_7D_MS,
       };
     }
@@ -314,7 +338,8 @@ export class DashboardPanel {
         ? undefined
         : t('tooltip.nextReset') + ' ' + fmtResetTime(quota.fableWeeklyResetAt, WINDOW_7D_MS, now),
       limitStatus: 'allowed',
-      has7dLimit: !!quota,
+      has5hLimit: quota?.has5hLimit !== false,
+      has7dLimit: !!quota && quota.weeklyLimit > 0,
       hasFable7dLimit: isClaude,
       providerType: state.activeProvider,
       cost5h: le?.cost5h ?? 0,
@@ -513,6 +538,7 @@ export class DashboardPanel {
   }
 
   private dispose(): void {
+    this.unsubscribeStore?.();
     DashboardPanel.instance = undefined;
     this.panel.dispose();
     for (const d of this.disposables) { d.dispose(); }
@@ -526,8 +552,9 @@ export class DashboardPanel {
     const providers = listProviders();
     const providerOptions = providers.map((p) => {
       const label = isZh ? p.displayNameZh : p.displayName;
-      const selected = p.id === activeProvider ? ' selected' : '';
-      return `<option value="${p.id}"${selected}>${label}</option>`;
+      const checked = config.statusBarProviders.includes(p.id) ? ' checked' : '';
+      const active = p.id === activeProvider ? ' active' : '';
+      return `<span class="provider-choice${active}"><input type="checkbox" data-provider-check="${p.id}" aria-label="${i18n('dashboard.showProvider').replace('{provider}', label)}"${checked}><button class="provider-link" data-provider-open="${p.id}" aria-pressed="${p.id === activeProvider}">${label}</button></span>`;
     }).join('');
     const activeInfo = getProviderInfo(activeProvider);
     const activeName = activeInfo ? (isZh ? activeInfo.displayNameZh : activeInfo.displayName) : activeProvider;
@@ -550,7 +577,14 @@ export class DashboardPanel {
     button, input, select { font-family: inherit; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .header h1 { margin: 0; font-size: 1.2em; font-weight: 600; }
-    .header-actions { display: flex; gap: 8px; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .header { flex-wrap: wrap; gap: 10px; }
+    .provider-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .provider-choice { display: inline-flex; align-items: center; gap: 2px; padding: 2px 5px; border: 1px solid transparent; border-radius: 4px; }
+    .provider-choice.active { border-color: var(--vscode-focusBorder); background: var(--vscode-button-secondaryBackground); }
+    .provider-link { border: none; background: transparent; color: var(--vscode-foreground); padding: 3px; text-decoration: underline; cursor: pointer; }
+    .provider-choice input { cursor: pointer; }
+    .provider-link:focus-visible, .provider-choice input:focus-visible { outline: 2px solid var(--vscode-focusBorder); }
     button {
       background: var(--vscode-button-background); color: var(--vscode-button-foreground);
       border: none; padding: 4px 12px; cursor: pointer; border-radius: 2px; font-size: 0.9em;
@@ -746,9 +780,7 @@ export class DashboardPanel {
   <div class="header">
     <h1>${i18n('dashboard.title')}</h1>
     <div class="header-actions">
-      <select id="provider-select" style="margin-right:8px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--fg);font-size:12px;cursor:pointer;">
-        ${providerOptions}
-      </select>
+      <div class="provider-list" role="group" aria-label="${i18n('dashboard.providers')}">${providerOptions}</div>
       <button id="btn-refresh">${i18n('dashboard.refresh')}</button>
       <button id="btn-toggle">$ / %</button>
       <button id="btn-lang">&#127760; ${isZh ? 'EN' : '\u4e2d'}</button>
@@ -759,7 +791,7 @@ export class DashboardPanel {
   <!-- Current Usage -->
   <div class="card">
     <div class="card-title">${i18n('dashboard.currentUsage')}</div>
-    <div class="progress-row">
+    <div class="progress-row" id="row-5h" style="${this.store.getState().quota?.has5hLimit === false ? 'display:none' : ''}">
       <div class="progress-labels">
         <span>${i18n('dashboard.window5h')}<span id="badge-5h" class="estimate-badge"></span></span>
         <span id="lbl-5h">—</span>
@@ -991,8 +1023,11 @@ export class DashboardPanel {
     document.getElementById('btn-settings').addEventListener('click', () => {
       vscode.postMessage({ type: 'openSettings' });
     });
-    document.getElementById('provider-select').addEventListener('change', (e) => {
-      vscode.postMessage({ type: 'setProvider', payload: e.target.value });
+    document.querySelectorAll('[data-provider-open]').forEach(button => {
+      button.addEventListener('click', () => vscode.postMessage({ type: 'setProvider', payload: button.dataset.providerOpen }));
+    });
+    document.querySelectorAll('[data-provider-check]').forEach(checkbox => {
+      checkbox.addEventListener('change', () => vscode.postMessage({ type: 'setStatusBarProvider', providerId: checkbox.dataset.providerCheck, checked: checkbox.checked }));
     });
 
     document.getElementById('pricing-toggle').addEventListener('click', togglePricing);
@@ -1275,6 +1310,7 @@ export class DashboardPanel {
     }
 
     function renderCurrentUsage(usage, mode) {
+      document.getElementById('row-5h').style.display = usage.has5hLimit === false ? 'none' : '';
       const w5h = Math.min(100, usage.utilization5h * 100 || 0);
       const w7d = Math.min(100, usage.utilization7d * 100 || 0);
       const isEstimate = usage.dataSource === 'local-only' || usage.dataSource === 'stale';
@@ -2048,6 +2084,11 @@ export class DashboardPanel {
     // ---- Main message handler ----
     window.addEventListener('message', event => {
       const msg = event.data;
+      if (msg.type === 'providerSelection' && Array.isArray(msg.selected)) {
+        document.querySelectorAll('[data-provider-check]').forEach(checkbox => {
+          checkbox.checked = msg.selected.includes(checkbox.dataset.providerCheck);
+        });
+      }
       if (msg.type === 'update') {
         if (refreshing) { refreshing = false; }
         lastData = msg.data;

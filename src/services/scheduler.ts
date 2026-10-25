@@ -10,6 +10,7 @@ import { ConfigService } from '../config';
 import { log } from '../utils';
 import { DataSource, QuotaData, WindowAnchorData, WindowAnchorSource } from '../types';
 import {
+  codexRateLimitsToQuota,
   createLinearEstimator,
   ILinearEstimator,
   resolveResetTime,
@@ -66,12 +67,14 @@ export class Scheduler {
     const state = this.store.getState();
     const providerId = this.currentProviderId();
     if (state.windowAnchors?.providerId === providerId) {
-      return state.windowAnchors;
+      return state.quota?.has5hLimit === false
+        ? { ...state.windowAnchors, window5hStartMs: now - WINDOW_5H_MS, window5hResetAtMs: now }
+        : state.windowAnchors;
     }
     if (state.quota) {
       return this.anchorsFromResets(
         providerId,
-        resolveResetTime(state.quota.windowResetAt, WINDOW_5H_MS, now).resetAt,
+        state.quota.has5hLimit === false ? now : resolveResetTime(state.quota.windowResetAt, WINDOW_5H_MS, now).resetAt,
         resolveResetTime(state.quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt,
         now,
         'fallback',
@@ -238,7 +241,8 @@ export class Scheduler {
       tokensThisCycle: localUsage.tokensThisCycle,
       costThisCycle: localUsage.costThisCycle,
       requestsThisCycle: localUsage.requestsThisCycle,
-      // entries omitted in short tick to avoid unnecessary state churn every 5s
+      // Dashboard aggregates consume entries, so publish fresh costs on short ticks too.
+      entries: localUsage.entries,
     };
 
     // Prefer calibration estimates when valid; otherwise use local rate limits.
@@ -479,7 +483,7 @@ export class Scheduler {
         ).resetAt,
       };
     }
-    const windowResetAt = quotaData.windowResetAt > 0
+    const windowResetAt = quotaData.has5hLimit === false ? now : quotaData.windowResetAt > 0
       ? quotaData.windowResetAt
       : resolveResetTime(quotaData.windowResetAt, WINDOW_5H_MS, now).resetAt;
     const weeklyResetAt = quotaData.weeklyResetAt > 0
@@ -613,6 +617,7 @@ export class Scheduler {
   }
 
   private rateLimitsToQuota(rateLimits: RateLimits, now: number): QuotaData {
+    if (this.currentProviderId() === 'codex') return codexRateLimitsToQuota(rateLimits, now);
     const primary = rateLimits.primary;
     const secondary = rateLimits.secondary;
     // Local jsonl uses resets_at (absolute Unix timestamp in seconds);

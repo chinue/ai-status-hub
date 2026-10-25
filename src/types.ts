@@ -8,6 +8,8 @@ export interface QuotaData {
   /** Claude's optional, model-scoped Fable weekly quota. */
   fableWeeklyUsedPct?: number;
   fableWeeklyResetAt?: number;
+  /** False when the provider exposes only a weekly quota. Undefined preserves legacy behavior. */
+  has5hLimit?: boolean;
   windowLimit: number;
   windowUsed: number;
   windowRemaining: number;
@@ -209,6 +211,7 @@ export interface KimiUsageData {
   resetIn7dText?: string;
   resetInFable7dText?: string;
   limitStatus: 'allowed' | 'allowed_warning' | 'denied';
+  has5hLimit?: boolean;
   has7dLimit: boolean;
   hasFable7dLimit: boolean;
   providerType: string;

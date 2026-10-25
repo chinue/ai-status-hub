@@ -825,3 +825,39 @@ CSV 使用 UTF-8 编码（带 BOM），字符串字段自动转义引号。
 ---
 
 *文档结束。Phase 3 实现时以此文档为准，无需参考 claude-status 源码。*
+
+## 多模型选择与状态栏联动（0.6.0，2026-10-25）
+
+仪表盘 Header 移除 Provider 下拉框，平铺注册表中的 Codex、Kimi、Claude、GLM、Cursor。这里的“模型”指现有 Provider 入口，不表示同一家服务的每个 API 型号。GLM、Cursor 保持原有占位 Provider 能力。
+
+- 每个入口由独立 checkbox 和模型名称按钮组成，checkbox 只修改状态栏显示集合，点击名称只切换该模型仪表盘。按钮支持键盘焦点，当前模型有高亮与 `aria-pressed`，checkbox 有双语可访问名称。
+- `aiStatusHub.statusBar.providers` 保存勾选集合；未显式配置时跟随当前模型，显式 `[]` 表示全部隐藏。读取时检查 VS Code configuration inspect 的用户/工作区值，避免隐式数组默认值被误判为用户已取消所有勾选。
+- WebView 使用 `setStatusBarProvider`（providerId、checked）与 `setProvider` 消息，宿主验证 Provider 和字段类型。复选框更新串行执行，避免快速连续勾选覆盖上一个更新；配置事件同步其他窗口和已打开 WebView 的 checkbox。
+- `DashboardPanel` 保持单面板。切换时解除旧 Store 订阅并绑定目标 Store，重新生成页面，防止后台模型的刷新覆盖当前仪表盘。点击名称不会改变已保存的勾选集合。
+- 后台仅刷新已选模型及当前查看模型；取消勾选不会中断当前正在查看的仪表盘。所有模型可以同时取消勾选，仍可通过命令打开仪表盘。
+
+状态栏每个已选 Provider 仅创建一个 `StatusBarItem`，例如 `$(openai) Codex:4.12% | 5️⃣ 5.32%`；前者是周使用率，后者是 5 小时使用率。保留绝对值显示、数据来源/过期/认证提示和更新动画；动画中同样保留两个窗口数值。左键始终打开所属 Provider 的仪表盘，暂停时也遵循该行为；恢复暂停可通过 tooltip 操作。
+
+整项字体颜色仅由周剩余额度决定，沿用已有使用率颜色设置：周剩余额度 >80% 为 lt20 色，(60%,80%] 为 lt40 色，(40%,60%] 为 lt60 色，(20%,40%] 为 lt80 色，≤20% 为 gte80 色；5 小时使用率不影响整项颜色。格式与阈值选择统一放在 `calc.ts` 的 `formatProviderStatus()`、`remainingQuotaColor()`。
+
+悬停显示原有 5h/7d 详情；tooltip 中刷新、详情、登录命令携带所属 Provider 参数。货币优先服从用户 currency 配置，否则使用该 Provider 的货币，与当前查看的仪表盘无关。
+
+验证见 `test/dashboard.test.ts`、`test/statusBar.test.ts`、`test/multiProvider.test.ts` 和 `test/calc.test.ts`：全部入口渲染、勾选与切换分离、连续勾选/全部取消、旧订阅解除、内嵌 JavaScript 语法、独立 Store/服务、单 cell、详情命令参数、两窗口格式、周剩余额度边界颜色。
+
+### 复选框保存失败兼容修复（0.6.1，2026-10-25）
+
+实际 VS Code 日志曾返回 `aiStatusHub.statusBar.providers is not a registered configuration`。扩展宿主可能运行新版代码，而窗口的设置注册信息尚未刷新；此时 checkbox change 消息已发出，但配置写入失败，旧实现重新发送原选择覆盖刚勾选的状态，表现为不能单独勾选或多选。
+
+现在 ConfigService 在配置写入失败时使用 ExtensionContext.globalState 保存选择；空数组同样是有效选择，重启后仍可读取。配置写入成功时清理降级存储，继续使用正常配置。两种写入路径均失败时返回 false，不伪装保存成功。
+
+WebView 保存成功后显式执行 `aiStatusHub.syncStatusBars`，通过扩展串行队列协调已选 Provider 的 Presenter 和 Scheduler；不依赖配置变更事件，因此降级保存也会立即反映到状态栏。名称按钮仍仅切换仪表盘，checkbox 不触发仪表盘切换。内存仅增加最多五个 Provider ID，远低于 1KB，不增加用量条目。
+
+回归测试 `test/multiProvider.test.ts` 模拟实际未注册配置错误，覆盖连续勾选两个模型、状态栏实例启动、切换仪表盘不影响勾选、全部取消、降级存储恢复、正常写入后清理降级数据及双重保存失败。
+
+### Codex 每周单窗口与成本刷新（2026-10-25）
+
+Current Usage 的五小时行由 `usage.has5hLimit` 控制：false 时初始 HTML 与后续 update 均隐藏该行，只显示每周额度。存在真实五小时额度的套餐继续显示。历史分析中的五小时成本分组是本地统计区间，与套餐限额无关。Scheduler 短周期更新 Store.usageEntries 后，COST 卡片、热力图和曲线使用最新已计价明细。
+
+### 周额度账号的 COST 分析边界（0.6.3）
+
+没有五小时限额时，Dashboard 的本地五小时成本分析采用最近五小时，即 now-5h 到 now，不使用不存在的配额重置锚点。即使旧缓存仍保留未来五小时重置点，也不会排除最近历史记录。

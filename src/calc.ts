@@ -1,6 +1,7 @@
 // DESIGN: v2-local-estimation-design.md#quota-percentage-resolution
 // AGENTS: pure-fn | fmt-here | no-side-effect
 import { QuotaData, TokenPricing, AppState, UsageEntry } from './types';
+import { RateLimits } from './providers/base/types';
 
 export interface UtilizationResult {
   weeklyPct: number;
@@ -154,11 +155,17 @@ export function parseCustomPricing(value: string): TokenPricing | null {
 export function pricingModelKey(modelName: string): string {
   const m = modelName.toLowerCase();
   // Claude family
-  if (m.includes('fable')) { return 'claudeFable'; }
-  if (/opus[\s._-]*5[\s._-]+5/.test(m)) { return 'claudeOpus5_5'; }
+  if (/(?:fable|mythos)[\s._-]*5[\s._-]+1(?!\d)/.test(m)) { return 'claudeFable5_1'; }
+  if (m.includes('fable') || m.includes('mythos')) { return 'claudeFable'; }
+  if (/opus[\s._-]*5[\s._-]+5(?!\d)/.test(m)) { return 'claudeOpus5_5'; }
   if (m.includes('opus')) { return 'claudeOpus'; }
+  if (/sonnet[\s._-]*5[\s._-]+5(?!\d)/.test(m)) { return 'claudeSonnet5_5'; }
+  if (/sonnet[\s._-]*5(?:$|[^\d\s._-]|[\s._-]+\d{8}(?:$|\D))/.test(m)) { return 'claudeSonnet5'; }
   if (m.includes('sonnet')) { return 'claudeSonnet'; }
+  if (/haiku[\s._-]*5[\s._-]+5(?!\d)/.test(m)) { return 'claudeHaiku5_5'; }
   if (m.includes('haiku')) { return 'claudeHaiku'; }
+  if (/gpt[\s._-]*6[\s._-]+1[\s._-]+sol(?:$|[^a-z0-9])/.test(m)) { return 'gpt6_1Sol'; }
+  if (/gpt[\s._-]*5[\s._-]+6(?:$|[\s._-]+sol(?:$|[^a-z0-9]))/.test(m)) { return 'gpt5_6Sol'; }
   // GPT-6 family (bare "gpt-6" falls back to the flagship Astra)
   if (/gpt[\s._-]*6/.test(m)) {
     if (m.includes('luna')) { return 'gpt6Luna'; }
@@ -166,6 +173,12 @@ export function pricingModelKey(modelName: string): string {
     return 'gpt6Astra';
   }
   // Kimi family
+  if (/k3[\s._-]+1[\s._-]+pro(?:$|[^a-z0-9])/.test(m)) {
+    return m.includes('highspeed') ? 'k3_1ProHighspeed' : 'k3_1Pro';
+  }
+  if (/k2[\s._-]+7[\s._-]+code(?:$|[^a-z0-9])/.test(m)) {
+    return m.includes('highspeed') ? 'k2_7CodeHighspeed' : 'k2_7Code';
+  }
   if (m.includes('k3')) { return 'k3'; }
   if (m.includes('kimi')) { return 'k2_6'; }
   return m.replace(/[^a-z0-9]/g, '');
@@ -699,4 +712,45 @@ export function formatMemorySize(bytes: number): string {
   if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
   if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
   return bytes + ' B';
+}
+
+/** Format both quota windows in one provider status cell. */
+export function formatProviderStatus(state: AppState, icon: string, name: string, mode: 'percent' | 'absolute', now = Date.now()): string {
+  const weekly = resolveWeeklyPct(state);
+  const window = resolveWindowPct(state);
+  const quota = state.quota;
+  const weeklyText = mode === 'absolute' && quota ? `${quota.weeklyUsed}/${quota.weeklyLimit}` : formatPercent(weekly, 2);
+  const windowText = mode === 'absolute' && quota ? `${quota.windowUsed}/${quota.windowLimit}` : formatPercent(window, 2);
+  const indicators = buildIndicatorSuffix(state, now, 120_000, ['stale', 'source', 'auth']);
+  const shortCell = quota?.has5hLimit === false ? '' : ` | 5️⃣ ${windowText}`;
+  return `${icon} ${name}:${weeklyText}${shortCell}${indicators}`;
+}
+
+/** Preserve the configured quota colors, using remaining weekly quota as the input. */
+export function remainingQuotaColor(remainingPct: number, colors: readonly string[]): string {
+  const remaining = Number.isFinite(remainingPct) ? Math.max(0, Math.min(100, remainingPct)) : 100;
+  const used = 100 - remaining;
+  return colors[used < 20 ? 0 : used < 40 ? 1 : used < 60 ? 2 : used < 80 ? 3 : 4];
+}
+
+/** Resolve Codex windows by duration; primary is weekly on current Pro plans. */
+export function codexRateLimitsToQuota(limits: RateLimits, now: number): QuotaData {
+  const windows = [limits.primary, limits.secondary];
+  const short = windows.find(w => w?.window_minutes === 300)
+    ?? (limits.primary?.window_minutes == null ? limits.primary : undefined);
+  const weekly = windows.find(w => w?.window_minutes === 10080)
+    ?? (limits.secondary?.window_minutes == null ? limits.secondary : undefined);
+  const resetAt = (w: RateLimits['primary'], fallbackSeconds: number) => w?.resets_at
+    ? w.resets_at * 1000 : now + (w?.resets_in_seconds ?? fallbackSeconds) * 1000;
+  const weeklyPct = weekly?.used_percent ?? 0;
+  const windowPct = short?.used_percent ?? 0;
+  return {
+    weeklyLimit: weekly ? 100 : 0, weeklyUsed: weeklyPct, weeklyUsedPct: weeklyPct,
+    weeklyResetAt: resetAt(weekly, 7 * 86400),
+    has5hLimit: !!short, windowLimit: short ? 100 : 0,
+    windowUsed: windowPct, windowUsedPct: windowPct,
+    windowRemaining: short ? Math.max(0, 100 - windowPct) : 0,
+    // Without a quota reset, the analysis window ends now (rolling five hours).
+    windowResetAt: short ? resetAt(short, 5 * 3600) : now, parallelLimit: 0,
+  };
 }

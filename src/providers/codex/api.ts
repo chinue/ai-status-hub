@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { IQuotaApiProvider, ApiResult, UnifiedQuota } from '../base/types';
 import { log } from '../../utils';
+import { codexRateLimitsToQuota } from '../../calc';
 
 const BASE_URL = 'https://chatgpt.com/backend-api';
 const ENDPOINT = '/codex/responses';
@@ -164,24 +165,12 @@ export class CodexApiProvider implements IQuotaApiProvider {
       return isNaN(n) ? 0 : n;
     };
 
-    const now = Date.now();
-    const primaryPct = toFloat('x-codex-primary-used-percent');
-    const primaryResetSec = toInt('x-codex-primary-reset-after-seconds');
-    const secondaryPct = toFloat('x-codex-secondary-used-percent');
-    const secondaryResetSec = toInt('x-codex-secondary-reset-after-seconds');
-
-    return {
-      weeklyLimit: 100,
-      weeklyUsed: secondaryPct,
-      weeklyUsedPct: secondaryPct,
-      weeklyResetAt: secondaryResetSec > 0 ? now + secondaryResetSec * 1000 : now + 7 * 24 * 3600 * 1000,
-      windowLimit: 100,
-      windowUsed: primaryPct,
-      windowRemaining: Math.max(0, 100 - primaryPct),
-      windowUsedPct: primaryPct,
-      windowResetAt: primaryResetSec > 0 ? now + primaryResetSec * 1000 : now + 5 * 3600 * 1000,
-      parallelLimit: 0,
+    const window = (name: string) => headers[`x-codex-${name}-used-percent`] == null ? undefined : {
+      used_percent: toFloat(`x-codex-${name}-used-percent`),
+      window_minutes: toInt(`x-codex-${name}-window-minutes`) || undefined,
+      resets_in_seconds: toInt(`x-codex-${name}-reset-after-seconds`) || undefined,
     };
+    return codexRateLimitsToQuota({ primary: window('primary'), secondary: window('secondary') }, Date.now());
   }
 
   private generateSessionId(): string {

@@ -8,6 +8,30 @@ import {
   estimateStateMemory, formatMemorySize,
 } from '../src/calc';
 import { QuotaData, TokenPricing, AppState } from '../src/types';
+import { defaultState } from '../src/store';
+import { formatProviderStatus, remainingQuotaColor } from '../src/calc';
+
+describe('combined provider status', () => {
+  it('formats percent and absolute quota windows together', () => {
+    const state = defaultState();
+    state.quota = {
+      weeklyLimit: 100, weeklyUsed: 4.12, weeklyUsedPct: 4.12, weeklyResetAt: Date.now() + 86400000,
+      windowLimit: 200, windowUsed: 10.64, windowUsedPct: 5.32, windowRemaining: 189.36,
+      windowResetAt: Date.now() + 18000000, parallelLimit: 0,
+    };
+    state.dataSource = 'api';
+    expect(formatProviderStatus(state, '$(openai)', 'Codex', 'percent')).to.equal('$(openai) Codex:4.12% | 5️⃣ 5.32% 🌐');
+    expect(formatProviderStatus(state, '$(openai)', 'Codex', 'absolute')).to.equal('$(openai) Codex:4.12/100 | 5️⃣ 10.64/200 🌐');
+    expect(formatProviderStatus(defaultState(), 'X', 'Test', 'absolute')).to.include('Test:0.00% | 5️⃣ 0.00%');
+  });
+
+  it('uses weekly remaining quota with the existing threshold colors', () => {
+    const colors = ['white', 'yellow', 'green', 'purple', 'red'];
+    for (const [remaining, color] of [[100, 'white'], [81, 'white'], [80, 'yellow'], [60, 'green'], [40, 'purple'], [20, 'red'], [0, 'red'], [-1, 'red'], [101, 'white'], [NaN, 'white']] as const) {
+      expect(remainingQuotaColor(remaining, colors)).to.equal(color);
+    }
+  });
+});
 
 describe('calc', () => {
   describe('computeUtilization', () => {
@@ -95,8 +119,8 @@ describe('calc', () => {
     });
 
     it('maps other Claude families', () => {
-      expect(pricingModelKey('claude-fable-5-1')).to.equal('claudeFable');
-      expect(pricingModelKey('claude-sonnet-5')).to.equal('claudeSonnet');
+      expect(pricingModelKey('claude-fable-5-1')).to.equal('claudeFable5_1');
+      expect(pricingModelKey('claude-sonnet-5')).to.equal('claudeSonnet5');
       expect(pricingModelKey('claude-haiku-4-5')).to.equal('claudeHaiku');
     });
 

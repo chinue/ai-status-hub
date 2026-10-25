@@ -5,10 +5,12 @@ import { DisplayMode, LanguageSetting, TokenPricing } from './types';
 import { parseCustomPricing, pricingModelKey } from './calc';
 
 const CFG_SECTION = 'aiStatusHub';
+const STATUS_BAR_SELECTION_KEY = 'aiStatusHub.statusBar.providers';
 
 export class ConfigService {
   private static instance: ConfigService;
   private activeProviderId = 'codex';
+  private selectionStorage?: vscode.Memento;
 
   static getInstance(): ConfigService {
     if (!ConfigService.instance) {
@@ -82,11 +84,15 @@ export class ConfigService {
   }
 
   get currency(): { code: string; symbol: string } {
+    return this.currencyForProvider(this.activeProviderId);
+  }
+
+  currencyForProvider(providerId: string): { code: string; symbol: string } {
     const raw = this.cfg.get<string>('currency', 'auto');
     if (raw === 'CNY') { return { code: 'CNY', symbol: '¥' }; }
     if (raw === 'USD') { return { code: 'USD', symbol: '$' }; }
     // auto: infer from provider
-    switch (this.activeProviderId) {
+    switch (providerId) {
       case 'kimi':
       case 'glm':
         return { code: 'CNY', symbol: '¥' };
@@ -163,6 +169,42 @@ export class ConfigService {
     return Math.max(200, Math.min(20_000, this.cfg.get<number>('costCurveMaxPoints', 2_000)));
   }
 
+  initializeSelectionStorage(storage?: vscode.Memento): void {
+    this.selectionStorage = storage;
+  }
+
+  get statusBarProviders(): string[] {
+    // An extension host may run new code before VS Code refreshes its setting registry.
+    const stored = this.selectionStorage?.get<unknown>(STATUS_BAR_SELECTION_KEY);
+    if (Array.isArray(stored)) return [...new Set(stored.filter((id): id is string => typeof id === 'string'))];
+    const cfg = this.cfg;
+    const value = cfg.inspect?.<string[]>('statusBar.providers');
+    if (value && value.globalValue === undefined && value.workspaceValue === undefined && value.workspaceFolderValue === undefined) {
+      return [this.activeProviderId];
+    }
+    const ids = cfg.get<unknown>('statusBar.providers');
+    return Array.isArray(ids) ? [...new Set(ids.filter((id): id is string => typeof id === 'string'))] : [this.activeProviderId];
+  }
+
+  async setStatusBarProviders(ids: string[]): Promise<boolean> {
+    try {
+      await this.cfg.update('statusBar.providers', ids, true);
+    } catch (err) {
+      console.error('Status bar configuration update failed; using extension storage', err);
+      if (!this.selectionStorage) return false;
+      try {
+        await this.selectionStorage.update(STATUS_BAR_SELECTION_KEY, ids);
+        return true;
+      } catch (storageError) {
+        console.error('Status bar selection storage update failed', storageError);
+        return false;
+      }
+    }
+    try { await this.selectionStorage?.update(STATUS_BAR_SELECTION_KEY, undefined); }
+    catch (err) { console.error('Status bar selection fallback cleanup failed', err); }
+    return true;
+  }
+
   // StatusBar settings
   get statusBarAlignment(): vscode.StatusBarAlignment {
     const raw = this.cfg.get<string>('statusBar.alignment', 'right');
@@ -194,20 +236,20 @@ export class ConfigService {
     if (userUrl) { return userUrl; }
     // Provider defaults
     switch (this.activeProviderId) {
-      case 'kimi': return 'https://www.moonshot.cn/pricing';
+      case 'kimi': return 'https://platform.kimi.com/docs/pricing/chat';
       case 'claude': return 'https://platform.claude.com/docs/en/about-claude/pricing';
       case 'glm': return 'https://open.bigmodel.cn/pricing';
       case 'cursor': return 'https://cursor.com/pricing';
       case 'codex':
-      default: return 'https://openai.com/pricing';
+      default: return 'https://developers.openai.com/api/docs/pricing';
     }
   }
 
   get pricingOfficialDate(): string {
-    return this.cfg.get<string>('pricing.officialDate', '2026-09-24');
+    return this.cfg.get<string>('pricing.officialDate', '2026-10-25');
   }
 
-  getPricing(modelName: string): TokenPricing {
+  getPricing(modelName: string, providerId = this.activeProviderId): TokenPricing {
     const m = modelName.toLowerCase();
 
     // User-defined custom pricing takes priority (key = model name keyword, substring match)
@@ -224,7 +266,7 @@ export class ConfigService {
     const key = pricingModelKey(m);
 
     // Provider-private config takes priority: pricing.{provider}.models.{key}
-    const providerPrefix = `pricing.${this.activeProviderId}.models.${key}`;
+    const providerPrefix = `pricing.${providerId}.models.${key}`;
     const globalPrefix = `pricing.models.${key}`;
 
     const input = this.cfg.get<number>(`${providerPrefix}.inputPerMillion`,

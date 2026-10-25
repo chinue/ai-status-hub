@@ -747,3 +747,9 @@ jobs:
 | `scheduler.ts` | 70% | 集成测试，time-based 逻辑 |
 | `statusBar.ts` | 60% | UI 渲染，断言较繁琐 |
 | `extension.ts` | 0% | 纯编排，E2E 测试覆盖 |
+
+### Codex usage
+
+`test/codexUsage.test.ts` 覆盖 Pro primary=10080、Plus 双窗口、无时长旧记录、未知窗口、API headers 映射、Dashboard 可见性、真实格式 Token 事件的非零估算成本、短周期明细刷新，以及状态栏隐藏无效五小时额度。
+
+`codexUsage.test.ts` 另覆盖每周单窗口账号最近历史成本不为零、旧锚点下的滚动分析边界，以及中英文 tooltip 中彻底隐藏五小时额度和本地用量行。

@@ -18,6 +18,9 @@
 | `src/config.ts` | `v2-phase2-implementation.md#configts` | 配置读取、默认值、变更监听 |
 | `src/calc.ts` | `v2-local-estimation-design.md#quota-percentage-resolution` | 本地估算算法、格式化函数、额度重置解析 |
 | `src/types.ts` | `v2-phase2-implementation.md#typests` | 全局类型定义 |
+| `src/providers/claude/pricing.ts` | `v2-provider-abstraction.md#claude-pricing` | Claude 各版本标准定价与缓存费率 |
+| `src/providers/codex/pricing.ts` | `v2-provider-abstraction.md#codex-pricing` | Codex / OpenAI 各模型标准定价 |
+| `src/providers/kimi/pricing.ts` | `v2-provider-abstraction.md#kimi-pricing` | Kimi 标准版、高速版及旧日志 fallback |
 | `src/i18n.ts` | `CODING_STANDARDS.md#5-i18n-强制规范` | 翻译字典、语言切换 |
 | `src/utils.ts` | `v2-phase2-implementation.md` | 通用工具（日志、SecretStorage） |
 | `src/presenters/statusBar.ts` | `v2-phase2-implementation.md#presentersstatusbarts` | 状态栏渲染、tooltip、暂停交互 |

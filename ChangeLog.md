@@ -1,5 +1,76 @@
 # ChangeLog
 
+## [0.6.3] - 2026-10-25
+
+### 修复
+
+- **Codex 悬停详情隐藏五小时数据**（`src/presenters/statusBar.ts`）：无五小时限额时，隐藏五小时额度、重置时间及本地用量行，保留今日和每周用量；中英文行为一致。
+- **周额度账号的本地 COST 统计边界**（`src/calc.ts`、`src/services/scheduler.ts`、`src/presenters/dashboard.ts`）：五小时成本分析使用最近五小时，修复虚构未来重置点导致已有历史记录被排除、COST 仍显示零值的问题，并兼容旧缓存锚点。
+
+### 验证
+
+- 新增 4 项回归测试；类型检查、全部 242 项测试、生产编译及 VSIX 打包通过。同步本地估算、Scheduler、状态栏、Dashboard 与测试设计文档。
+
+## [0.6.2] - 2026-10-25
+
+### 修复
+
+- **Codex Pro 每周单窗口**（`src/calc.ts`、`src/providers/codex/api.ts`、`src/services/scheduler.ts`）：按窗口时长映射限额，修复 primary=10080 被误认为五小时、每周使用率错误显示为零的问题；兼容 Plus 双窗口及无时长旧记录。
+- **隐藏不存在的五小时额度**（`src/presenters/dashboard.ts`、`src/presenters/statusBar.ts`）：每周单窗口账号的仪表盘 Current Usage、状态栏及额度 tooltip 只显示每周额度。
+- **COST 实时刷新**（`src/services/scheduler.ts`）：短周期扫描同步更新已计价明细，修复新用量已扫描但统计卡片、曲线及明细仍停留在初始零值或旧数据的问题。COST 为本地 Token 用量按模型单价估算，不代表套餐账单。
+
+### 验证
+
+- 新增 8 项回归测试；类型检查、全部 238 项测试、生产编译和 VSIX 打包通过；同步设计文档。
+
+## [0.6.1] - 2026-10-25
+
+### 修复
+
+- **模型 checkbox 不能勾选/多选**（`src/config.ts`、`src/presenters/dashboard.ts`、`src/extension.ts`）：实际 VS Code 日志显示 `statusBar.providers` 配置尚未注册，导致保存失败后选择被重置。增加 globalState 持久化降级路径，支持多选、全部取消及重启恢复；正常配置写入恢复后清理降级数据。
+- **降级保存后状态栏未更新**：checkbox 保存成功后显式执行内部 `syncStatusBars` 命令，按既有串行队列更新选中模型，避免依赖不存在的配置变更事件；点击名称继续只负责切换仪表盘。
+
+### 验证
+
+- 新增实际未注册配置错误、状态栏实例更新、选择保留/全部取消、降级持久化恢复、正常写入后迁移清理及双重保存失败的回归测试；类型检查及全部 230 项测试通过，生产编译、VSIX 打包成功。
+- 同步仪表盘与配置设计文档。
+
+## [0.6.0] - 2026-10-25
+
+### 新增
+
+- **多模型状态栏选择**（`src/presenters/dashboard.ts`、`src/config.ts`、`package.json`）：仪表盘第一行平铺 Codex、Kimi、Claude、GLM、Cursor，每个名称前提供独立 checkbox；勾选控制状态栏显示，点击名称切换对应仪表盘。勾选结果保存到 `statusBar.providers`，支持多选、全部隐藏和跨窗口同步。
+- **独立后台监控**（`src/extension.ts`）：每个 Provider 使用独立 Store、缓存、本地用量、历史与 Scheduler；已选模型及当前查看模型持续更新，后台模型刷新不会覆盖当前仪表盘。退出时按 Provider 持久化历史与窗口锚点。
+
+### 修改
+
+- **每个模型一个状态栏 cell**（`src/presenters/statusBar.ts`、`src/calc.ts`）：合并周使用率与 5h 使用率，例如 `$(openai) Codex:4.12% | 5️⃣ 5.32%`。整项颜色由周剩余额度决定；保留详情 tooltip、绝对值模式、来源提示和更新动画。
+- **点击与详情操作绑定模型**：左键打开所属模型仪表盘，tooltip 的刷新、登录、详情操作携带对应 Provider 参数。切换仪表盘解除旧 Store 订阅；连续 checkbox 更新串行保存，防止勾选丢失。
+- **配置隔离**（`src/config.ts`、`src/providers/*/pricing.ts`）：后台计价显式使用所属 Provider 私有配置，自动货币跟随该 Provider，保留用户自定义货币覆盖；区分未设置选择和显式空数组。
+
+### 文档与验证
+
+- 同步仪表盘、运行实例、Provider、本地估算及双语编码规范；记录多实例内存估算与 GLM/Cursor 现有占位能力。
+- 新增单 cell、配色边界、双窗口文本、多 Provider 数据隔离、快速多选/全部取消、旧订阅解除和 WebView JavaScript 语法回归测试；类型检查及全部 227 项测试通过，生产编译和 VSIX 打包成功。
+
+## [0.5.35] - 2026-10-25
+
+### 新增
+
+- **Claude 新模型定价**：Fable/Mythos 5.1、Sonnet 5/5.5、Haiku 5.5 独立计价，保留旧模型费率；Mythos 5 复用 Fable 5 的同价配置。
+- **Codex 新模型定价**：GPT-6.1 Sol（$2/$10，缓存命中 $0.10）与 GPT-5.6 Sol（$4/$20，缓存命中 $0.40），避免落入旧模型价格；GPT-6 Sol 仍使用 $0.20 缓存命中价。
+- **Kimi 新模型定价**：K3.1 Pro（¥13/¥68）、Highspeed（¥26/¥136），K2.7 Code（¥6.5/¥27）、Highspeed（¥13/¥54），分别配置缓存费率；兼容 Kimi Code 模型前缀别名。
+
+### 修复
+
+- **模型版本匹配**（`src/calc.ts`、`src/providers/kimi/pricing.ts`）：优先匹配具体版本并防止数字前缀误匹配，Kimi Provider 与配置共享映射；保留自定义价格和 Provider 配置优先级。
+- **定价来源**（`src/config.ts`、`package.json`）：官方核验日期更新为 2026-10-25，Codex/Kimi 链接指向 API 定价；新增设置说明同时包含中英文。同步锁文件版本。
+
+### 文档与验证
+
+- 同步 Provider、本地估算、配置设计和索引，记录官方来源及标准费率适用范围：Haiku 5.5 默认使用输入 ≤100K 档，长上下文、缓存时长及处理档位暂不自动选价；API 等价成本不代表订阅实付费用。
+- 新增 24 项定价回归测试，覆盖实际注册配置默认值、费用合计、版本边界、别名和零值/自定义覆盖；类型检查及全部 218 项测试通过，生产编译与 VSIX 打包成功。
+
 ## [0.5.34] - 2026-09-24
 
 ### 新增

@@ -9,7 +9,7 @@ export class CodexPricingProvider implements IPricingProvider {
   readonly defaultModelName = 'gpt-5';
 
   getPricing(modelName: string): TokenPricing {
-    return ConfigService.getInstance().getPricing(modelName);
+    return ConfigService.getInstance().getPricing(modelName, 'codex');
   }
 
   calculateCost(usage: TokenUsage, pricing: TokenPricing): number {

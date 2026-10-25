@@ -5,7 +5,7 @@ import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
 import {
-  computeUtilization, formatPercent, formatPercentPadded,
+  computeUtilization, formatPercent, formatPercentPadded, formatProviderStatus, remainingQuotaColor,
   fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime,
   buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
@@ -25,7 +25,6 @@ function alignmentFromString(raw: string): vscode.StatusBarAlignment {
 
 export class StatusBarPresenter {
   private itemWeekly: vscode.StatusBarItem;
-  private itemWindow: vscode.StatusBarItem;
   private config = ConfigService.getInstance();
   private disposables: vscode.Disposable[] = [];
   private updateAnimInterval: NodeJS.Timeout | null = null;
@@ -34,6 +33,7 @@ export class StatusBarPresenter {
   private lastSeenWeeklyPct: number | null = null;
   private lastSeenWindowPct: number | null = null;
   private displayName: string;
+  private disposed = false;
 
   constructor(private store: Store, private provider?: IProvider) {
     const alignment = this.config.statusBarAlignment;
@@ -42,14 +42,9 @@ export class StatusBarPresenter {
 
     this.itemWeekly = vscode.window.createStatusBarItem(alignment, 104);
     this.itemWeekly.name = `${this.displayName}StatusPro Weekly`;
-    this.itemWeekly.command = 'aiStatusHub.showDashboard';
+    this.itemWeekly.command = this.dashboardCommand();
     this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
     this.itemWeekly.show();
-
-    this.itemWindow = vscode.window.createStatusBarItem(alignment, 103);
-    this.itemWindow.name = 'AI Status Hub Window';
-    this.itemWindow.command = 'aiStatusHub.refresh';
-    this.itemWindow.show();
 
     const unsub = store.subscribe((state) => this.render(state));
     this.disposables.push({ dispose: unsub });
@@ -58,140 +53,54 @@ export class StatusBarPresenter {
     this.render(store.getState());
   }
 
+  private dashboardCommand(): vscode.Command {
+    return { command: 'aiStatusHub.showDashboard', title: this.displayName, arguments: [this.provider?.id ?? this.store.getState().activeProvider] };
+  }
+
   private render(state: AppState): void {
+    if (this.disposed) return;
     try {
-      const locale = ConfigService.resolveEffectiveLanguage(state.ui.language);
-      const t = makeT(locale);
-      // When paused, show dormant indicator on the weekly item
+      const t = makeT(ConfigService.resolveEffectiveLanguage(state.ui.language));
+      const icon = this.provider?.ui.mainIcon ?? '$(openai)';
+      this.itemWeekly.command = this.dashboardCommand();
+      this.itemWeekly.backgroundColor = undefined;
+      this.itemWeekly.color = undefined;
       if (state.ui.isPaused) {
         this.stopUpdateAnimation();
-        const icon = this.provider?.ui.mainIcon ?? '$(openai)';
         this.itemWeekly.text = icon;
-        this.itemWeekly.command = 'aiStatusHub.togglePause';
-        this.itemWeekly.color = undefined;
-        this.itemWeekly.backgroundColor = undefined;
-        this.itemWeekly.show();
-        this.itemWindow.hide();
-        return;
-      }
-
-      if (state.authStatus === 'missing') {
+      } else if (state.authStatus === 'missing') {
         this.stopUpdateAnimation();
-        this.itemWeekly.text = `$(key) ${this.displayName}: sign in`;
-        // Always route to dashboard so users can switch provider even when Claude is not installed
-        this.itemWeekly.command = 'aiStatusHub.showDashboard';
-        this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-        this.itemWeekly.color = new vscode.ThemeColor('statusBarItem.errorForeground');
-        this.itemWindow.hide();
-        return;
-      }
-
-      // Auth errors only take over the status bar when no data is available
-      // ('blocked'). With cached quota or a local estimate ('degraded') we keep
-      // rendering usage and just append a 🔐 indicator — an expired token heals
-      // itself the next time the user runs Claude Code.
-      if (resolveAuthDisplayMode(state) === 'blocked') {
+        this.itemWeekly.text = `$(key) ${this.displayName}: ${t('statusBar.signIn')}`;
+      } else if (resolveAuthDisplayMode(state) === 'blocked') {
         this.stopUpdateAnimation();
-        const label = state.authStatus === 'expired' ? 'auth expired' : 'auth failed';
+        const label = t(state.authStatus === 'expired' ? 'statusBar.authExpired' : 'statusBar.authFailed');
         this.itemWeekly.text = `$(warning) ${this.displayName}: ${label}`;
-        this.itemWeekly.command = 'aiStatusHub.signIn';
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-        this.itemWindow.hide();
-        this.buildTooltip(state).then((tooltip) => {
-          this.itemWeekly.tooltip = tooltip;
-        });
-        return;
-      }
-
-      const hasApiData = !!state.quota;
-      const hasEstimate = !!state.localEstimate;
-
-      if (!hasApiData && !hasEstimate) {
+      } else if (!state.quota && !state.localEstimate) {
         this.stopUpdateAnimation();
         this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
-        this.itemWeekly.backgroundColor = undefined;
-        this.itemWindow.hide();
-        return;
-      }
-
-      // Detect meaningful data changes and trigger moon animation
-      const weeklyPct = resolveWeeklyPct(state);
-      const windowPct = resolveWindowPct(state);
-      const isFirstData = this.lastSeenWeeklyPct === null && this.lastSeenWindowPct === null;
-      const hasChanged =
-        this.lastSeenWeeklyPct !== weeklyPct ||
-        this.lastSeenWindowPct !== windowPct;
-
-      this.lastSeenWeeklyPct = weeklyPct;
-      this.lastSeenWindowPct = windowPct;
-
-      // Skip animation on first data arrival so user sees the value immediately;
-      // play animation only on subsequent updates.
-      if (hasChanged && !isFirstData) {
-        this.triggerUpdateAnimation();
-      }
-
-      const weeklyUtil = weeklyPct / 100;
-      const windowUtil = windowPct / 100;
-
-      // Indicators (stale / source / auth-degraded), see calc.buildIndicatorSuffix
-      const nowMs = Date.now();
-      const windowIndicator = buildIndicatorSuffix(state, nowMs, STALE_THRESHOLD_MS, ['stale', 'auth']);
-      const weeklyIndicator = buildIndicatorSuffix(state, nowMs, STALE_THRESHOLD_MS, ['source', 'auth']);
-
-      // Always render itemWindow (even during animation) so it stays visible
-      if (this.config.displayMode === 'absolute') {
-        if (hasApiData) {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${state.quota!.windowUsed}/${state.quota!.windowLimit}${windowIndicator}`;
-        } else {
-          this.itemWindow.text = `5\uFE0F\u20E3 ${windowPct > 0 ? '~' + formatPercent(windowPct, 2) : '—'}${windowIndicator}`;
-        }
       } else {
-        this.itemWindow.text = `5\uFE0F\u20E3 ${buildMiniBar(windowUtil, 5)} ${formatPercent(windowPct, 2)}${windowIndicator}`;
+        const weeklyPct = resolveWeeklyPct(state);
+        const windowPct = resolveWindowPct(state);
+        const first = this.lastSeenWeeklyPct === null;
+        const changed = this.lastSeenWeeklyPct !== weeklyPct || this.lastSeenWindowPct !== windowPct;
+        this.lastSeenWeeklyPct = weeklyPct;
+        this.lastSeenWindowPct = windowPct;
+        this.itemWeekly.text = formatProviderStatus(state, icon, this.displayName, this.config.displayMode);
+        this.itemWeekly.color = remainingQuotaColor(100 - weeklyPct, [
+          this.config.statusBarUtilizationColorLt20, this.config.statusBarUtilizationColorLt40,
+          this.config.statusBarUtilizationColorLt60, this.config.statusBarUtilizationColorLt80,
+          this.config.statusBarUtilizationColorGte80,
+        ]);
+        if (changed && !first) this.triggerUpdateAnimation();
       }
-      this.itemWindow.color = this.utilizationToColor(windowUtil);
-      this.itemWindow.show();
-
-      // While animation is active, skip itemWeekly normal rendering
-      if (this.updateAnimInterval) {
-        return;
-      }
-
-      if (this.config.displayMode === 'absolute') {
-        if (hasApiData) {
-          const icon = this.provider?.ui.mainIcon ?? '$(openai)';
-      this.itemWeekly.text = `${icon} ${this.displayName}:${state.quota!.weeklyUsed}/${state.quota!.weeklyLimit}${weeklyIndicator}`;
-        } else {
-          const icon = this.provider?.ui.mainIcon ?? '$(openai)';
-          this.itemWeekly.text = `${icon} ${this.displayName}:${weeklyPct > 0 ? '~' + formatPercent(weeklyPct, 2) : '—'}${weeklyIndicator}`;
-        }
-      } else {
-        const icon = this.provider?.ui.mainIcon ?? '$(openai)';
-        this.itemWeekly.text = `${icon} ${this.displayName}:${formatPercent(weeklyPct, 2)}${weeklyIndicator}`;
-      }
-
-      this.itemWeekly.command = 'aiStatusHub.showDashboard';
-      this.itemWeekly.color = this.utilizationToColor(weeklyUtil);
-      this.itemWeekly.backgroundColor = undefined;
       this.itemWeekly.show();
-
-      // Tooltip: lazy build (async)
-      this.buildTooltip(state).then((tooltip) => {
-        this.itemWeekly.tooltip = tooltip;
-        this.itemWindow.tooltip = tooltip;
-      });
+      void this.buildTooltip(state).then(tooltip => {
+        if (!this.disposed) this.itemWeekly.tooltip = tooltip;
+      }).catch(err => console.error('Status bar tooltip error', err));
     } catch (err) {
       console.error('StatusBar render error', err);
     }
-  }
-
-  private utilizationToColor(util: number): string {
-    const cfg = this.config;
-    if (util < 0.20) return cfg.statusBarUtilizationColorLt20;
-    if (util < 0.40) return cfg.statusBarUtilizationColorLt40;
-    if (util < 0.60) return cfg.statusBarUtilizationColorLt60;
-    if (util < 0.80) return cfg.statusBarUtilizationColorLt80;
-    return cfg.statusBarUtilizationColorGte80;
   }
 
   private createSvgBar(util: number): string {
@@ -231,6 +140,7 @@ export class StatusBarPresenter {
     const md = new vscode.MarkdownString();
     md.supportHtml = true;
     md.isTrusted = true;
+    const commandArgs = encodeURIComponent(JSON.stringify([this.provider?.id ?? state.activeProvider]));
 
     if (state.authStatus === 'missing') {
       md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.notLoggedIn')}`);
@@ -240,7 +150,7 @@ export class StatusBarPresenter {
     const authMode = resolveAuthDisplayMode(state);
     if (authMode === 'blocked') {
       const tip = state.authStatus === 'expired' ? t('tooltip.authExpired') : t('tooltip.authFailed');
-      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${tip}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn)`);
+      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${tip}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       return md;
     }
 
@@ -267,7 +177,7 @@ export class StatusBarPresenter {
 
     const parts: string[] = [];
     if (authMode === 'degraded') {
-      parts.push(`> \uD83D\uDD10 ${t('tooltip.authDegraded')} [${t('tooltip.signInAction')}](command:aiStatusHub.signIn)`);
+      parts.push(`> \uD83D\uDD10 ${t('tooltip.authDegraded')} [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       parts.push('');
     }
     parts.push(`### ${this.provider?.ui.mainIcon ?? ''} ${t('tooltip.title')}${sourceLabel}`);
@@ -275,8 +185,10 @@ export class StatusBarPresenter {
 
     // Progress bars as HTML block (layout only)
     parts.push(`<table style="border-collapse:collapse;width:100%;font-size:12px;">`);
-    parts.push(`<tr><td style="padding:2px 6px;width:80px;"><strong>${t('tooltip.window5h')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(windowUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(windowPct, 2)}</strong></td></tr>`);
-    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowResetText}</td></tr>`);
+    if (q?.has5hLimit !== false) {
+      parts.push(`<tr><td style="padding:2px 6px;width:80px;"><strong>${t('tooltip.window5h')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(windowUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(windowPct, 2)}</strong></td></tr>`);
+      parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowResetText}</td></tr>`);
+    }
     parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('tooltip.window7d')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(weeklyUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(weeklyPct, 2)}</strong></td></tr>`);
     parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyResetText}</td></tr>`);
     parts.push(`</table>`);
@@ -289,7 +201,7 @@ export class StatusBarPresenter {
       parts.push(this.preTable(
         ['', t('tooltip.table.col.used'), t('tooltip.table.col.limit'), t('tooltip.table.col.remaining')],
         [
-          [t('tooltip.window5h'), String(q.windowUsed), String(q.windowLimit), String(q.windowRemaining)],
+          ...(q.has5hLimit === false ? [] : [[t('tooltip.window5h'), String(q.windowUsed), String(q.windowLimit), String(q.windowRemaining)]]),
           [t('tooltip.window7d'), String(q.weeklyUsed), String(q.weeklyLimit), String(q.weeklyLimit - q.weeklyUsed)],
         ],
         ['l', 'r', 'r', 'r']
@@ -309,9 +221,9 @@ export class StatusBarPresenter {
       parts.push(this.preTable(
         ['', t('tooltip.table.col.input'), t('tooltip.table.col.output'), t('tooltip.table.col.cacheRead'), t('tooltip.table.col.cacheCreate'), t('tooltip.table.col.cost')],
         [
-          [t('tooltip.table.row.today'), fmtTokens(lu.tokensToday), fmtTokens(lu.tokensOutToday), fmtTokens(lu.tokensCacheReadToday), fmtTokens(lu.tokensCacheCreateToday), fmtCost(lu.costToday, this.config.currency.symbol)],
-          [t('tooltip.table.row.5h'), fmtTokens(lu.tokensIn5h), fmtTokens(lu.tokensOut5h), fmtTokens(lu.tokensCacheRead5h), fmtTokens(lu.tokensCacheCreate5h), fmtCost(lu.cost5h, this.config.currency.symbol)],
-          [t('tooltip.table.row.7d'), fmtTokens(lu.tokensIn7d), fmtTokens(lu.tokensOut7d), fmtTokens(lu.tokensCacheRead7d), fmtTokens(lu.tokensCacheCreate7d), fmtCost(lu.cost7d, this.config.currency.symbol)],
+          [t('tooltip.table.row.today'), fmtTokens(lu.tokensToday), fmtTokens(lu.tokensOutToday), fmtTokens(lu.tokensCacheReadToday), fmtTokens(lu.tokensCacheCreateToday), fmtCost(lu.costToday, this.config.currencyForProvider(this.provider?.id ?? state.activeProvider).symbol)],
+          ...(q?.has5hLimit === false ? [] : [[t('tooltip.table.row.5h'), fmtTokens(lu.tokensIn5h), fmtTokens(lu.tokensOut5h), fmtTokens(lu.tokensCacheRead5h), fmtTokens(lu.tokensCacheCreate5h), fmtCost(lu.cost5h, this.config.currencyForProvider(this.provider?.id ?? state.activeProvider).symbol)]]),
+          [t('tooltip.table.row.7d'), fmtTokens(lu.tokensIn7d), fmtTokens(lu.tokensOut7d), fmtTokens(lu.tokensCacheRead7d), fmtTokens(lu.tokensCacheCreate7d), fmtCost(lu.cost7d, this.config.currencyForProvider(this.provider?.id ?? state.activeProvider).symbol)],
         ],
         ['l', 'r', 'r', 'r', 'r', 'r']
       ));
@@ -329,7 +241,7 @@ export class StatusBarPresenter {
     parts.push('');
     const pauseLabel = state.ui.isPaused ? t('tooltip.resume') : t('tooltip.pause');
     const pauseIcon = state.ui.isPaused ? '▶️' : '⏸️';
-    parts.push(`<a href="command:aiStatusHub.refresh">🔄 ${t('tooltip.refresh')}</a> · <a href="command:aiStatusHub.showDashboard">📊 ${t('tooltip.showDetails')}</a> · <a href="command:aiStatusHub.openSettings">⚙️ ${t('tooltip.settings')}</a> · <a href="command:aiStatusHub.togglePause">${pauseIcon} ${pauseLabel}</a>`);
+    parts.push(`<a href="command:aiStatusHub.refresh?${commandArgs}">🔄 ${t('tooltip.refresh')}</a> · <a href="command:aiStatusHub.showDashboard?${commandArgs}">📊 ${t('tooltip.showDetails')}</a> · <a href="command:aiStatusHub.openSettings">⚙️ ${t('tooltip.settings')}</a> · <a href="command:aiStatusHub.togglePause">${pauseIcon} ${pauseLabel}</a>`);
     parts.push('');
     parts.push('</div>');
 
@@ -339,10 +251,6 @@ export class StatusBarPresenter {
 
   private triggerUpdateAnimation(): void {
     const duration = this.config.updateAnimationDurationMs;
-
-    // Compute indicators so they remain visible during animation
-    const state = this.store.getState();
-    const suffix = buildIndicatorSuffix(state, Date.now(), STALE_THRESHOLD_MS, ['stale', 'source', 'auth']);
 
     // If animation already running, just reset the end timer (debounce)
     if (this.updateAnimInterval) {
@@ -358,14 +266,12 @@ export class StatusBarPresenter {
 
     // Start new animation — moon cycles while keeping the live percentage visible
     this.updateFrame = 0;
-    const weeklyPct = this.lastSeenWeeklyPct ?? 0;
-    this.itemWeekly.text = `${UPDATE_FRAMES[0]} ${this.displayName}:${formatPercent(weeklyPct, 2)}${suffix}`;
+    this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[0], this.displayName, this.config.displayMode);
     this.itemWeekly.show();
 
     this.updateAnimInterval = setInterval(() => {
       this.updateFrame = (this.updateFrame + 1) % UPDATE_FRAMES.length;
-      const liveWeeklyPct = this.lastSeenWeeklyPct ?? 0;
-      this.itemWeekly.text = `${UPDATE_FRAMES[this.updateFrame]} ${this.displayName}:${formatPercent(liveWeeklyPct, 2)}${suffix}`;
+      this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[this.updateFrame], this.displayName, this.config.displayMode);
     }, this.config.updateAnimationIntervalMs);
 
     this.updateAnimTimeout = setTimeout(() => {
@@ -386,9 +292,10 @@ export class StatusBarPresenter {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.stopUpdateAnimation();
     this.itemWeekly.dispose();
-    this.itemWindow.dispose();
 
     for (const d of this.disposables) { d.dispose(); }
   }
