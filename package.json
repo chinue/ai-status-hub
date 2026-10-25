@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -909,7 +909,10 @@
           "uniqueItems": true,
           "scope": "window",
           "order": 6,
-          "description": "Models shown in the status bar. Each selected model has its own item. Unset: follow the active model; empty list: hide all. / 状态栏显示的模型，每个已选模型显示一项。未设置时跟随当前模型，空列表则全部隐藏。"
+          "description": "Models shown in the status bar. Each selected model has its own item. Unset, empty or invalid selection: select Kimi by default to keep a dashboard entry visible. / 状态栏显示的模型，每个已选模型显示一项。未设置、为空或无有效模型时默认勾选 Kimi，保留仪表盘入口。",
+          "default": [
+            "kimi"
+          ]
         }
       }
     }

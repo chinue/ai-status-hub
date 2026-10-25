@@ -831,10 +831,10 @@ CSV 使用 UTF-8 编码（带 BOM），字符串字段自动转义引号。
 仪表盘 Header 移除 Provider 下拉框，平铺注册表中的 Codex、Kimi、Claude、GLM、Cursor。这里的“模型”指现有 Provider 入口，不表示同一家服务的每个 API 型号。GLM、Cursor 保持原有占位 Provider 能力。
 
 - 每个入口由独立 checkbox 和模型名称按钮组成，checkbox 只修改状态栏显示集合，点击名称只切换该模型仪表盘。按钮支持键盘焦点，当前模型有高亮与 `aria-pressed`，checkbox 有双语可访问名称。
-- `aiStatusHub.statusBar.providers` 保存勾选集合；未显式配置时跟随当前模型，显式 `[]` 表示全部隐藏。读取时检查 VS Code configuration inspect 的用户/工作区值，避免隐式数组默认值被误判为用户已取消所有勾选。
+- `aiStatusHub.statusBar.providers` 保存勾选集合；自 0.6.4 起未设置、显式 `[]` 或没有有效 Provider 时均默认勾选 Kimi，避免状态栏入口消失。读取时检查 VS Code configuration inspect 的用户/工作区值，避免隐式数组默认值被误判为用户已取消所有勾选。
 - WebView 使用 `setStatusBarProvider`（providerId、checked）与 `setProvider` 消息，宿主验证 Provider 和字段类型。复选框更新串行执行，避免快速连续勾选覆盖上一个更新；配置事件同步其他窗口和已打开 WebView 的 checkbox。
 - `DashboardPanel` 保持单面板。切换时解除旧 Store 订阅并绑定目标 Store，重新生成页面，防止后台模型的刷新覆盖当前仪表盘。点击名称不会改变已保存的勾选集合。
-- 后台仅刷新已选模型及当前查看模型；取消勾选不会中断当前正在查看的仪表盘。所有模型可以同时取消勾选，仍可通过命令打开仪表盘。
+- 后台仅刷新已选模型及当前查看模型；取消勾选不会中断当前正在查看的仪表盘。自 0.6.4 起取消最后一个勾选时自动恢复 Kimi，始终保留一个状态栏入口。
 
 状态栏每个已选 Provider 仅创建一个 `StatusBarItem`，例如 `$(openai) Codex:4.12% | 5️⃣ 5.32%`；前者是周使用率，后者是 5 小时使用率。保留绝对值显示、数据来源/过期/认证提示和更新动画；动画中同样保留两个窗口数值。左键始终打开所属 Provider 的仪表盘，暂停时也遵循该行为；恢复暂停可通过 tooltip 操作。
 
@@ -848,7 +848,7 @@ CSV 使用 UTF-8 编码（带 BOM），字符串字段自动转义引号。
 
 实际 VS Code 日志曾返回 `aiStatusHub.statusBar.providers is not a registered configuration`。扩展宿主可能运行新版代码，而窗口的设置注册信息尚未刷新；此时 checkbox change 消息已发出，但配置写入失败，旧实现重新发送原选择覆盖刚勾选的状态，表现为不能单独勾选或多选。
 
-现在 ConfigService 在配置写入失败时使用 ExtensionContext.globalState 保存选择；空数组同样是有效选择，重启后仍可读取。配置写入成功时清理降级存储，继续使用正常配置。两种写入路径均失败时返回 false，不伪装保存成功。
+现在 ConfigService 在配置写入失败时使用 ExtensionContext.globalState 保存选择；重启后仍可读取降级选择；自 0.6.4 起旧空数组会回退为 Kimi。配置写入成功时清理降级存储，继续使用正常配置。两种写入路径均失败时返回 false，不伪装保存成功。
 
 WebView 保存成功后显式执行 `aiStatusHub.syncStatusBars`，通过扩展串行队列协调已选 Provider 的 Presenter 和 Scheduler；不依赖配置变更事件，因此降级保存也会立即反映到状态栏。名称按钮仍仅切换仪表盘，checkbox 不触发仪表盘切换。内存仅增加最多五个 Provider ID，远低于 1KB，不增加用量条目。
 
@@ -861,3 +861,7 @@ Current Usage 的五小时行由 `usage.has5hLimit` 控制：false 时初始 HTM
 ### 周额度账号的 COST 分析边界（0.6.3）
 
 没有五小时限额时，Dashboard 的本地五小时成本分析采用最近五小时，即 now-5h 到 now，不使用不存在的配额重置锚点。即使旧缓存仍保留未来五小时重置点，也不会排除最近历史记录。
+
+### 空选择默认 Kimi（0.6.4，2026-10-26）
+
+首次启动、历史配置或 globalState 为 []、以及清理无效模型后没有有效选择时，checkbox 和状态栏统一采用 Kimi。用户取消最后一个勾选时，保存归一化后的 [kimi] 并同步界面；已有非空有效多选保持原样，不因切换仪表盘而新增 Kimi。

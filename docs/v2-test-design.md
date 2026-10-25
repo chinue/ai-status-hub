@@ -753,3 +753,7 @@ jobs:
 `test/codexUsage.test.ts` 覆盖 Pro primary=10080、Plus 双窗口、无时长旧记录、未知窗口、API headers 映射、Dashboard 可见性、真实格式 Token 事件的非零估算成本、短周期明细刷新，以及状态栏隐藏无效五小时额度。
 
 `codexUsage.test.ts` 另覆盖每周单窗口账号最近历史成本不为零、旧锚点下的滚动分析边界，以及中英文 tooltip 中彻底隐藏五小时额度和本地用量行。
+
+### 空选择默认入口回归（0.6.4）
+
+calc.test.ts 覆盖未设置、空数组、无效输入、未知 Provider、合法多选和去重。multiProvider.test.ts 验证首次启动创建 Kimi 状态栏项、当前仪表盘为 Codex 时仍默认 Kimi、配置注册缺失时取消全部回退 Kimi 并持久化。dashboard.test.ts 的连续 checkbox 测试验证最后一项取消后恢复 Kimi。

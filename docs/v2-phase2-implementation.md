@@ -2586,7 +2586,7 @@ this.store.dispatch({
 
 选择变更和命令通过 Promise 队列串行执行。初始化时恢复每个 Provider 的历史、quota 及校准参数，已选或当前查看模型才启动调度器；其他调度器停止。记录 started 状态，避免重复 start 或重建服务。退出时逐一停止调度器并持久化各模型窗口锚点、历史。
 
-`ConfigService.getPricing(modelName, providerId?)` 增加可选显式 Provider 参数，三家价格 Provider 始终传入自己的 ID；后台价格解析不受当前仪表盘上下文影响。`currencyForProvider()` 同样支持显式 Provider，并保留用户 currency 覆盖。`statusBar.providers` 区分未设置与显式空数组。
+`ConfigService.getPricing(modelName, providerId?)` 增加可选显式 Provider 参数，三家价格 Provider 始终传入自己的 ID；后台价格解析不受当前仪表盘上下文影响。`currencyForProvider()` 同样支持显式 Provider，并保留用户 currency 覆盖。`statusBar.providers` 自 0.6.4 起在未设置或显式空数组时均默认 Kimi。
 
 `StatusBarPresenter` 每个模型只有一个 cell；整项文本由 calc 生成，整项颜色取周剩余额度。tooltip 和主点击带 Provider 参数，暂停/缺失登录/认证失败时仍可打开对应仪表盘。销毁后忽略异步 tooltip 回调，清理订阅与动画计时器。双语认证状态通过 makeT 获取。
 
@@ -2594,7 +2594,7 @@ this.store.dispatch({
 
 ### 状态栏勾选的设置注册兼容（0.6.1）
 
-`ConfigService.initializeSelectionStorage(context.globalState)` 在激活时注入扩展持久存储，停用时解除引用。`setStatusBarProviders()` 返回保存结果：正常配置写入失败时尝试 globalState，以 `aiStatusHub.statusBar.providers` 为键保存，getter 优先读取尚未迁移的降级选择；正常写入成功后清理降级键。显式空数组保留“全部隐藏”的语义。
+`ConfigService.initializeSelectionStorage(context.globalState)` 在激活时注入扩展持久存储，停用时解除引用。`setStatusBarProviders()` 返回保存结果：正常配置写入失败时尝试 globalState，以 `aiStatusHub.statusBar.providers` 为键保存，getter 优先读取尚未迁移的降级选择；正常写入成功后清理降级键。自 0.6.4 起显式空数组回退为 Kimi，保留状态栏入口。
 
 `extension.ts` 注册内部命令 `aiStatusHub.syncStatusBars`，使用已有 Promise 队列运行 reconcile。Dashboard 每次 checkbox 保存成功后显式等待该命令完成，再回传确认选择，解决设置未注册时既无法持久化、又不会触发配置变更事件的问题。配置事件路径仍兼容用户直接修改设置；重复协调不会重复启动 Scheduler。
 
@@ -2605,3 +2605,7 @@ QuotaData 新增可选 `has5hLimit`。Scheduler 对 Codex 本地限额按实际�
 ### 周额度账号的本地统计边界（0.6.3）
 
 无五小时限额时，Scheduler 以当前时刻为本地五小时分析窗口终点；短周期读取锚点时覆盖旧缓存的五小时边界，保留官方每周边界。状态栏 tooltip 的额度、重置时间和本地用量表全部隐藏五小时行，保留今日和每周数据。
+
+### 状态栏默认入口（0.6.4，2026-10-26）
+
+ConfigService 的 statusBarProviders getter 与 setStatusBarProviders setter 共用 calc.normalizeStatusBarProviders：过滤不支持的 ID、去重，最终没有有效项时返回 [kimi]。正常配置和 globalState 降级存储均保存归一化选择；旧空数组在读取时也回退为 Kimi。manifest 默认值同步为 [kimi]，不再根据当前仪表盘 Provider 推导初始勾选。

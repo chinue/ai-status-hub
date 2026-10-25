@@ -1,4 +1,18 @@
 import { expect } from 'chai';
+import { normalizeStatusBarProviders } from '../src/calc';
+
+describe('normalizeStatusBarProviders', () => {
+  it('selects Kimi when the selection is absent, empty or invalid', () => {
+    for (const value of [undefined, null, [], ['unknown'], [null, 42, ''], 'codex']) {
+      expect(normalizeStatusBarProviders(value)).to.deep.equal(['kimi']);
+    }
+  });
+
+  it('preserves valid selections and removes duplicates and unknown entries', () => {
+    expect(normalizeStatusBarProviders(['claude', 'codex', 'claude', 'unknown'])).to.deep.equal(['claude', 'codex']);
+    expect(normalizeStatusBarProviders(['kimi', 'glm', 'cursor'])).to.deep.equal(['kimi', 'glm', 'cursor']);
+  });
+});
 import {
   computeUtilization, buildBar, buildMiniBar, formatPercent, fmtHours, fmtDuration, calculateCost, parseCustomPricing, pricingModelKey,
   createLinearEstimator, ILinearEstimator, fmtCurrency,

@@ -1,6 +1,15 @@
 // DESIGN: v2-local-estimation-design.md#quota-percentage-resolution
 // AGENTS: pure-fn | fmt-here | no-side-effect
 import { QuotaData, TokenPricing, AppState, UsageEntry } from './types';
+
+/** Keep at least one supported provider visible as an entry to the dashboard. */
+export function normalizeStatusBarProviders(value: unknown): string[] {
+  const supported = ['codex', 'kimi', 'claude', 'glm', 'cursor'];
+  const selected = Array.isArray(value)
+    ? [...new Set(value.filter((id): id is string => typeof id === 'string' && supported.includes(id)))]
+    : [];
+  return selected.length ? selected : ['kimi'];
+}
 import { RateLimits } from './providers/base/types';
 
 export interface UtilizationResult {

@@ -117,7 +117,7 @@ describe('Dashboard Current Usage', () => {
       expect(selected).to.deep.equal(['codex', 'kimi', 'claude']);
       for (const providerId of selected) send({ type: 'setStatusBarProvider', providerId, checked: false });
       await target.selectionUpdate;
-      expect(selected).to.deep.equal([]);
+      expect(selected).to.deep.equal(['kimi']);
     } finally { stub.restore(); }
   });
 

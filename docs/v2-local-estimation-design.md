@@ -672,3 +672,7 @@ src/
 ### 无五小时限额的本地分析（0.6.3）
 
 `codexRateLimitsToQuota` 在 `has5hLimit=false` 时将本地分析终点设为当前时刻，避免 now+5h 导致起点为 now，从而排除已有记录。该终点仅供成本分析使用，不显示为套餐重置时间。
+
+### 状态栏选择归一化（0.6.4，2026-10-26）
+
+calc.ts 新增纯函数 normalizeStatusBarProviders(value)，供 ConfigService 读取和保存共用：保留已支持 Provider 的顺序、去重并过滤未知 ID；没有有效模型时默认 Kimi。首次启动及取消最后一个选择后均保留状态栏入口；不改变计价和用量估算。

@@ -2,7 +2,7 @@
 // AGENTS: fmt->calc.ts | err->try-catch | i18n->makeT() | no-disk-IO
 import * as vscode from 'vscode';
 import { DisplayMode, LanguageSetting, TokenPricing } from './types';
-import { parseCustomPricing, pricingModelKey } from './calc';
+import { parseCustomPricing, pricingModelKey, normalizeStatusBarProviders } from './calc';
 
 const CFG_SECTION = 'aiStatusHub';
 const STATUS_BAR_SELECTION_KEY = 'aiStatusHub.statusBar.providers';
@@ -176,24 +176,25 @@ export class ConfigService {
   get statusBarProviders(): string[] {
     // An extension host may run new code before VS Code refreshes its setting registry.
     const stored = this.selectionStorage?.get<unknown>(STATUS_BAR_SELECTION_KEY);
-    if (Array.isArray(stored)) return [...new Set(stored.filter((id): id is string => typeof id === 'string'))];
+    if (Array.isArray(stored)) return normalizeStatusBarProviders(stored);
     const cfg = this.cfg;
     const value = cfg.inspect?.<string[]>('statusBar.providers');
     if (value && value.globalValue === undefined && value.workspaceValue === undefined && value.workspaceFolderValue === undefined) {
-      return [this.activeProviderId];
+      return ['kimi'];
     }
     const ids = cfg.get<unknown>('statusBar.providers');
-    return Array.isArray(ids) ? [...new Set(ids.filter((id): id is string => typeof id === 'string'))] : [this.activeProviderId];
+    return normalizeStatusBarProviders(ids);
   }
 
   async setStatusBarProviders(ids: string[]): Promise<boolean> {
+    const selected = normalizeStatusBarProviders(ids);
     try {
-      await this.cfg.update('statusBar.providers', ids, true);
+      await this.cfg.update('statusBar.providers', selected, true);
     } catch (err) {
       console.error('Status bar configuration update failed; using extension storage', err);
       if (!this.selectionStorage) return false;
       try {
-        await this.selectionStorage.update(STATUS_BAR_SELECTION_KEY, ids);
+        await this.selectionStorage.update(STATUS_BAR_SELECTION_KEY, selected);
         return true;
       } catch (storageError) {
         console.error('Status bar selection storage update failed', storageError);

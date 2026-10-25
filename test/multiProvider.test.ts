@@ -71,9 +71,9 @@ describe('multiple provider status bars', () => {
     expect(config.currency.code).to.equal('USD');
   });
 
-  it('follows the active model only until an explicit selection is saved', () => {
+  it('defaults to Kimi for unset or empty selections regardless of the active dashboard', () => {
     const config = ConfigService.getInstance();
-    config.setActiveProviderId('kimi');
+    config.setActiveProviderId('codex');
     let globalValue: string[] | undefined;
     sinon.stub(vscode.workspace, 'getConfiguration').returns({
       get: () => globalValue ?? [],
@@ -81,7 +81,7 @@ describe('multiple provider status bars', () => {
     } as any);
     expect(config.statusBarProviders).to.deep.equal(['kimi']);
     globalValue = [];
-    expect(config.statusBarProviders).to.deep.equal([]);
+    expect(config.statusBarProviders).to.deep.equal(['kimi']);
     globalValue = ['codex', 'kimi'];
     expect(config.statusBarProviders).to.deep.equal(['codex', 'kimi']);
     config.setActiveProviderId('codex');
@@ -104,25 +104,28 @@ describe('multiple provider status bars', () => {
     sinon.stub(ApiHistoryService.prototype, 'readFromDisk').resolves([]);
     const show = sinon.stub(DashboardPanel, 'createOrShow');
     const context = makeContext();
+    const createItem = sinon.spy(vscode.window, 'createStatusBarItem');
     await activate(context as any);
     try {
       const target = { selectionUpdate: Promise.resolve() };
+      expect(createItem.callCount).to.equal(1);
+      expect(createItem.firstCall.returnValue.name).to.include('Kimi');
       const send = (providerId: string, checked: boolean) => (DashboardPanel.prototype as any).handleMessage.call(target, {
         type: 'setStatusBarProvider', providerId, checked,
       });
       send('kimi', true);
       send('claude', true);
       await target.selectionUpdate;
-      expect(ConfigService.getInstance().statusBarProviders).to.deep.equal(['codex', 'kimi', 'claude']);
+      expect(ConfigService.getInstance().statusBarProviders).to.deep.equal(['kimi', 'claude']);
       expect(start.callCount).to.equal(3);
       expect(show.called).to.equal(false);
       await callbacks.get('aiStatusHub.showDashboard')!('kimi');
-      expect(ConfigService.getInstance().statusBarProviders).to.deep.equal(['codex', 'kimi', 'claude']);
+      expect(ConfigService.getInstance().statusBarProviders).to.deep.equal(['kimi', 'claude']);
       expect(show.lastCall.args[0].getState().activeProvider).to.equal('kimi');
       for (const id of ['codex', 'kimi', 'claude']) send(id, false);
       await target.selectionUpdate;
-      expect(ConfigService.getInstance().statusBarProviders).to.deep.equal([]);
-      expect(context.globalState.get('aiStatusHub.statusBar.providers')).to.deep.equal([]);
+      expect(ConfigService.getInstance().statusBarProviders).to.deep.equal(['kimi']);
+      expect(context.globalState.get('aiStatusHub.statusBar.providers')).to.deep.equal(['kimi']);
     } finally {
       for (const disposable of context.subscriptions) disposable.dispose();
       await deactivate();
@@ -164,7 +167,7 @@ describe('multiple provider status bars', () => {
     } as any);
     try {
       expect(await config.setStatusBarProviders(['kimi'])).to.equal(false);
-      expect(config.statusBarProviders).to.deep.equal(['codex']);
+      expect(config.statusBarProviders).to.deep.equal(['kimi']);
     } finally { config.initializeSelectionStorage(); }
   });
 });
