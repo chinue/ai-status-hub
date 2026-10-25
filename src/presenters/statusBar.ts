@@ -143,7 +143,7 @@ export class StatusBarPresenter {
     const commandArgs = encodeURIComponent(JSON.stringify([this.provider?.id ?? state.activeProvider]));
 
     if (state.authStatus === 'missing') {
-      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.notLoggedIn')}`);
+      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.notLoggedIn')}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       return md;
     }
 

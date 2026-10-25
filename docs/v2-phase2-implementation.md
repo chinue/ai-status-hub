@@ -2609,3 +2609,11 @@ QuotaData 新增可选 `has5hLimit`。Scheduler 对 Codex 本地限额按实际�
 ### 状态栏默认入口（0.6.4，2026-10-26）
 
 ConfigService 的 statusBarProviders getter 与 setStatusBarProviders setter 共用 calc.normalizeStatusBarProviders：过滤不支持的 ID、去重，最终没有有效项时返回 [kimi]。正常配置和 globalState 降级存储均保存归一化选择；旧空数组在读取时也回退为 Kimi。manifest 默认值同步为 [kimi]，不再根据当前仪表盘 Provider 推导初始勾选。
+
+### Kimi 登录复用与登录命令（0.6.5，2026-10-26）
+
+CacheService.readKimiCredentials() 封装新版、旧版及自定义根目录的凭据读取，文件 IO 和 JSON.parse 均有异常防护。KimiAuthProvider 读取共享有效 token 时优先于插件私有缓存，兼容 expires_at 秒/毫秒，且不写入官方凭据文件。结构校验、坏文件和过期回退见 Provider 文档 #kimi-auth。
+
+extension.ts 的 signIn 命令仅在队列中解析运行实例，浏览器授权在队列外等待；成功后回到队列更新 AuthStatus、失效登录/本地缓存并立即调用对应 Scheduler.force。避免等待授权阻塞 checkbox 和仪表盘切换。登录异常有用户提示且不暴露响应 token。
+
+StatusBar 缺失登录分支的 tooltip 提供携带自身 Provider ID 的登录链接。新增双语提示与仪表盘登录按钮；未增加用量字段、历史副本或持久缓存条目，凭据读取只产生临时小对象。

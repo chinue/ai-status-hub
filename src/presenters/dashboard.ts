@@ -86,6 +86,9 @@ export class DashboardPanel {
       case 'ready':
         this.sendUpdate(this.store.getState());
         break;
+      case 'signIn':
+        void vscode.commands.executeCommand('aiStatusHub.signIn', this.store.getState().activeProvider);
+        break;
       case 'refresh':
         vscode.commands.executeCommand('aiStatusHub.refresh', this.store.getState().activeProvider);
         break;
@@ -781,6 +784,7 @@ export class DashboardPanel {
     <h1>${i18n('dashboard.title')}</h1>
     <div class="header-actions">
       <div class="provider-list" role="group" aria-label="${i18n('dashboard.providers')}">${providerOptions}</div>
+      <button id="btn-signin">${i18n('dashboard.signIn')}</button>
       <button id="btn-refresh">${i18n('dashboard.refresh')}</button>
       <button id="btn-toggle">$ / %</button>
       <button id="btn-lang">&#127760; ${isZh ? 'EN' : '\u4e2d'}</button>
@@ -1011,6 +1015,9 @@ export class DashboardPanel {
       return labels.resetTime + ' ' + fmtDuration(totalSeconds);
     }
 
+    document.getElementById('btn-signin').addEventListener('click', () => {
+      vscode.postMessage({ type: 'signIn' });
+    });
     document.getElementById('btn-refresh').addEventListener('click', () => {
       vscode.postMessage({ type: 'refresh' });
     });

@@ -86,6 +86,7 @@ describe('Dashboard Current Usage', () => {
         { store: { getState: () => ({ ...defaultState(), activeProvider: 'kimi' }) } }, 'nonce', 'en',
       );
       expect(html).not.to.include('id="provider-select"');
+      expect(html).to.include('id="btn-signin"');
       for (const id of ['codex', 'kimi', 'claude', 'glm', 'cursor']) {
         expect(html).to.include(`data-provider-check="${id}"`);
         expect(html).to.include(`data-provider-open="${id}"`);
@@ -139,5 +140,13 @@ describe('Dashboard Current Usage', () => {
       update.restore();
       panel.dispose();
     }
+  });
+
+  it('routes the login button to the dashboard provider', () => {
+    const execute = sinon.stub(vscode.commands, 'executeCommand').resolves();
+    try {
+      (DashboardPanel.prototype as any).handleMessage.call({ store: { getState: () => ({ activeProvider: 'kimi' }) } }, { type: 'signIn' });
+      expect(execute.calledWith('aiStatusHub.signIn', 'kimi')).to.equal(true);
+    } finally { execute.restore(); }
   });
 });

@@ -79,6 +79,25 @@ export class CacheService {
     return path.join(path.dirname(this.overrideFile), `ai-status-hub-window-anchors${suffix}.json`);
   }
 
+  /** Read shared Kimi login files without changing the official client's credentials. */
+  async readKimiCredentials(): Promise<unknown[]> {
+    const home = os.homedir();
+    const customRoot = process.env.KIMI_CODE_HOME || process.env.KIMI_SHARE_DIR;
+    const roots = customRoot
+      ? [path.resolve(customRoot.replace(/^~(?=[/\\]|$)/, home))]
+      : [path.join(home, '.kimi-code'), path.join(home, '.kimi')];
+    const credentials: unknown[] = [];
+    for (const root of roots) {
+      try {
+        const raw = await fs.readFile(path.join(root, 'credentials', 'kimi-code.json'), 'utf-8');
+        credentials.push(JSON.parse(raw));
+      } catch {
+        // Missing, partially written or unreadable credentials must not block other sources.
+      }
+    }
+    return credentials;
+  }
+
   async read(): Promise<CachedData | null> {
     try {
       const raw = await fs.readFile(this.cacheFile, 'utf-8');

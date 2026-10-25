@@ -428,3 +428,18 @@ coding-status-ex/
 ### Codex 限额窗口兼容（2026-10-25）
 
 Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空。API Provider 保留 headers 的窗口时长，交由 `calc.ts#codexRateLimitsToQuota` 统一映射；不再固定认为 primary 是五小时。`UnifiedQuota.has5hLimit` 为 false 表示没有五小时额度，undefined 兼容旧缓存及其他 Provider。
+
+### Kimi auth
+
+0.6.5（2026-10-26）修复 Kimi Code VS Code 登录复用与无响应入口。
+
+- 凭据文件由 CacheService.readKimiCredentials() 读取，AuthProvider 不直接访问磁盘。默认按 `~/.kimi-code/credentials/kimi-code.json`、`~/.kimi/credentials/kimi-code.json` 的顺序读取；设置 KIMI_CODE_HOME 或旧版 KIMI_SHARE_DIR 时只读取对应根目录，避免混用其他账号。缺失、损坏和不可读文件安全跳过。
+- 每次 resolveToken 先读取共享有效凭据，再考虑插件自己的 SecretStorage 和 API Key。支持 expires_at 秒/毫秒，校验字段，跳过已过期共享 token；官方客户端更新 token 后不受插件 60 秒私有缓存遮挡。
+- 共享凭据仅使用 access token，不复制 refresh token 到插件存储、不改写官方文件，也不尝试替官方客户端轮换共享 refresh token。共享文件过期且没有其他有效凭据时，可通过独立浏览器授权连接。插件自身 OAuth 的刷新失败不会删除已保存凭据。
+- 登录动作先提示正在连接，有现成有效登录时直接复用。需要授权时打开 HTTPS 页面并显示验证码；浏览器失败、轮询异常、授权失败及超时均显示双语结果，异常不逃逸。重复登录共用进行中的 Promise。
+- 登录按钮在 Dashboard Header 显示“登录 / 重新连接”；缺失凭据的状态栏 tooltip 增加带 Provider 参数的登录链接。成功后失效内存缓存并立即 force 刷新所属 Provider。
+- 授权等待不占用扩展的 Provider 选择队列，因此用户仍可切换模型和更改 checkbox。
+
+来源：[Kimi Code 官方数据目录](https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/configuration/data-locations.md)、[环境变量](https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/configuration/env-vars.md)。官方 VS Code 与终端共享同一 KIMI_CODE_HOME 时共享登录状态；本插件只读取同一用户下的公开约定凭据文件，不读取其他扩展的 SecretStorage。
+
+测试：kimiAuth.test.ts、kimiCredentialStorage.test.ts，以及 Dashboard/StatusBar/多 Provider 命令测试。所有网络授权测试均使用模拟 token 和请求，不访问真实登录服务器。

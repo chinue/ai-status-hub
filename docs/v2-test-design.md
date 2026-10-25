@@ -757,3 +757,9 @@ jobs:
 ### 空选择默认入口回归（0.6.4）
 
 calc.test.ts 覆盖未设置、空数组、无效输入、未知 Provider、合法多选和去重。multiProvider.test.ts 验证首次启动创建 Kimi 状态栏项、当前仪表盘为 Codex 时仍默认 Kimi、配置注册缺失时取消全部回退 Kimi 并持久化。dashboard.test.ts 的连续 checkbox 测试验证最后一项取消后恢复 Kimi。
+
+### Kimi 登录复用回归（0.6.5）
+
+kimiAuth.test.ts 验证共享新凭据优先于旧私有登录、token 轮换即时可见、秒/毫秒时间、坏字段/过期回退、已有登录直接复用、轮询异常、浏览器失败及成功保存。kimiCredentialStorage.test.ts 验证新版和旧版目录、坏 JSON 跳过、自定义 KIMI_CODE_HOME/KIMI_SHARE_DIR 不混用默认账号。
+
+多 Provider 测试断言登录成功立即 force 所属 Scheduler，等待授权仍可切换 Dashboard；Dashboard 与状态栏测试断言按钮存在、命令 Provider 参数和 missing tooltip 登录链接。测试凭据和请求均为本地模拟数据。

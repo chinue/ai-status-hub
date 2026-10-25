@@ -20,6 +20,7 @@
 | `src/types.ts` | `v2-phase2-implementation.md#typests` | 全局类型定义 |
 | `src/providers/claude/pricing.ts` | `v2-provider-abstraction.md#claude-pricing` | Claude 各版本标准定价与缓存费率 |
 | `src/providers/codex/pricing.ts` | `v2-provider-abstraction.md#codex-pricing` | Codex / OpenAI 各模型标准定价 |
+| `src/providers/kimi/auth.ts` | `v2-provider-abstraction.md#kimi-auth` | 新旧 Kimi Code 共享登录、独立 OAuth 与异常反馈 |
 | `src/providers/kimi/pricing.ts` | `v2-provider-abstraction.md#kimi-pricing` | Kimi 标准版、高速版及旧日志 fallback |
 | `src/i18n.ts` | `CODING_STANDARDS.md#5-i18n-强制规范` | 翻译字典、语言切换 |
 | `src/utils.ts` | `v2-phase2-implementation.md` | 通用工具（日志、SecretStorage） |

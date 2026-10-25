@@ -8,6 +8,7 @@ import { ApiHistoryService } from '../src/services/apiHistoryService';
 import { DashboardPanel } from '../src/presenters/dashboard';
 import { ConfigService } from '../src/config';
 import { makeContext } from './mocks/vscode';
+import { KimiAuthProvider } from '../src/providers/kimi/auth';
 
 describe('multiple provider status bars', () => {
   afterEach(() => { sinon.restore(); });
@@ -43,6 +44,20 @@ describe('multiple provider status bars', () => {
       expect(stores[1].getState().authStatus).to.equal('unknown');
       await callbacks.get('aiStatusHub.showDashboard')!('kimi');
       expect(show.lastCall.args[0].getState().activeProvider).to.equal('kimi');
+      const login = sinon.stub(KimiAuthProvider.prototype, 'startLoginFlow').resolves(true);
+      const force = sinon.spy(Scheduler.prototype, 'force');
+      await callbacks.get('aiStatusHub.signIn')!('kimi');
+      expect(login.calledOnce).to.equal(true);
+      expect(force.calledOnce).to.equal(true);
+      expect((force.firstCall.thisValue as any).store.getState().activeProvider).to.equal('kimi');
+      let finishLogin: (ok: boolean) => void;
+      login.callsFake(() => new Promise<boolean>(resolve => { finishLogin = resolve; }));
+      const pendingLogin = callbacks.get('aiStatusHub.signIn')!('kimi');
+      await callbacks.get('aiStatusHub.showDashboard')!('codex');
+      expect(show.lastCall.args[0].getState().activeProvider).to.equal('codex');
+      finishLogin!(false);
+      await pendingLogin;
+      await callbacks.get('aiStatusHub.showDashboard')!('kimi');
       expect(start.callCount).to.equal(2);
       await callbacks.get('aiStatusHub.showDashboard')!('not-a-provider');
       expect(start.callCount).to.equal(2);

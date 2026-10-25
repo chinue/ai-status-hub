@@ -116,14 +116,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('aiStatusHub.showDashboard', showDashboard),
     vscode.commands.registerCommand('aiStatusHub.syncStatusBars', () => enqueue(reconcile)),
     vscode.commands.registerCommand('aiStatusHub.refresh', (id?: unknown) => withRuntime(id, runtime => runtime.scheduler.force())),
-    vscode.commands.registerCommand('aiStatusHub.signIn', (id?: unknown) => withRuntime(id, async runtime => {
-      if (runtime.provider.auth.startLoginFlow) {
-        if (await runtime.provider.auth.startLoginFlow()) runtime.store.dispatch({ type: 'AUTH_STATUS', payload: 'authenticated' });
-      } else {
-        const t = makeT(config.effectiveLanguage);
-        await vscode.window.showInformationMessage(t('tooltip.loginCommand').replace('{provider}', runtime.provider.ui.displayName.toLowerCase()));
+    vscode.commands.registerCommand('aiStatusHub.signIn', async (id?: unknown) => {
+      let target: ProviderRuntime | undefined;
+      await withRuntime(id, runtime => { target = runtime; });
+      if (!target) return;
+      const runtime = target;
+      // Browser authorization can take minutes; keep the provider-selection queue free.
+      try {
+        if (runtime.provider.auth.startLoginFlow) {
+          if (await runtime.provider.auth.startLoginFlow()) {
+            await enqueue(async () => {
+              runtime.provider.auth.invalidate();
+              runtime.local.invalidate();
+              runtime.store.dispatch({ type: 'AUTH_STATUS', payload: 'authenticated' });
+              runtime.scheduler.force();
+            });
+          }
+        } else {
+          const t = makeT(config.effectiveLanguage);
+          await vscode.window.showInformationMessage(t('tooltip.loginCommand').replace('{provider}', runtime.provider.ui.displayName.toLowerCase()));
+        }
+      } catch {
+        log('Provider sign-in failed.');
+        void vscode.window.showErrorMessage(makeT(config.effectiveLanguage)('tooltip.authFailed'));
       }
-    })),
+    }),
     vscode.commands.registerCommand('aiStatusHub.signOut', (id?: unknown) => withRuntime(id, async runtime => {
       if (runtime.provider.id === 'kimi') {
         await context.secrets.delete('aiStatusHub.apiKey');

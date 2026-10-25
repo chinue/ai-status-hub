@@ -4,6 +4,15 @@ export type Locale = 'en' | 'zh-CN';
 
 export const dict: Record<Locale, Record<string, string>> = {
   en: {
+    'dashboard.signIn': 'Sign in / reconnect',
+    'kimi.loginStarting': 'Connecting to Kimi…',
+    'kimi.loginReused': 'Using your existing Kimi login. Refreshing usage…',
+    'kimi.loginUnavailable': 'Kimi sign-in is unavailable. Reload the VS Code window and try again.',
+    'kimi.loginCode': 'Complete Kimi authorization in your browser. If prompted, enter code: {code}',
+    'kimi.loginBrowserFailed': 'Unable to open the authorization page. Check your default browser and try again.',
+    'kimi.loginFailed': 'Kimi sign-in failed. Check your connection and try again.',
+    'kimi.loginSuccess': 'Kimi sign-in successful. Refreshing usage…',
+    'kimi.loginTimeout': 'Kimi authorization timed out. Please try again.',
     'dashboard.providers': 'Models',
     'dashboard.showProvider': 'Show {provider} in the status bar',
     'tooltip.loginCommand': 'Run "{provider} login" in your terminal to authenticate.',
@@ -136,6 +145,15 @@ export const dict: Record<Locale, Record<string, string>> = {
     'provider.auto': 'Auto',
   },
   'zh-CN': {
+    'dashboard.signIn': '登录 / 重新连接',
+    'kimi.loginStarting': '正在连接 Kimi…',
+    'kimi.loginReused': '已复用现有 Kimi 登录，正在刷新用量…',
+    'kimi.loginUnavailable': 'Kimi 登录暂不可用，请重新加载 VS Code 窗口后重试。',
+    'kimi.loginCode': '请在浏览器中完成 Kimi 授权；如需验证码，请输入：{code}',
+    'kimi.loginBrowserFailed': '无法打开授权页面，请检查默认浏览器后重试。',
+    'kimi.loginFailed': 'Kimi 登录失败，请检查网络连接后重试。',
+    'kimi.loginSuccess': 'Kimi 登录成功，正在刷新用量…',
+    'kimi.loginTimeout': 'Kimi 授权超时，请重新登录。',
     'dashboard.providers': '模型',
     'dashboard.showProvider': '在状态栏显示 {provider}',
     'tooltip.loginCommand': '请在终端运行“{provider} login”进行身份验证。',

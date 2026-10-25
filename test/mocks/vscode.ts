@@ -22,6 +22,7 @@ export class MemoryMemento {
 }
 
 export const Uri = {
+  parse: (value: string) => ({ toString: () => value }),
   file: (path: string) => ({ fsPath: path, path, scheme: 'file' })
 };
 
@@ -72,7 +73,7 @@ export const workspace = {
   onDidChangeConfiguration: () => ({ dispose: () => {} }),
 };
 
-export const env = { language: 'en' };
+export const env = { language: 'en', openExternal: async (_uri: unknown) => true };
 
 export const commands = {
   registerCommand: () => ({ dispose: () => {} }),

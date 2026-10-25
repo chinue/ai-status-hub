@@ -28,6 +28,14 @@ describe('StatusBarPresenter', () => {
     expect((presenter as any).itemWindow).to.be.undefined;
   });
 
+  it('provides a working provider-specific login link when credentials are missing', async () => {
+    store.dispatch({ type: 'SET_PROVIDER', payload: 'kimi' });
+    store.dispatch({ type: 'AUTH_STATUS', payload: 'missing' });
+    await Promise.resolve();
+    const tooltip = (presenter as any).itemWeekly.tooltip.value;
+    expect(tooltip).to.include('command:aiStatusHub.signIn?%5B%22kimi%22%5D');
+  });
+
   it('shows weekly percentage after API_SUCCESS', () => {
     store.dispatch({
       type: 'API_SUCCESS',

@@ -265,3 +265,7 @@ Dashboard 的 WebView 无法直接导入后端模块。当前方案：
 新增 `dashboard.providers`、`dashboard.showProvider`、`tooltip.loginCommand`、`statusBar.signIn`、`statusBar.authExpired`、`statusBar.authFailed`，均同时维护 en/zh-CN，并由 makeT 使用。状态栏双窗口文本与周剩余配色分别封装到 calc.ts 的 formatProviderStatus、remainingQuotaColor，Presenter 不内联计算。
 
 扩展多 Provider 编排仅实例化与调用已有磁盘服务，不引入直接磁盘访问。多实例估算内存预算见 v2-phase2-implementation.md 的“多 Provider 运行实例”章节。
+
+### 0.6.5 Kimi 登录提示
+
+新增 dashboard.signIn 及 kimi.loginStarting/loginReused/loginUnavailable/loginCode/loginBrowserFailed/loginFailed/loginSuccess/loginTimeout，均提供 en/zh-CN，并通过 makeT 使用。AuthProvider 的共享凭据磁盘读取已移入 CacheService；日志不记录 token、refresh token 或服务器响应正文。

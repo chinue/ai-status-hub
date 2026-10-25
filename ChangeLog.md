@@ -1,5 +1,18 @@
 # ChangeLog
 
+## [0.6.5] - 2026-10-26
+
+### 修复
+
+- **Kimi Code 登录复用**（`src/providers/kimi/auth.ts`、`src/services/cacheService.ts`）：新增读取新版 `~/.kimi-code/credentials/kimi-code.json`，兼容旧版 `~/.kimi`、KIMI_CODE_HOME 和 KIMI_SHARE_DIR；共享有效登录优先于私有旧缓存，兼容秒/毫秒有效期并跟随官方客户端 token 更新。只读官方凭据，不复制共享 refresh token 或改写官方登录文件。
+- **登录入口与反馈**（`src/presenters/dashboard.ts`、`src/presenters/statusBar.ts`、`src/i18n.ts`）：增加仪表盘“登录 / 重新连接”按钮，缺失凭据的 tooltip 提供所属模型的登录链接；连接、复用、验证码、浏览器失败、轮询异常、超时与成功均有中英文反馈。
+- **登录后立即刷新**（`src/extension.ts`）：成功后立即刷新所属模型用量；浏览器授权在 Provider 选择队列外等待，不阻塞模型切换和 checkbox；网络刷新失败保留插件私有登录，避免临时网络问题清空凭据。
+
+### 验证
+
+- 新增凭据目录、token 更新、坏字段/过期回退、浏览器授权成功/失败及 UI 登录命令回归测试；类型检查、全部 255 项测试、生产编译和 VSIX 打包通过。授权网络测试使用模拟请求，未执行真实账号浏览器授权。
+- 同步 Provider、配置/状态栏、Dashboard、编码规范、测试设计与文档索引。
+
 ## [0.6.4] - 2026-10-26
 
 ### 修复
