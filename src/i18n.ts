@@ -4,6 +4,9 @@ export type Locale = 'en' | 'zh-CN';
 
 export const dict: Record<Locale, Record<string, string>> = {
   en: {
+    'codex.usageHttpError': 'Codex usage: HTTP {status}',
+    'codex.usageMissing': 'Codex usage response contains no valid quota windows',
+    'codex.usageFailed': 'Unable to read current Codex usage',
     'dashboard.signIn': 'Sign in / reconnect',
     'kimi.loginStarting': 'Connecting to Kimi…',
     'kimi.loginReused': 'Using your existing Kimi login. Refreshing usage…',
@@ -145,6 +148,9 @@ export const dict: Record<Locale, Record<string, string>> = {
     'provider.auto': 'Auto',
   },
   'zh-CN': {
+    'codex.usageHttpError': 'Codex 用量查询：HTTP {status}',
+    'codex.usageMissing': 'Codex 用量响应没有有效的额度窗口',
+    'codex.usageFailed': '无法读取 Codex 当前用量',
     'dashboard.signIn': '登录 / 重新连接',
     'kimi.loginStarting': '正在连接 Kimi…',
     'kimi.loginReused': '已复用现有 Kimi 登录，正在刷新用量…',

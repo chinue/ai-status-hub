@@ -269,3 +269,7 @@ Dashboard 的 WebView 无法直接导入后端模块。当前方案：
 ### 0.6.5 Kimi 登录提示
 
 新增 dashboard.signIn 及 kimi.loginStarting/loginReused/loginUnavailable/loginCode/loginBrowserFailed/loginFailed/loginSuccess/loginTimeout，均提供 en/zh-CN，并通过 makeT 使用。AuthProvider 的共享凭据磁盘读取已移入 CacheService；日志不记录 token、refresh token 或服务器响应正文。
+
+### 0.6.6 Codex 用量错误提示
+
+新增 codex.usageHttpError、codex.usageMissing、codex.usageFailed，英文与简体中文同时维护；Codex API 通过 makeT 生成错误提示，不输出服务器正文或认证 token。

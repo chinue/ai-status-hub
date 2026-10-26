@@ -11,6 +11,7 @@ import { LocalUsageService } from '../src/services/localUsageService';
 import { ConfigService } from '../src/config';
 import { makeContext } from './mocks/vscode';
 import { QuotaData, WindowAnchorData } from '../src/types';
+import { codexRateLimitsToQuota, resolveWeeklyPct } from '../src/calc';
 
 describe('Scheduler', () => {
   let clock: sinon.SinonFakeTimers;
@@ -96,6 +97,45 @@ describe('Scheduler', () => {
     scheduler.start();
     await clock.tickAsync(100);
     expect(store.getState().dataSource).to.equal('no-data');
+  });
+
+  it('keeps an official early reset after short ticks and stale local fallback', async () => {
+    const local = LocalUsageService.getInstance();
+    sinon.stub(local, 'getLocalUsage').resolves({
+      costThisCycle: 0.2, cost5h: 0.1, cost7d: 0.2, costToday: 0.2,
+      entries: [{ timestamp: Date.now(), inputOther: 100, output: 0, inputCacheRead: 0, inputCacheCreation: 0, cost: 0.2 }],
+    } as any);
+    sinon.stub(local, 'getRateLimits').resolves({ primary: { used_percent: 90, window_minutes: 10080 } });
+    sinon.stub(cache, 'write').resolves();
+    sinon.stub(auth, 'resolveToken').resolves('fixture');
+    let quota = codexRateLimitsToQuota({ primary: { used_percent: 90, window_minutes: 10080, resets_at: 604800 } }, Date.now());
+    const request = sinon.stub(api, 'fetchQuota').callsFake(async () => ({ ok: true, data: quota }));
+    scheduler.start();
+    await clock.tickAsync(100);
+    store.dispatch({ type: 'LOCAL_ESTIMATE', payload: { weeklyPct: 0.2 } });
+    quota = { ...quota, weeklyUsed: 0, weeklyUsedPct: 0 };
+    scheduler.force();
+    await clock.tickAsync(100);
+    expect(resolveWeeklyPct(store.getState())).to.equal(0);
+    await (scheduler as any).doShortTick();
+    expect(store.getState().localEstimate!.weeklyPct).to.equal(0);
+    expect(resolveWeeklyPct(store.getState())).to.equal(0);
+    request.resolves({ ok: false, error: 'offline', networkError: true });
+    sinon.stub(cache, 'read').resolves({ quota: { ...quota, weeklyUsed: 90, weeklyUsedPct: 90 }, fetchedAt: 0 });
+    await (scheduler as any).doLongTick();
+    expect(store.getState().quota!.weeklyUsedPct).to.equal(0);
+    expect(store.getState().usageEntries).to.have.length(1);
+  });
+
+  it('drops old smoothing when the official reset window changes at the same integer percentage', async () => {
+    const local = LocalUsageService.getInstance();
+    sinon.stub(local, 'getLocalUsage').resolves({ costThisCycle: 20, cost5h: 2, cost7d: 20, entries: [] } as any);
+    sinon.stub(cache, 'write').resolves();
+    const old = codexRateLimitsToQuota({ primary: { used_percent: 10, window_minutes: 10080, resets_at: 604800 } }, Date.now());
+    store.dispatch({ type: 'API_SUCCESS', payload: old });
+    store.dispatch({ type: 'LOCAL_ESTIMATE', payload: { weeklyPct: 10.4 } });
+    await (scheduler as any).processQuotaData({ ...old, weeklyResetAt: old.weeklyResetAt + 86400000 }, Date.now(), 'api');
+    expect(store.getState().localEstimate!.weeklyPct).to.equal(10);
   });
 
   it('stores official 5h and 7d window anchors when API succeeds', async () => {
@@ -597,7 +637,7 @@ describe('Scheduler', () => {
     rlStub.restore();
   });
 
-  it('preserves old quota decimal precision when local returns integer and no current estimate', async () => {
+  it('preserves authoritative quota decimals instead of adopting a local fallback', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
 
@@ -639,12 +679,9 @@ describe('Scheduler', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    const le = store.getState().localEstimate;
-    expect(le).to.not.be.null;
-    // Old quota had 12.1, local returns 12 -> preserve old precision
-    expect(le!.weeklyPct).to.equal(12.1);
-    // Old quota had 10.4, local returns 10 -> preserve old precision
-    expect(le!.windowPct).to.equal(10.4);
+    // A failed API read must retain official values, not recalibrate from old logs.
+    expect(store.getState().quota!.weeklyUsedPct).to.equal(12.1);
+    expect(store.getState().quota!.windowUsedPct).to.equal(10.4);
 
     rlStub.restore();
   });

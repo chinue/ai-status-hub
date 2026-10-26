@@ -187,7 +187,7 @@ export class Scheduler {
           update() {},
           estimate(currentCost: number) {
             if (this.k <= 0 || !isFinite(this.k)) {
-              return Math.max(0, Math.min(100, currentCost));
+              return quota ? this.P : Math.max(0, Math.min(100, currentCost));
             }
             const p = this.P + this.k * (currentCost - this.C);
             return Math.max(0, Math.min(100, p));
@@ -202,7 +202,7 @@ export class Scheduler {
           update() {},
           estimate(currentCost: number) {
             if (this.k <= 0 || !isFinite(this.k)) {
-              return Math.max(0, Math.min(100, currentCost));
+              return quota ? this.P : Math.max(0, Math.min(100, currentCost));
             }
             const p = this.P + this.k * (currentCost - this.C);
             return Math.max(0, Math.min(100, p));
@@ -361,7 +361,10 @@ export class Scheduler {
       quotaData = this.rateLimitsToQuota(rateLimits, now);
     }
 
-    if (quotaData) {
+    const previous = this.store.getState();
+    const hasOfficialQuota = this.currentProviderId() === 'codex'
+      && !!previous.quota && ['api', 'cache', 'stale'].includes(previous.dataSource);
+    if (quotaData && !hasOfficialQuota) {
       // Local rate_limits are temporary fallback only; do NOT persist to cache
       // because they can be severely stale (e.g. other devices, old sessions).
       await this.processQuotaData(quotaData, now, 'local-only', false);
@@ -424,7 +427,7 @@ export class Scheduler {
     }
 
     const cached = await this.cacheService.read();
-    if (cached) {
+    if (cached && !hasOfficialQuota) {
       this.store.dispatch({ type: 'CACHE_LOADED', payload: cached.quota, fetchedAt: cached.fetchedAt });
       if (cached.calibration) {
         this.store.dispatch({
@@ -504,22 +507,30 @@ export class Scheduler {
       dataRetentionDays: this.config.dataRetentionDays,
     });
 
+    // Official decreases or reset-window changes must replace old smoothing exactly.
+    const weeklyChanged = source === 'api' && !!oldQuota && (
+      quotaData.weeklyUsedPct < oldQuota.weeklyUsedPct
+      || Math.abs(quotaData.weeklyResetAt - oldQuota.weeklyResetAt) > 60_000);
+    const windowChanged = source === 'api' && !!oldQuota && (
+      quotaData.windowUsedPct < oldQuota.windowUsedPct
+      || Math.abs(quotaData.windowResetAt - oldQuota.windowResetAt) > 60_000);
+
     // Smoothing: preserve fine-grained local estimate when rounded value matches
     const currentEstimate = this.store.getState().localEstimate;
     let weeklyPct = quotaData.weeklyUsedPct;
     let windowPct = quotaData.windowUsedPct;
     if (currentEstimate) {
-      if (Math.round(currentEstimate.weeklyPct) === quotaData.weeklyUsedPct) {
+      if (!weeklyChanged && Math.round(currentEstimate.weeklyPct) === quotaData.weeklyUsedPct) {
         weeklyPct = currentEstimate.weeklyPct;
       }
-      if (Math.round(currentEstimate.windowPct) === quotaData.windowUsedPct) {
+      if (!windowChanged && Math.round(currentEstimate.windowPct) === quotaData.windowUsedPct) {
         windowPct = currentEstimate.windowPct;
       }
     }
-    if (oldQuota && Math.round(oldQuota.weeklyUsedPct) === quotaData.weeklyUsedPct && weeklyPct === quotaData.weeklyUsedPct) {
+    if (!weeklyChanged && oldQuota && Math.round(oldQuota.weeklyUsedPct) === quotaData.weeklyUsedPct && weeklyPct === quotaData.weeklyUsedPct) {
       weeklyPct = oldQuota.weeklyUsedPct;
     }
-    if (oldQuota && Math.round(oldQuota.windowUsedPct) === quotaData.windowUsedPct && windowPct === quotaData.windowUsedPct) {
+    if (!windowChanged && oldQuota && Math.round(oldQuota.windowUsedPct) === quotaData.windowUsedPct && windowPct === quotaData.windowUsedPct) {
       windowPct = oldQuota.windowUsedPct;
     }
 

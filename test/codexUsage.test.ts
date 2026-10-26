@@ -1,7 +1,6 @@
 // DESIGN: v2-test-design.md#codex-usage
 import { expect } from 'chai';
-import { codexRateLimitsToQuota, formatProviderStatus } from '../src/calc';
-import { CodexApiProvider } from '../src/providers/codex/api';
+import { codexRateLimitsToQuota, formatProviderStatus, parseCodexUsage } from '../src/calc';
 import { CodexLocalParser } from '../src/providers/codex/localParser';
 import { CodexPricingProvider } from '../src/providers/codex/pricing';
 import { LocalUsageService } from '../src/services/localUsageService';
@@ -33,15 +32,14 @@ describe('Codex weekly-only usage', () => {
     expect(codexRateLimitsToQuota({ primary: { used_percent: 12, window_minutes: 60 } }, now).weeklyLimit).to.equal(0);
     expect(codexRateLimitsToQuota({}, now).has5hLimit).to.equal(false);
   });
-  it('maps weekly-only API headers using their window duration', () => {
-    const q = (new CodexApiProvider() as any).mapToUnifiedQuota({
-      'x-codex-primary-used-percent': '15',
-      'x-codex-primary-window-minutes': '10080',
-      'x-codex-primary-reset-after-seconds': '86400',
-    });
-    expect(q.weeklyUsedPct).to.equal(15);
-    expect(q.has5hLimit).to.equal(false);
+  it('maps weekly-only API usage using the window duration', () => {
+    const q = parseCodexUsage({ rate_limit: { primary_window: {
+      used_percent: 15, limit_window_seconds: 604800, reset_after_seconds: 86400,
+    } } }, now);
+    expect(q?.weeklyUsedPct).to.equal(15);
+    expect(q?.has5hLimit).to.equal(false);
   });
+
   it('exposes five-hour row visibility in dashboard updates', () => {
     const usage = (DashboardPanel.prototype as any).buildKimiUsageData.call({}, {
       ...defaultState(), activeProvider: 'codex', quota: { has5hLimit: false, weeklyLimit: 100 },

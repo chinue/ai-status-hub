@@ -2617,3 +2617,13 @@ CacheService.readKimiCredentials() 封装新版、旧版及自定义根目录的
 extension.ts 的 signIn 命令仅在队列中解析运行实例，浏览器授权在队列外等待；成功后回到队列更新 AuthStatus、失效登录/本地缓存并立即调用对应 Scheduler.force。避免等待授权阻塞 checkbox 和仪表盘切换。登录异常有用户提示且不暴露响应 token。
 
 StatusBar 缺失登录分支的 tooltip 提供携带自身 Provider ID 的登录链接。新增双语提示与仪表盘登录按钮；未增加用量字段、历史副本或持久缓存条目，凭据读取只产生临时小对象。
+
+### 官方提前重置后的 Codex 同步（0.6.6，2026-10-26）
+
+Scheduler.processQuotaData 对官方使用率下降，或官方重置时间变化超过 60 秒的窗口，直接采用新官方百分比，丢弃旧平滑小数并重新建立本地成本基线；两个窗口独立处理。官方原始数据、校准和窗口锚点照常写缓存，重启不会恢复充值前用量。
+
+短周期在已有官方 quota、但 k=0（例如官方已清零）时保持校准基准 P，不再把累计费用金额当作百分比回填。Token、COST 和历史明细仍照常更新，官方额度重置不会删除实际发生的费用记录。
+
+Codex 已有 API/cache/stale 权威额度时，后续 API 失败不能以旧 JSONL rate_limits 或旧磁盘缓存覆盖它；保留最后官方值、记录错误并继续扫描本地用量。尚无官方数据时仍允许本地 JSONL 降级。其他 Provider 的 fallback 行为保持不变。
+
+CacheService.readCodexAccountId() 负责读取 ~/.codex/auth.json 中的 tokens.account_id，IO/JSON.parse 均有异常防护，失败返回 undefined。CodexApiProvider 的网络查询只读取用量。

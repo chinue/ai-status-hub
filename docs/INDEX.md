@@ -19,6 +19,7 @@
 | `src/calc.ts` | `v2-local-estimation-design.md#quota-percentage-resolution` | 本地估算算法、格式化函数、额度重置解析 |
 | `src/types.ts` | `v2-phase2-implementation.md#typests` | 全局类型定义 |
 | `src/providers/claude/pricing.ts` | `v2-provider-abstraction.md#claude-pricing` | Claude 各版本标准定价与缓存费率 |
+| `src/providers/codex/api.ts` | `v2-provider-abstraction.md#codex-api` | 官方只读用量、提前重置同步 |
 | `src/providers/codex/pricing.ts` | `v2-provider-abstraction.md#codex-pricing` | Codex / OpenAI 各模型标准定价 |
 | `src/providers/kimi/auth.ts` | `v2-provider-abstraction.md#kimi-auth` | 新旧 Kimi Code 共享登录、独立 OAuth 与异常反馈 |
 | `src/providers/kimi/pricing.ts` | `v2-provider-abstraction.md#kimi-pricing` | Kimi 标准版、高速版及旧日志 fallback |

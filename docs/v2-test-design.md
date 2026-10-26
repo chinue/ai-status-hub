@@ -763,3 +763,9 @@ calc.test.ts 覆盖未设置、空数组、无效输入、未知 Provider、合�
 kimiAuth.test.ts 验证共享新凭据优先于旧私有登录、token 轮换即时可见、秒/毫秒时间、坏字段/过期回退、已有登录直接复用、轮询异常、浏览器失败及成功保存。kimiCredentialStorage.test.ts 验证新版和旧版目录、坏 JSON 跳过、自定义 KIMI_CODE_HOME/KIMI_SHARE_DIR 不混用默认账号。
 
 多 Provider 测试断言登录成功立即 force 所属 Scheduler，等待授权仍可切换 Dashboard；Dashboard 与状态栏测试断言按钮存在、命令 Provider 参数和 missing tooltip 登录链接。测试凭据和请求均为本地模拟数据。
+
+### Codex 官方提前重置回归（0.6.6）
+
+codexApi.test.ts 覆盖只读 GET、不创建模型请求、账户头、两次查询间 90→0、双窗口、坏数据与 401。codexUsage.test.ts 保留 Pro 周窗口映射回归，并改用官方 JSON 测试。
+
+scheduler.test.ts 验证官方 90→0 后舍弃旧平滑小数、短周期保持 0、断网后拒绝旧本地 90% 和旧磁盘 90% 覆盖，并保留实际费用明细；相同整数使用率但官方 resetAt 改变时也重建校准。既有精度回归改为验证保留权威值，不能再依赖旧日志重校准官方额度。

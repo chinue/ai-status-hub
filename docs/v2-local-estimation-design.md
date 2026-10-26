@@ -676,3 +676,9 @@ src/
 ### 状态栏选择归一化（0.6.4，2026-10-26）
 
 calc.ts 新增纯函数 normalizeStatusBarProviders(value)，供 ConfigService 读取和保存共用：保留已支持 Provider 的顺序、去重并过滤未知 ID；没有有效模型时默认 Kimi。首次启动及取消最后一个选择后均保留状态栏入口；不改变计价和用量估算。
+
+### 提前重置的权威用量与校准（0.6.6，2026-10-26）
+
+calc.parseCodexUsage(value, now) 解析官方只读用量 JSON，校验数字、保留 0，复用 codexRateLimitsToQuota 的按时长映射。没有合法窗口时返回 null，避免把失败响应解释为额度清零。
+
+收到官方用量下降或窗口变化时，Scheduler 丢弃该窗口旧平滑值、重建 P/C/k；官方值为 0 且 k 不可用时，短周期保持 P=0，历史累计成本不再被误认为百分比。已知官方 Codex 快照也不能被旧会话降级覆盖。此修复不删除 Token、费用、会话或历史数据；不增加 UsageEntry 字段和历史副本。

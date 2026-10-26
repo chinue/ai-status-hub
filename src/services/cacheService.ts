@@ -79,6 +79,14 @@ export class CacheService {
     return path.join(path.dirname(this.overrideFile), `ai-status-hub-window-anchors${suffix}.json`);
   }
 
+  async readCodexAccountId(): Promise<string | undefined> {
+    try {
+      const raw = await fs.readFile(path.join(os.homedir(), '.codex', 'auth.json'), 'utf-8');
+      const parsed = JSON.parse(raw);
+      return typeof parsed?.tokens?.account_id === 'string' ? parsed.tokens.account_id : undefined;
+    } catch { return undefined; }
+  }
+
   /** Read shared Kimi login files without changing the official client's credentials. */
   async readKimiCredentials(): Promise<unknown[]> {
     const home = os.homedir();

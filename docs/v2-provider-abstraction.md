@@ -443,3 +443,13 @@ Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空
 来源：[Kimi Code 官方数据目录](https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/configuration/data-locations.md)、[环境变量](https://github.com/MoonshotAI/kimi-code/blob/main/docs/en/configuration/env-vars.md)。官方 VS Code 与终端共享同一 KIMI_CODE_HOME 时共享登录状态；本插件只读取同一用户下的公开约定凭据文件，不读取其他扩展的 SecretStorage。
 
 测试：kimiAuth.test.ts、kimiCredentialStorage.test.ts，以及 Dashboard/StatusBar/多 Provider 命令测试。所有网络授权测试均使用模拟 token 和请求，不访问真实登录服务器。
+
+### Codex API
+
+0.6.6（2026-10-26）将 Codex 用量查询改为只读 `GET https://chatgpt.com/backend-api/wham/usage`，与官方 Codex 客户端的 ChatGptApi 路径一致。旧实现向 `/codex/responses` 发送模型请求并读取限额响应头；实际日志持续返回 `No rate limit headers found`，导致官方提前重置后仍显示旧 JSONL 快照。
+
+请求携带现有 OAuth token、可选 chatgpt-account-id 和 no-cache；不创建模型消息，不请求或消费额度重置操作。账号 ID 由 CacheService.readCodexAccountId() 封装读取，API Provider 不直接访问磁盘。15 秒超时覆盖请求与 JSON 正文读取，最终释放计时器；错误不输出凭据或响应正文。
+
+`calc.parseCodexUsage()` 验证 rate_limit.primary_window / secondary_window，将 limit_window_seconds、used_percent、reset_at / reset_after_seconds 转为 RateLimits 并复用按窗口时长映射。支持 Pro 每周单窗口和 Plus 双窗口，合法的 0 是权威重置值；缺失、坏 JSON、非法字段或没有可识别窗口时返回失败，不能伪造一次清零。
+
+来源：[官方客户端用量路径与读取逻辑](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs)、[官方用量响应回归测试](https://github.com/openai/codex/blob/main/codex-rs/app-server/tests/suite/v2/rate_limits.rs)。本次实际只读查询返回 HTTP 200，识别到账号 primary 周窗口；未调用任何付费、重置或模型生成接口。

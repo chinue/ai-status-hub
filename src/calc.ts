@@ -763,3 +763,29 @@ export function codexRateLimitsToQuota(limits: RateLimits, now: number): QuotaDa
     windowResetAt: short ? resetAt(short, 5 * 3600) : now, parallelLimit: 0,
   };
 }
+
+/** Parse the read-only Codex usage response, preserving zero and rejecting missing data. */
+export function parseCodexUsage(value: unknown, now: number): QuotaData | null {
+  if (!value || typeof value !== 'object') return null;
+  const limit = (value as Record<string, unknown>).rate_limit;
+  if (!limit || typeof limit !== 'object') return null;
+  const fields = limit as Record<string, unknown>;
+  const window = (raw: unknown): RateLimits['primary'] => {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const data = raw as Record<string, unknown>;
+    const used = data.used_percent;
+    if (typeof used !== 'number' || !Number.isFinite(used) || used < 0) return undefined;
+    const seconds = data.limit_window_seconds;
+    if (seconds != null && (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0)) return undefined;
+    const resetAt = data.reset_at;
+    const resetAfter = data.reset_after_seconds;
+    return {
+      used_percent: Math.min(100, used),
+      window_minutes: typeof seconds === 'number' ? seconds / 60 : undefined,
+      resets_at: typeof resetAt === 'number' && Number.isFinite(resetAt) && resetAt > 0 ? resetAt : undefined,
+      resets_in_seconds: typeof resetAfter === 'number' && Number.isFinite(resetAfter) && resetAfter >= 0 ? resetAfter : undefined,
+    };
+  };
+  const quota = codexRateLimitsToQuota({ primary: window(fields.primary_window), secondary: window(fields.secondary_window) }, now);
+  return quota.weeklyLimit > 0 || quota.windowLimit > 0 ? quota : null;
+}
