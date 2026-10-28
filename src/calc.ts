@@ -724,13 +724,15 @@ export function formatMemorySize(bytes: number): string {
 }
 
 /** Format both quota windows in one provider status cell. */
-export function formatProviderStatus(state: AppState, icon: string, name: string, mode: 'percent' | 'absolute', now = Date.now()): string {
+export function formatProviderStatus(state: AppState, icon: string, name: string, mode: 'percent' | 'absolute', now = Date.now(), refreshIntervalSeconds = 300): string {
   const weekly = resolveWeeklyPct(state);
   const window = resolveWindowPct(state);
   const quota = state.quota;
   const weeklyText = mode === 'absolute' && quota ? `${quota.weeklyUsed}/${quota.weeklyLimit}` : formatPercent(weekly, 2);
   const windowText = mode === 'absolute' && quota ? `${quota.windowUsed}/${quota.windowLimit}` : formatPercent(window, 2);
-  const indicators = buildIndicatorSuffix(state, now, 120_000, ['stale', 'source', 'auth']);
+  // A healthy scheduled poll must not become stale before the next poll is due.
+  const staleThresholdMs = refreshIntervalSeconds * 1000 + 120_000;
+  const indicators = buildIndicatorSuffix(state, now, staleThresholdMs, ['stale', 'source', 'auth']);
   const shortCell = quota?.has5hLimit === false ? '' : ` | 5️⃣ ${windowText}`;
   return `${icon} ${name}:${weeklyText}${shortCell}${indicators}`;
 }

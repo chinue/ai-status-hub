@@ -682,3 +682,7 @@ calc.ts 新增纯函数 normalizeStatusBarProviders(value)，供 ConfigService �
 calc.parseCodexUsage(value, now) 解析官方只读用量 JSON，校验数字、保留 0，复用 codexRateLimitsToQuota 的按时长映射。没有合法窗口时返回 null，避免把失败响应解释为额度清零。
 
 收到官方用量下降或窗口变化时，Scheduler 丢弃该窗口旧平滑值、重建 P/C/k；官方值为 0 且 k 不可用时，短周期保持 P=0，历史累计成本不再被误认为百分比。已知官方 Codex 快照也不能被旧会话降级覆盖。此修复不删除 Token、费用、会话或历史数据；不增加 UsageEntry 字段和历史副本。
+
+### 配额过期提示与刷新周期（0.6.7，2026-10-28）
+
+`formatProviderStatus` 接收 `refreshIntervalSeconds`（默认 300），将配额过期阈值设为刷新间隔 + 120 秒宽限。默认每五分钟查询 API 时，七分钟内不显示 💤，超过七分钟才显示。该标记表示 API 快照过期，与本地会话是否正在交互无关；本地用量更新不刷新 API 成功时间。`buildIndicatorSuffix` 保留显式阈值参数，来源与认证指示器保持原行为。无成功时间且无配额时仍显示过期提示，不增加历史或内存字段。

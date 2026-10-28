@@ -39,6 +39,30 @@ describe('combined provider status', () => {
     expect(formatProviderStatus(defaultState(), 'X', 'Test', 'absolute')).to.include('Test:0.00% | 5️⃣ 0.00%');
   });
 
+  it('keeps API data fresh throughout the default five-minute polling interval', () => {
+    const now = Date.now();
+    const state = { ...defaultState(), activeProvider: 'kimi', quota: makeQuota(),
+      dataSource: 'api' as const, lastSuccessfulFetchAt: now - 300_000 };
+    expect(formatProviderStatus(state, 'K', 'Kimi', 'percent', now)).not.to.include('💤');
+  });
+
+  it('marks API data stale only after the polling interval plus two minutes', () => {
+    const now = Date.now();
+    const state = { ...defaultState(), quota: makeQuota(), lastSuccessfulFetchAt: now - 420_000 };
+    expect(formatProviderStatus(state, 'K', 'Kimi', 'percent', now)).not.to.include('💤');
+    expect(formatProviderStatus(state, 'K', 'Kimi', 'percent', now + 1)).to.include('💤');
+  });
+
+  it('honors custom polling intervals in status text', () => {
+    const now = Date.now();
+    const state = { ...defaultState(), quota: makeQuota(), lastSuccessfulFetchAt: now - 600_000 };
+    expect(formatProviderStatus(state, 'K', 'Kimi', 'percent', now, 600)).not.to.include('💤');
+    expect(formatProviderStatus(state, 'K', 'Kimi', 'percent', now + 120_001, 600)).to.include('💤');
+    state.lastSuccessfulFetchAt = now - 150_000;
+    expect(formatProviderStatus(state, 'K', 'Kimi', 'percent', now, 30)).not.to.include('💤');
+    expect(formatProviderStatus(state, 'K', 'Kimi', 'percent', now + 1, 30)).to.include('💤');
+  });
+
   it('uses weekly remaining quota with the existing threshold colors', () => {
     const colors = ['white', 'yellow', 'green', 'purple', 'red'];
     for (const [remaining, color] of [[100, 'white'], [81, 'white'], [80, 'yellow'], [60, 'green'], [40, 'purple'], [20, 'red'], [0, 'red'], [-1, 'red'], [101, 'white'], [NaN, 'white']] as const) {

@@ -9,12 +9,10 @@ import {
   fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime,
   buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
-  resolveAuthDisplayMode, buildIndicatorSuffix,
+  resolveAuthDisplayMode,
 } from '../calc';
 import { AppState } from '../types';
 import { IProvider } from '../providers/base/types';
-
-const STALE_THRESHOLD_MS = 120_000; // 2 minutes
 
 const UPDATE_FRAMES = ['\uD83C\uDF11', '\uD83C\uDF12', '\uD83C\uDF13', '\uD83C\uDF14', '\uD83C\uDF15', '\uD83C\uDF16', '\uD83C\uDF17', '\uD83C\uDF18'];
 // MOON_ANIMATION_INTERVAL_MS is now read from config.updateAnimationIntervalMs (default 300ms)
@@ -86,7 +84,7 @@ export class StatusBarPresenter {
         const changed = this.lastSeenWeeklyPct !== weeklyPct || this.lastSeenWindowPct !== windowPct;
         this.lastSeenWeeklyPct = weeklyPct;
         this.lastSeenWindowPct = windowPct;
-        this.itemWeekly.text = formatProviderStatus(state, icon, this.displayName, this.config.displayMode);
+        this.itemWeekly.text = formatProviderStatus(state, icon, this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds);
         this.itemWeekly.color = remainingQuotaColor(100 - weeklyPct, [
           this.config.statusBarUtilizationColorLt20, this.config.statusBarUtilizationColorLt40,
           this.config.statusBarUtilizationColorLt60, this.config.statusBarUtilizationColorLt80,
@@ -266,12 +264,12 @@ export class StatusBarPresenter {
 
     // Start new animation — moon cycles while keeping the live percentage visible
     this.updateFrame = 0;
-    this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[0], this.displayName, this.config.displayMode);
+    this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[0], this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds);
     this.itemWeekly.show();
 
     this.updateAnimInterval = setInterval(() => {
       this.updateFrame = (this.updateFrame + 1) % UPDATE_FRAMES.length;
-      this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[this.updateFrame], this.displayName, this.config.displayMode);
+      this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[this.updateFrame], this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds);
     }, this.config.updateAnimationIntervalMs);
 
     this.updateAnimTimeout = setTimeout(() => {

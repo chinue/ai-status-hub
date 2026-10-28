@@ -2627,3 +2627,7 @@ Scheduler.processQuotaData 对官方使用率下降，或官方重置时间变�
 Codex 已有 API/cache/stale 权威额度时，后续 API 失败不能以旧 JSONL rate_limits 或旧磁盘缓存覆盖它；保留最后官方值、记录错误并继续扫描本地用量。尚无官方数据时仍允许本地 JSONL 降级。其他 Provider 的 fallback 行为保持不变。
 
 CacheService.readCodexAccountId() 负责读取 ~/.codex/auth.json 中的 tokens.account_id，IO/JSON.parse 均有异常防护，失败返回 undefined。CodexApiProvider 的网络查询只读取用量。
+
+### 状态栏过期判定修复（0.6.7，2026-10-28）
+
+StatusBarPresenter 的普通渲染、动画开始与动画帧均向 `calc.formatProviderStatus` 传入当前 `config.refreshIntervalSeconds`。配额成功时间超过“配置刷新间隔 + 两分钟宽限”后才显示 💤，避免默认五分钟刷新配额、两分钟即标记过期的矛盾。💤 表示配额数据过期，不用于判断 Kimi/其他 Provider 的交互活动；本地交互不会伪造 API 新鲜度。
