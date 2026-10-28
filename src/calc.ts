@@ -363,9 +363,9 @@ export function buildIndicatorSuffix(
 ): string {
   let suffix = '';
   if (parts.includes('stale')) {
-    const isStale = state.lastSuccessfulFetchAt
+    const isStale = state.lastSuccessfulFetchAt !== null
       ? now - state.lastSuccessfulFetchAt > staleThresholdMs
-      : !state.quota;
+      : !state.quota || state.dataSource === 'cache';
     if (isStale) { suffix += ' \uD83D\uDCA4'; }
   }
   if (parts.includes('source')) {

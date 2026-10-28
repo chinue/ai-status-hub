@@ -22,6 +22,9 @@ const WINDOW_7D_MS = 7 * 24 * 3600 * 1000;
 export class Scheduler {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  private tickInFlight = false;
+  private refreshPending = false;
+  private tickTimeout: NodeJS.Timeout | null = null;
   private lastLongTick = 0;
   private readonly config = ConfigService.getInstance();
 
@@ -107,6 +110,8 @@ export class Scheduler {
 
   stop(): void {
     this.running = false;
+    this.refreshPending = false;
+    if (this.tickTimeout) { clearTimeout(this.tickTimeout); this.tickTimeout = null; }
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
   }
 
@@ -114,6 +119,10 @@ export class Scheduler {
   force(): void {
     if (!this.running) return;
     log('Scheduler: force() called, triggering long tick');
+    if (this.tickInFlight) {
+      this.refreshPending = true;
+      return;
+    }
     this.apiService.invalidateCache?.();
     if (this.timer) clearTimeout(this.timer);
     // Reset lastLongTick so the next tick is guaranteed to be a long tick
@@ -123,25 +132,35 @@ export class Scheduler {
 
   private schedule(at: number): void {
     if (!this.running) return;
+    if (this.timer) clearTimeout(this.timer);
     const delay = Math.max(0, at - Date.now());
     this.timer = setTimeout(() => this.tick(), delay);
   }
 
   private async tick(): Promise<void> {
-    if (!this.running) return;
+    if (!this.running || this.tickInFlight) return;
+    this.timer = null;
+    this.tickInFlight = true;
     const now = Date.now();
-    const isLong = now - this.lastLongTick >= this.longMs;
+    const forced = this.refreshPending;
+    this.refreshPending = false;
+    const isLong = forced || now - this.lastLongTick >= this.longMs;
+    let operation: Promise<void> | undefined;
+    let timedOut = false;
 
     try {
+      // Invalidate after the previous request settles so its cache cannot mask a forced refresh.
+      if (forced) this.apiService.invalidateCache?.();
       if (isLong) {
-        // Guard: if doLongTick hangs (e.g. fetch without timeout), force it to
-        // reject so schedule() below is still executed and the scheduler does
-        // not stall forever.
+        operation = this.doLongTick();
         await Promise.race([
-          this.doLongTick(),
-          new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error('Tick timeout')), 60_000),
-          ),
+          operation,
+          new Promise<void>((_, reject) => {
+            this.tickTimeout = setTimeout(() => {
+              timedOut = true;
+              reject(new Error('Tick timeout'));
+            }, 60_000);
+          }),
         ]);
         this.lastLongTick = now;
       } else {
@@ -149,12 +168,19 @@ export class Scheduler {
       }
     } catch (err) {
       log(`Scheduler tick error: ${err}`);
+      // A timeout does not cancel work. Keep ownership until it settles to prevent
+      // a late response from racing a newer tick and overwriting its state/cache.
+      if (timedOut && operation) {
+        await operation.catch(lateError => { log(`Scheduler late tick error: ${lateError}`); });
+      }
+    } finally {
+      if (this.tickTimeout) { clearTimeout(this.tickTimeout); this.tickTimeout = null; }
+      this.tickInFlight = false;
     }
 
-    // Schedule next tick: whichever comes first (short or long)
     const nextLong = this.lastLongTick + this.longMs;
-    const nextShort = now + this.config.shortRefreshIntervalSeconds * 1000;
-    this.schedule(Math.min(nextLong, nextShort));
+    const nextShort = Date.now() + this.config.shortRefreshIntervalSeconds * 1000;
+    this.schedule(this.refreshPending ? Date.now() + 50 : Math.min(nextLong, nextShort));
   }
 
   private async doShortTick(): Promise<void> {
@@ -228,6 +254,9 @@ export class Scheduler {
       // Full detail for tooltip / dashboard (from memory, no disk access)
       requestsToday: localUsage.requestsToday,
       tokensToday: localUsage.tokensToday,
+      tokensOutToday: localUsage.tokensOutToday,
+      tokensCacheReadToday: localUsage.tokensCacheReadToday,
+      tokensCacheCreateToday: localUsage.tokensCacheCreateToday,
       tokensIn5h: localUsage.tokensIn5h,
       tokensOut5h: localUsage.tokensOut5h,
       tokensCacheRead5h: localUsage.tokensCacheRead5h,
@@ -239,6 +268,9 @@ export class Scheduler {
       tokensCacheCreate7d: localUsage.tokensCacheCreate7d,
       requests7d: localUsage.requests7d,
       tokensThisCycle: localUsage.tokensThisCycle,
+      tokensOutThisCycle: localUsage.tokensOutThisCycle,
+      tokensCacheReadThisCycle: localUsage.tokensCacheReadThisCycle,
+      tokensCacheCreateThisCycle: localUsage.tokensCacheCreateThisCycle,
       costThisCycle: localUsage.costThisCycle,
       requestsThisCycle: localUsage.requestsThisCycle,
       // Dashboard aggregates consume entries, so publish fresh costs on short ticks too.

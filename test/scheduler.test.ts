@@ -51,6 +51,83 @@ describe('Scheduler', () => {
     (LocalUsageService as any).instance = undefined;
   });
 
+  it('coalesces forced refreshes while a tick is pending', async () => {
+    let complete!: () => void;
+    const work = sinon.stub(scheduler as any, 'doLongTick');
+    work.onFirstCall().returns(new Promise<void>(resolve => { complete = resolve; }));
+    work.resolves();
+    scheduler.start();
+    await clock.tickAsync(1);
+    scheduler.force();
+    scheduler.force();
+    await clock.tickAsync(100);
+    expect(work.callCount).to.equal(1);
+    complete();
+    await clock.tickAsync(100);
+    expect(work.callCount).to.equal(2);
+  });
+
+  it('waits for a short tick before refreshing and invalidates the completed request cache', async () => {
+    const long = sinon.stub(scheduler as any, 'doLongTick').resolves();
+    let complete!: () => void;
+    sinon.stub(scheduler as any, 'doShortTick')
+      .returns(new Promise<void>(resolve => { complete = resolve; }));
+    const invalidate = sinon.spy();
+    api.invalidateCache = invalidate;
+    scheduler.start();
+    await clock.tickAsync(5_001);
+    scheduler.force();
+    await clock.tickAsync(100);
+    expect(long.callCount).to.equal(1);
+    expect(invalidate.callCount).to.equal(0);
+    complete();
+    await clock.tickAsync(100);
+    expect(long.callCount).to.equal(2);
+    expect(invalidate.callCount).to.equal(1);
+  });
+
+  it('recovers after a failed tick without leaking its watchdog', async () => {
+    const work = sinon.stub(scheduler as any, 'doLongTick');
+    work.onFirstCall().rejects(new Error('network failure'));
+    work.resolves();
+    scheduler.start();
+    await clock.tickAsync(10);
+    expect(work.callCount).to.equal(2);
+    scheduler.stop();
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('does not overlap timed-out work and clears the watchdog after completion', async () => {
+    let complete!: () => void;
+    const work = sinon.stub(scheduler as any, 'doLongTick');
+    work.onFirstCall().returns(new Promise<void>(resolve => { complete = resolve; }));
+    work.resolves();
+    scheduler.start();
+    await clock.tickAsync(60_001);
+    scheduler.force();
+    await clock.tickAsync(100);
+    expect(work.callCount).to.equal(1);
+    complete();
+    await clock.tickAsync(100);
+    expect(work.callCount).to.equal(2);
+    scheduler.stop();
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('does not restart scheduling after stop while a tick is pending', async () => {
+    let complete!: () => void;
+    const work = sinon.stub(scheduler as any, 'doLongTick')
+      .returns(new Promise<void>(resolve => { complete = resolve; }));
+    scheduler.start();
+    await clock.tickAsync(1);
+    scheduler.force();
+    scheduler.stop();
+    complete();
+    await clock.tickAsync(100);
+    expect(work.callCount).to.equal(1);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
   it('tick dispatches LOADING_START -> API_SUCCESS -> LOADING_END', async () => {
     const ctx = makeContext();
     await ctx.secrets.store('aiStatusHub.apiKey', 'sk-test');
@@ -455,6 +532,7 @@ describe('Scheduler', () => {
 
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
     getUsageStub.onFirstCall().resolves({
+      tokensOutToday: 10, tokensCacheReadToday: 20, tokensCacheCreateToday: 30,
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 2_000_000, tokensOut5h: 500_000, tokensCacheRead5h: 100, tokensCacheCreate5h: 50,
       requests5h: 4,
@@ -465,6 +543,7 @@ describe('Scheduler', () => {
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
     });
     getUsageStub.onSecondCall().resolves({
+      tokensOutToday: 110, tokensCacheReadToday: 220, tokensCacheCreateToday: 330,
       tokensToday: 1_100_000, costToday: 5.5, requestsToday: 4,
       tokensIn5h: 2_100_000, tokensOut5h: 550_000, tokensCacheRead5h: 110, tokensCacheCreate5h: 55,
       requests5h: 5,
@@ -488,6 +567,9 @@ describe('Scheduler', () => {
     const le = store.getState().localEstimate;
     expect(le).to.not.be.null;
     // Verify full detail is present (presenters must NOT touch disk)
+    expect(le!.tokensOutToday).to.equal(110);
+    expect(le!.tokensCacheReadToday).to.equal(220);
+    expect(le!.tokensCacheCreateToday).to.equal(330);
     expect(le!.tokensToday).to.equal(1_100_000);
     expect(le!.tokensIn5h).to.equal(2_100_000);
     expect(le!.tokensOut5h).to.equal(550_000);

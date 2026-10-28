@@ -2631,3 +2631,11 @@ CacheService.readCodexAccountId() 负责读取 ~/.codex/auth.json 中的 tokens.
 ### 状态栏过期判定修复（0.6.7，2026-10-28）
 
 StatusBarPresenter 的普通渲染、动画开始与动画帧均向 `calc.formatProviderStatus` 传入当前 `config.refreshIntervalSeconds`。配额成功时间超过“配置刷新间隔 + 两分钟宽限”后才显示 💤，避免默认五分钟刷新配额、两分钟即标记过期的矛盾。💤 表示配额数据过期，不用于判断 Kimi/其他 Provider 的交互活动；本地交互不会伪造 API 新鲜度。
+
+### 调度串行与缓存新鲜度修复（0.6.8，2026-10-28）
+
+Scheduler 通过 tickInFlight 串行执行长短 tick。执行期间 force() 合并为一个 refreshPending；当前任务完成后清除 Provider API 缓存并执行一次长 tick，防止旧请求回填缓存导致手动刷新仍读取旧数据。普通 force 保持立即失效缓存和 50ms 调度。tick 的 watchdog 在完成或 stop 时清理；60 秒超时会记录错误，但不会误认为底层 Promise 已取消，仍等待其结束后才允许下一任务，以避免迟到响应覆盖新状态。若底层请求一直不结束，后续刷新将等待它结束；此处不伪造请求取消。停止后不会由迟到任务重新启动调度。新增每实例两个布尔值和一个定时器引用，为常数内存，不随 retention 增长。
+
+Store 的 CACHE_LOADED 将缓存 fetchedAt 同步恢复到 lastSuccessfulFetchAt（缺失则 null），过期判断采用缓存原时间，包含 Unix epoch 0；无时间的缓存按过期处理。缓存恢复不修改已有错误，不伪装成刚刚成功请求。
+
+短 tick 的 LOCAL_ESTIMATE 补齐今日及本周期的输出、缓存读取、缓存创建 Token，与长 tick 字段保持一致，确保 tooltip 和 dashboard 不保留旧值。

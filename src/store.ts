@@ -32,6 +32,7 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         quota: action.payload,
         lastFetchAt: action.fetchedAt ?? null,
+        lastSuccessfulFetchAt: action.fetchedAt ?? null,
         dataSource: 'cache',
         // Preserve existing error so API failures are not hidden by cache restore
         error: state.error,

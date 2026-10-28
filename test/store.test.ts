@@ -1,3 +1,4 @@
+import { formatProviderStatus } from '../src/calc';
 import { expect } from 'chai';
 import { Store, defaultState } from '../src/store';
 import { QuotaData, WindowAnchorData } from '../src/types';
@@ -15,6 +16,27 @@ describe('Store', () => {
     store.dispatch({ type: 'CACHE_LOADED', payload: quota });
     expect(store.getState().quota).to.deep.equal(quota);
     expect(store.getState().dataSource).to.equal('cache');
+  });
+
+  it('restores cache freshness from its fetch time, including epoch zero', () => {
+    const now = Date.now();
+    for (const age of [60_000, 86_400_000]) {
+      const store = new Store();
+      store.dispatch({ type: 'CACHE_LOADED', payload: makeQuota(), fetchedAt: now - age });
+      expect(store.getState().lastSuccessfulFetchAt).to.equal(now - age);
+      expect(formatProviderStatus(store.getState(), 'K', 'Kimi', 'percent', now).includes('💤'))
+        .to.equal(age > 420_000);
+    }
+    const store = new Store();
+    store.dispatch({ type: 'CACHE_LOADED', payload: makeQuota(), fetchedAt: 0 });
+    expect(formatProviderStatus(store.getState(), 'K', 'Kimi', 'percent', 500_000)).to.include('💤');
+  });
+
+  it('treats cache without a timestamp as stale even after a previous success', () => {
+    const store = new Store();
+    store.dispatch({ type: 'API_SUCCESS', payload: makeQuota() });
+    store.dispatch({ type: 'CACHE_LOADED', payload: makeQuota() });
+    expect(formatProviderStatus(store.getState(), 'K', 'Kimi', 'percent')).to.include('💤');
   });
 
   it('API_SUCCESS sets quota, lastFetchAt, lastSuccessfulFetchAt', () => {

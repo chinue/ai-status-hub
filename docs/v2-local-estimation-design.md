@@ -686,3 +686,7 @@ calc.parseCodexUsage(value, now) 解析官方只读用量 JSON，校验数字、
 ### 配额过期提示与刷新周期（0.6.7，2026-10-28）
 
 `formatProviderStatus` 接收 `refreshIntervalSeconds`（默认 300），将配额过期阈值设为刷新间隔 + 120 秒宽限。默认每五分钟查询 API 时，七分钟内不显示 💤，超过七分钟才显示。该标记表示 API 快照过期，与本地会话是否正在交互无关；本地用量更新不刷新 API 成功时间。`buildIndicatorSuffix` 保留显式阈值参数，来源与认证指示器保持原行为。无成功时间且无配额时仍显示过期提示，不增加历史或内存字段。
+
+### 缓存过期判定与短周期 Token 同步（0.6.8，2026-10-28）
+
+calc.buildIndicatorSuffix 用显式 null 判定成功时间，支持时间戳 0；CACHE_LOADED 从原 fetchedAt 恢复该时间。没有时间的 cache 数据视为过期，继续使用配置轮询间隔 + 两分钟宽限。短周期同步今日和本周期输出/缓存读取/缓存创建 Token，不新增 UsageEntry 字段或数据副本。
