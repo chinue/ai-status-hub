@@ -150,3 +150,102 @@ describe('Dashboard Current Usage', () => {
     } finally { execute.restore(); }
   });
 });
+
+describe('Dashboard chart refresh', () => {
+  function createCharts() {
+    const html = (DashboardPanel.prototype as any).getHtml.call(
+      { store: { getState: () => defaultState() } }, 'nonce', 'en',
+    ) as string;
+    const heights: number[] = [];
+    const canvas = {
+      getBoundingClientRect: () => ({ width: 400 }),
+      get height() { return heights[heights.length - 1] || 160; },
+      set height(value: number) { heights.push(value); },
+    };
+    const charts: any[] = [];
+    const sandbox: any = {
+      document: { getElementById: () => canvas, body: {} },
+      getComputedStyle: () => ({ getPropertyValue: () => '' }),
+      chartHeightRatio: 0.4, CURRENCY_SYMBOL: '$',
+      setTimeout, clearTimeout,
+      Chart: function (_canvas: unknown, config: any) {
+        const chart = { ...config, update: sinon.spy(), resize: sinon.spy() };
+        charts.push(chart);
+        return chart;
+      },
+    };
+    // Execute the generated WebView functions, using a canvas whose height setter
+    // records destructive bitmap resets (including identical assignments).
+    new Script(html.slice(html.indexOf('    // ---- Heatmap ----'), html.indexOf('    // ---- Budget ----')) + `
+      globalThis.api = { renderCostCurveChart, scheduleCostCurvePending, cancelCostCurvePending };
+    `).runInNewContext(sandbox);
+    return { api: sandbox.api, heights, charts, setHeightRatio: (ratio: number) => { sandbox.chartHeightRatio = ratio; } };
+  }
+
+  for (const windowKey of ['5h', '7d']) {
+    it(`keeps the ${windowKey} curve visible while a same-window refresh is delayed`, () => {
+      const clock = sinon.useFakeTimers();
+      try {
+        const { api, charts } = createCharts();
+        api.renderCostCurveChart(windowKey, [{ tMs: 1000, cumulativeRmb: 0 }, { tMs: 2000, cumulativeRmb: 2 }]);
+        api.scheduleCostCurvePending(windowKey, 1000, 2000);
+        clock.tick(1000);
+        expect(charts[0].data.datasets[0].data.map((p: any) => p.y)).to.deep.equal([0, 2]);
+        api.renderCostCurveChart(windowKey, [{ tMs: 1000, cumulativeRmb: 0 }, { tMs: 2000, cumulativeRmb: 3 }]);
+        expect(charts).to.have.length(1);
+        expect(charts[0].data.datasets[0].data[1].y).to.equal(3);
+        expect(charts[0].update.calledWith('none')).to.equal(true);
+      } finally { clock.restore(); }
+    });
+
+    it(`does not reset the ${windowKey} canvas bitmap on data updates`, () => {
+      const { api, heights, charts } = createCharts();
+      api.renderCostCurveChart(windowKey, [{ tMs: 1000, cumulativeRmb: 1 }]);
+      expect(heights).to.deep.equal([160]);
+      // Chart.js can change backing resolution for devicePixelRatio after creation.
+      heights.push(320);
+      api.renderCostCurveChart(windowKey, [{ tMs: 1000, cumulativeRmb: 2 }]);
+      expect(heights).to.deep.equal([160, 320]);
+      expect(charts[0].resize.callCount).to.equal(0);
+    });
+
+    it(`applies height ratio changes to the existing ${windowKey} chart without resetting its bitmap`, () => {
+      const { api, heights, charts, setHeightRatio } = createCharts();
+      api.renderCostCurveChart(windowKey, [{ tMs: 1000, cumulativeRmb: 1 }]);
+      setHeightRatio(0.6);
+      api.renderCostCurveChart(windowKey, [{ tMs: 1000, cumulativeRmb: 2 }]);
+      expect(charts).to.have.length(1);
+      expect(heights).to.deep.equal([160]);
+      expect(charts[0].options.aspectRatio).to.be.closeTo(400 / 240, 0.00001);
+      expect(charts[0].resize.callCount).to.equal(1);
+      api.renderCostCurveChart(windowKey, [{ tMs: 1000, cumulativeRmb: 3 }]);
+      expect(charts[0].resize.callCount).to.equal(1);
+    });
+  }
+
+  it('clears the previous window only when switching to a different range', () => {
+    const clock = sinon.useFakeTimers();
+    try {
+      const { api, charts } = createCharts();
+      api.renderCostCurveChart('5h', [{ tMs: 1000, cumulativeRmb: 1 }]);
+      api.scheduleCostCurvePending('5h', 3000, 4000);
+      clock.tick(150);
+      expect(charts[0].data.datasets[0].data.map((p: any) => p.y)).to.deep.equal([null, null]);
+      expect(charts[0].options.scales.x.min).to.equal(3000);
+      expect(charts[0].options.scales.x.max).to.equal(4000);
+    } finally { clock.restore(); }
+  });
+
+  it('cancels a pending clear when the requested window arrives promptly', () => {
+    const clock = sinon.useFakeTimers();
+    try {
+      const { api, charts } = createCharts();
+      api.renderCostCurveChart('7d', [{ tMs: 1000, cumulativeRmb: 1 }]);
+      api.scheduleCostCurvePending('7d', 3000, 4000);
+      api.cancelCostCurvePending('7d');
+      api.renderCostCurveChart('7d', [{ tMs: 3000, cumulativeRmb: 4 }, { tMs: 4000, cumulativeRmb: 5 }]);
+      clock.tick(1000);
+      expect(charts[0].data.datasets[0].data.map((p: any) => p.y)).to.deep.equal([4, 5]);
+    } finally { clock.restore(); }
+  });
+});

@@ -731,6 +731,8 @@ Model Breakdown 区块根据 `modelBreakdown` 的 key 数量动态渲染多个 `
 - 热力图静态结构使用 `el.__heatmapStatic` 缓存，数据更新时只更新 DOM 内容，不重建 HTML
 - Chart.js 图表实例复用（`hourlyChartTokens` / `hourlyChartCost`），数据更新时 `update('none')`
 - Cost Curve 图表同样复用实例
+- 同一 5h/7d 时间窗口刷新时保留已有曲线，直到新数据到达；150ms pending 只在目标窗口范围与当前图表范围不同时清空旧曲线，不能因响应较慢清空同一窗口。
+- canvas 高度仅在创建 Chart.js 实例前初始化；已有实例的数据更新不再写入 `canvas.height`（即使赋值相同也会清空位图，且可能覆盖高 DPI 分辨率），后续响应式尺寸由 Chart.js 管理；高度比例配置改变时更新 `options.aspectRatio` 并调用 `resize()`，比例不变时不主动 resize。此规则同时适用于费用曲线及 Token/费用柱状图。
 
 ### 8.2 懒加载
 
@@ -740,7 +742,7 @@ Model Breakdown 区块根据 `modelBreakdown` 的 key 数量动态渲染多个 `
 
 ### 8.3 防止 stale response
 
-- Cost Curve 选择改变后，150ms debounce 后发送请求
+- Cost Curve 选择改变后立即发送请求；150ms 后若仍未收到目标窗口响应，再隐藏其他窗口的旧曲线。同窗口刷新期间保留曲线。
 - 收到响应时检查 `startMs` 是否与当前选择匹配
 - `getCostCurveOptions` 使用与 Dashboard 聚合同一套 5h/7d reset 推算，确保 Claude API 失败回退本地数据时，7d 曲线窗口与热力图窗口一致
 - 不匹配则忽略（用户已切换选择）

@@ -697,6 +697,8 @@ describe('StatusBarPresenter', () => {
 
 ### Dashboard Current Usage
 
+`test/dashboard.test.ts` 的 Dashboard chart refresh 在 VM 中执行生成的 WebView 图表代码，使用受控定时器和 canvas 高度 setter 验证：5h/7d 同窗口响应延迟超过 150ms 仍保留曲线、复用实例并无动画更新、不覆盖高 DPI 画布尺寸、高度比例配置改变时复用实例并仅触发一次 resize；切换到其他窗口时保留延迟清空行为，及时收到响应时取消清空。测试使用模拟 Chart.js，尚需在 VS Code 中目测确认视觉效果。
+
 `test/dashboard.test.ts` 验证 Fable 行仅对 Claude Provider 暴露、HTML 首屏不带隐藏样式、scoped 数据暂不可用时以 `0%` 固定显示、重置后保持可见且归零，并检查 Fable 进度条位于总 7d 进度条之后。`test/calc.test.ts` 覆盖 Fable 百分比重置解析及 `resetAt === now` 的严格下一周期边界。
 
 ---

@@ -1561,12 +1561,20 @@ export class DashboardPanel {
     let hourlyChartTokens = null;
     let hourlyChartCost = null;
 
-    function setCanvasHalfHeight(canvas) {
+    function setCanvasHalfHeight(canvas, chart) {
       if (!canvas || !canvas.getBoundingClientRect) return;
       const w = canvas.getBoundingClientRect().width || canvas.clientWidth || 0;
       if (w > 0) {
         const ratio = Math.max(0.2, Math.min(1, Number(chartHeightRatio) || 0.4));
-        canvas.height = Math.max(80, Math.round(w * ratio));
+        const height = Math.max(80, Math.round(w * ratio));
+        const aspectRatio = w / height;
+        if (!chart) {
+          canvas.height = height;
+        } else if (chart.options.aspectRatio !== aspectRatio) {
+          chart.options.aspectRatio = aspectRatio;
+          chart.resize();
+        }
+        return aspectRatio;
       }
     }
 
@@ -1717,7 +1725,6 @@ export class DashboardPanel {
 
         const canvasT = document.getElementById('hourlyChartTokens');
         if (canvasT) {
-          setCanvasHalfHeight(canvasT);
           const dsT = historyViewMode === 'detail'
             ? modelList.map(model => ({
                 label: model,
@@ -1727,15 +1734,18 @@ export class DashboardPanel {
             : [];
           dsT.push({ label: '${i18n('dashboard.modelTotal')}', data: byModel.map(d => d.tokensTotal), backgroundColor: '#ff9800' });
           if (hourlyChartTokens) {
+            setCanvasHalfHeight(canvasT, hourlyChartTokens);
             hourlyChartTokens.data.labels = labels;
             hourlyChartTokens.data.datasets = dsT;
             hourlyChartTokens.options.plugins.legend.labels.color = fg;
             hourlyChartTokens.update('none');
           } else {
+            const aspectRatio = setCanvasHalfHeight(canvasT);
             hourlyChartTokens = new Chart(canvasT, {
               type: 'bar',
               data: { labels, datasets: dsT },
               options: {
+                aspectRatio,
                 responsive: true, animation: false,
                 plugins: {
                   legend: { labels: { color: fg, font: { size: 10 } } },
@@ -1752,7 +1762,6 @@ export class DashboardPanel {
 
         const canvasC = document.getElementById('hourlyChartCost');
         if (canvasC) {
-          setCanvasHalfHeight(canvasC);
           const dsC = historyViewMode === 'detail'
             ? modelList.map(model => ({
                 label: model,
@@ -1762,15 +1771,18 @@ export class DashboardPanel {
             : [];
           dsC.push({ label: '${i18n('dashboard.modelTotal')}', data: byModel.map(d => d.costTotal), backgroundColor: '#ff9800' });
           if (hourlyChartCost) {
+            setCanvasHalfHeight(canvasC, hourlyChartCost);
             hourlyChartCost.data.labels = labels;
             hourlyChartCost.data.datasets = dsC;
             hourlyChartCost.options.plugins.legend.labels.color = fg;
             hourlyChartCost.update('none');
           } else {
+            const aspectRatio = setCanvasHalfHeight(canvasC);
             hourlyChartCost = new Chart(canvasC, {
               type: 'bar',
               data: { labels, datasets: dsC },
               options: {
+                aspectRatio,
                 responsive: true, animation: false,
                 plugins: {
                   legend: { labels: { color: fg, font: { size: 10 } } },
@@ -1965,7 +1977,6 @@ export class DashboardPanel {
     function renderCostCurveChart(windowKey, points) {
       const canvas = document.getElementById(windowKey === '5h' ? 'costcurve-5h' : 'costcurve-7d');
       if (!canvas || typeof Chart === 'undefined') return;
-      setCanvasHalfHeight(canvas);
 
       function fmtTick(ms) {
         const d = new Date(ms);
@@ -1984,6 +1995,7 @@ export class DashboardPanel {
       const chartRef = windowKey === '5h' ? costCurveChart5h : costCurveChart7d;
       const lineColor = windowKey === '7d' ? '#7c4dff' : '#00c853';
       if (chartRef) {
+        setCanvasHalfHeight(canvas, chartRef);
         chartRef.data.datasets[0].data = series;
         chartRef.data.datasets[0].borderColor = lineColor;
         if (xMin != null && xMax != null) {
@@ -1998,6 +2010,9 @@ export class DashboardPanel {
       const fg = style.getPropertyValue('--vscode-editor-foreground').trim() || '#cccccc';
       const tooltipMono = style.getPropertyValue('--vscode-editor-font-family').trim() || 'monospace';
       const tension = windowKey === '7d' ? 0.35 : 0.05;
+      // Setting canvas.height clears its bitmap, even if the value is unchanged.
+      // Size once at creation; use Chart.js resize for later ratio changes.
+      const aspectRatio = setCanvasHalfHeight(canvas);
       const chart = new Chart(canvas, {
         data: {
           datasets: [{
@@ -2013,6 +2028,7 @@ export class DashboardPanel {
           }],
         },
         options: {
+          aspectRatio,
           responsive: true, animation: false,
           interaction: { mode: 'nearest', intersect: false },
           plugins: {
@@ -2044,6 +2060,9 @@ export class DashboardPanel {
       const chartRef = windowKey === '5h' ? costCurveChart5h : costCurveChart7d;
       if (!chartRef) return;
       const x0 = Number(startMs), x1 = Number(endMs);
+      // Preserve the current curve while refreshing the same window. Only hide
+      // stale data when a different window has been selected.
+      if (chartRef.options.scales.x.min === x0 && chartRef.options.scales.x.max === x1) return;
       chartRef.data.datasets[0].data = [{ x: x0, y: null }, { x: x1, y: null }];
       chartRef.options.scales.x.min = x0;
       chartRef.options.scales.x.max = x1;
