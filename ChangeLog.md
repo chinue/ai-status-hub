@@ -1,5 +1,16 @@
 # ChangeLog
 
+## [0.6.10] - 2026-11-05
+
+### 修复
+
+- **Claude Code 中使用 Kimi/GLM 的用量归属**（`src/calc.ts`、`src/providers/claude/localParser.ts`、`src/providers/kimi/localParser.ts`、`src/providers/glm/index.ts`）：按日志显式模型名称分流，Kimi 合并原生和 Claude 会话，GLM 接入 Claude 本地日志，避免计入 Claude。支持命名空间、大小写及子代理目录，保留 Token 四分类，按请求标识去重，联动缓存失效与数据保留天数。
+- **统计范围说明**：无法识别隐藏为 Claude 名称的代理模型；GLM 费用沿用现有估算费率，官方额度 API 尚未实现。
+
+### 验证
+
+- 类型检查、全部 285 项测试、生产编译与 VSIX 打包通过；新增 6 项跨模型日志回归，覆盖归属、子代理、去重、保留天数、异常日志、缓存和 Kimi 合并计价。同步本地估算、Provider、测试设计及文档索引；源文件保持 CRLF。
+
 ## [0.6.9] - 2026-11-02
 
 ### 修复

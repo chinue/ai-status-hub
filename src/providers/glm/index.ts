@@ -1,8 +1,9 @@
 // DESIGN: v2-provider-abstraction.md#glm-provider
 // AGENTS: keep-minimal
-// ⏳ Placeholder — full implementation pending
+// Local usage is supported; authentication and quota API remain placeholders.
 
-import { IProvider, IAuthProvider, IQuotaApiProvider, ILocalUsageProvider, IPricingProvider, IUIProvider, Currency, TokenPricing, TokenUsage } from '../base/types';
+import { IProvider, IAuthProvider, IQuotaApiProvider, IPricingProvider, IUIProvider, Currency, TokenPricing, TokenUsage } from '../base/types';
+import { ClaudeLocalParser } from '../claude/localParser';
 
 const CNY: Currency = { code: 'CNY', symbol: '¥' };
 
@@ -13,12 +14,6 @@ const placeholderAuth: IAuthProvider = {
 
 const placeholderApi: IQuotaApiProvider = {
   async fetchQuota() { return { ok: false, error: 'GLM provider not yet implemented' }; },
-};
-
-const placeholderLocal: ILocalUsageProvider = {
-  async scanSessions() { return []; },
-  async getRateLimits() { return null; },
-  invalidate() { /* no-op */ },
 };
 
 const placeholderPricing: IPricingProvider = {
@@ -49,7 +44,7 @@ export function createGlmProvider(): IProvider {
     currency: CNY,
     auth: placeholderAuth,
     api: placeholderApi,
-    localUsage: placeholderLocal,
+    localUsage: new ClaudeLocalParser('glm'),
     pricing: placeholderPricing,
     ui: glmUIProvider,
   };

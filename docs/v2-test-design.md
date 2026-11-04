@@ -779,3 +779,7 @@ scheduler.test.ts 验证官方 90→0 后舍弃旧平滑小数、短周期保持
 ### 0.6.8 调度、缓存和 Token 回归
 
 Scheduler 使用 fake timers 验证：任务执行期间重复 force 合并、短 tick 执行时 force 排队及缓存延后失效、60 秒超时后仍不重入、失败后恢复、停止后不重启以及 watchdog 清理。既有短 tick 完整数据测试增加与长 tick 不同的今日输出/缓存读取/缓存创建值，验证旧字段实际被替换。Store 测试覆盖新鲜与一天前缓存、时间戳 0，以及已有成功后载入缺失时间缓存的过期提示。
+
+### Claude 日志模型归属回归（0.6.10，2026-11-05）
+
+`test/claudeLocalParser.test.ts` 使用临时 JSONL 目录覆盖模型名称大小写、命名空间、未知/缺失别名、混合模型互斥归属、Token 四分类、子代理目录、请求跨文件去重、保留天数、坏行、增量刷新、缓存失效、文件删除、Kimi 原生日志合并及计价、GLM Provider 接线。`test/kimiLocalParser.test.ts` 注入隔离的 Claude 目录，确保原生测试不读取用户真实数据。

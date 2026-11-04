@@ -453,3 +453,11 @@ Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空
 `calc.parseCodexUsage()` 验证 rate_limit.primary_window / secondary_window，将 limit_window_seconds、used_percent、reset_at / reset_after_seconds 转为 RateLimits 并复用按窗口时长映射。支持 Pro 每周单窗口和 Plus 双窗口，合法的 0 是权威重置值；缺失、坏 JSON、非法字段或没有可识别窗口时返回失败，不能伪造一次清零。
 
 来源：[官方客户端用量路径与读取逻辑](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs)、[官方用量响应回归测试](https://github.com/openai/codex/blob/main/codex-rs/app-server/tests/suite/v2/rate_limits.rs)。本次实际只读查询返回 HTTP 200，识别到账号 primary 周窗口；未调用任何付费、重置或模型生成接口。
+
+### GLM provider
+
+0.6.10（2026-11-05）接入 Claude Code 日志中 `glm-*` 模型的本地 Token、请求数及估算费用；`createGlmProvider()` 创建独立 `ClaudeLocalParser('glm')`。身份验证和官方配额 API 仍未实现，定价沿用当前固定估算费率。
+
+### Claude 日志模型分流（0.6.10）
+
+Claude parser 默认排除明确的 Kimi/GLM 模型；Kimi parser 合并原生会话和 Claude 日志内的 Kimi 条目。分类由 calc.ts 的 `claudeLogProvider` 统一实现，不依据当前配置或 UI 选择推断历史模型；不明别名保留旧归属。详细扫描、去重、缓存与内存策略见 `v2-local-estimation-design.md` 的“Claude 日志跨模型归属”。

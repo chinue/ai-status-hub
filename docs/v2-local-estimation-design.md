@@ -690,3 +690,12 @@ calc.parseCodexUsage(value, now) 解析官方只读用量 JSON，校验数字、
 ### 缓存过期判定与短周期 Token 同步（0.6.8，2026-10-28）
 
 calc.buildIndicatorSuffix 用显式 null 判定成功时间，支持时间戳 0；CACHE_LOADED 从原 fetchedAt 恢复该时间。没有时间的 cache 数据视为过期，继续使用配置轮询间隔 + 两分钟宽限。短周期同步今日和本周期输出/缓存读取/缓存创建 Token，不新增 UsageEntry 字段或数据副本。
+
+### Claude 日志跨模型归属（0.6.10，2026-11-05）
+
+- `calc.claudeLogProvider(model)` 根据显式模型名称分流：路径片段中的 `kimi-*` / `kimi-code/*` / `moonshot-*` 归 Kimi，末段 `glm-*`（大小写不敏感，兼容 `z-ai/GLM-*`）归 GLM；缺失、非字符串、未知名称保留原 Claude 归属。不能从被代理隐藏为 Claude 名称的记录反推真实模型。
+- `ClaudeLocalParser(providerId, projectsDir)` 默认仍为 Claude；只缓存属于目标 Provider 的条目。扫描 `~/.claude/projects` 下 JSONL，递归最多 6 层以覆盖 session/subagents；不跟随符号链接。请求 ID 优先作为去重标识，缺失时使用 message ID，避免重复内容块和跨文件副本重复计费。无标识的记录保留。
+- `KimiLocalParser` 保留新版和旧版原生会话扫描，并合并一个目标为 Kimi 的 Claude parser；合并按非空标识去重。`invalidate()` / force 同时失效两个来源。目录缺失、坏行、删除文件及保留天数沿用安全跳过行为。
+- GLM Provider 的 localUsage 使用目标为 GLM 的 Claude parser；LocalUsageService 继续按目标 Provider 的计价器聚合今日、窗口和周期的输入、输出、缓存读取、缓存创建、请求与费用。Kimi 使用现有按模型定价；GLM 使用现有占位费率，属于估算费用，尚无官方配额 API。
+- 读取复用现有本地 parser 的 IO 边界，不在 Presenter 或编排 Service 增加直接磁盘访问；不增加 UsageEntry 字段。三个目标 parser 的缓存按模型互斥，不复制全部 Claude 条目；新增开销为目录状态和 Map 元数据，不改变每条记录的存储量及原有 365 天内存预算。聚合数组仅保存现有条目引用。
+- 回归：`test/claudeLocalParser.test.ts` 覆盖归属、混合模型、子代理、重复请求、保留天数、坏行、缓存更新、删除及 Kimi 合并计价；原生 Kimi 测试注入独立 Claude 目录，避免读取用户日志。

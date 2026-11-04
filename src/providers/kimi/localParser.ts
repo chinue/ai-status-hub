@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { ILocalUsageProvider, UnifiedUsageEntry, RateLimits } from '../base/types';
 import { log } from '../../utils';
+import { ClaudeLocalParser } from '../claude/localParser';
 
 // k3.0 (Kimi Code) sessions live in ~/.kimi-code; ~/.kimi is the legacy k2.6 location.
 const DEFAULT_SESSIONS_DIRS = [
@@ -32,7 +33,8 @@ export class KimiLocalParser implements ILocalUsageProvider {
   private latestRateLimits: RateLimits | null = null;
   private readonly sessionsDirs: string[];
 
-  constructor(sessionsDirs?: string[]) {
+  constructor(sessionsDirs?: string[],
+    private readonly claudeUsage: ILocalUsageProvider = new ClaudeLocalParser('kimi')) {
     this.sessionsDirs = sessionsDirs ?? DEFAULT_SESSIONS_DIRS;
   }
 
@@ -42,6 +44,7 @@ export class KimiLocalParser implements ILocalUsageProvider {
     dataRetentionDays?: number;
     force?: boolean;
   }): Promise<UnifiedUsageEntry[]> {
+    if (opts?.force) this.invalidate();
     const files = await this.enumerateWireJsonl();
 
     // Remove stale fileStates for deleted files
@@ -69,6 +72,11 @@ export class KimiLocalParser implements ILocalUsageProvider {
       }
     }
 
+    for (const entry of await this.claudeUsage.scanSessions(opts)) {
+      if (entry.messageId && seenMessageIds.has(entry.messageId)) continue;
+      if (entry.messageId) seenMessageIds.add(entry.messageId);
+      entries.push(entry);
+    }
     return entries;
   }
 
@@ -79,6 +87,7 @@ export class KimiLocalParser implements ILocalUsageProvider {
 
   invalidate(): void {
     this.fileStates.clear();
+    this.claudeUsage.invalidate();
     this.latestRateLimits = null;
   }
 

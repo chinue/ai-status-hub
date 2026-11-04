@@ -18,6 +18,9 @@
 | `src/config.ts` | `v2-phase2-implementation.md#configts` | 配置读取、默认值、变更监听 |
 | `src/calc.ts` | `v2-local-estimation-design.md#quota-percentage-resolution` | 本地估算算法、格式化函数、额度重置解析 |
 | `src/types.ts` | `v2-phase2-implementation.md#typests` | 全局类型定义 |
+| `src/providers/claude/localParser.ts` | `v2-local-estimation-design.md` | Claude 日志递归扫描与模型归属过滤 |
+| `src/providers/kimi/localParser.ts` | `v2-local-estimation-design.md` | Kimi 原生会话及 Claude 内 Kimi 日志合并 |
+| `src/providers/glm/index.ts` | `v2-provider-abstraction.md#glm-provider` | GLM 本地日志统计与占位配额接口 |
 | `src/providers/claude/pricing.ts` | `v2-provider-abstraction.md#claude-pricing` | Claude 各版本标准定价与缓存费率 |
 | `src/providers/codex/api.ts` | `v2-provider-abstraction.md#codex-api` | 官方只读用量、提前重置同步 |
 | `src/providers/codex/pricing.ts` | `v2-provider-abstraction.md#codex-pricing` | Codex / OpenAI 各模型标准定价 |

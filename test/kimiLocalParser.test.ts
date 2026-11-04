@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { ClaudeLocalParser } from '../src/providers/claude/localParser';
 import { KimiLocalParser, normalizeKimiModel } from '../src/providers/kimi/localParser';
 
 function mkTmp(): string {
@@ -51,7 +52,7 @@ describe('KimiLocalParser', () => {
       { type: 'usage.record', model: 'kimi-code/k3', usage: { inputOther: 100, output: 50, inputCacheRead: 200, inputCacheCreation: 10 }, usageScope: 'turn', time: now },
     ]);
 
-    const entries = await new KimiLocalParser([root]).scanSessions();
+    const entries = await new KimiLocalParser([root], new ClaudeLocalParser('kimi', path.join(root, 'no-claude'))).scanSessions();
     expect(entries).to.have.length(1);
     expect(entries[0].model).to.equal('kimi-k3');
     expect(entries[0].timestamp).to.equal(now);
@@ -70,7 +71,7 @@ describe('KimiLocalParser', () => {
       { type: 'usage.record', model: 'kimi-code/k3', usage: { inputOther: 2, output: 2, inputCacheRead: 0, inputCacheCreation: 0 }, usageScope: 'turn', time: now },
     ]);
 
-    const entries = await new KimiLocalParser([root]).scanSessions();
+    const entries = await new KimiLocalParser([root], new ClaudeLocalParser('kimi', path.join(root, 'no-claude'))).scanSessions();
     expect(entries).to.have.length(1);
     expect(entries[0].inputOther).to.equal(2);
   });
@@ -92,7 +93,7 @@ describe('KimiLocalParser', () => {
     writeFile(path.join(root, 'bucket1', 'conv-1', 'wire.jsonl'), [legacy]);
     writeFile(path.join(root, 'bucket1', 'conv-2', 'wire.jsonl'), [legacy]);
 
-    const entries = await new KimiLocalParser([root]).scanSessions();
+    const entries = await new KimiLocalParser([root], new ClaudeLocalParser('kimi', path.join(root, 'no-claude'))).scanSessions();
     expect(entries).to.have.length(1);
     expect(entries[0].messageId).to.equal('msg_dup');
     expect(entries[0].timestamp).to.equal(Math.floor(nowSec * 1000));
@@ -112,7 +113,7 @@ describe('KimiLocalParser', () => {
       { timestamp: now / 1000, message: { type: 'StatusUpdate', payload: { token_usage: { input_other: 5, output: 6, input_cache_read: 7, input_cache_creation: 8 }, message_id: 'm1' } } },
     ]);
 
-    const entries = await new KimiLocalParser([newRoot, oldRoot]).scanSessions();
+    const entries = await new KimiLocalParser([newRoot, oldRoot], new ClaudeLocalParser('kimi', path.join(newRoot, 'no-claude'))).scanSessions();
     expect(entries).to.have.length(2);
     expect(entries.map(e => e.model)).to.have.members(['kimi-k3', undefined]);
   });
@@ -125,7 +126,7 @@ describe('KimiLocalParser', () => {
       { type: 'usage.record', model: 'kimi-code/k3', usage: { inputOther: 1, output: 1, inputCacheRead: 0, inputCacheCreation: 0 }, usageScope: 'turn', time: now },
     ]);
 
-    const parser = new KimiLocalParser([root]);
+    const parser = new KimiLocalParser([root], new ClaudeLocalParser('kimi', path.join(root, 'no-claude')));
     expect(await parser.scanSessions()).to.have.length(1);
     // Second scan uses cached file state (same result)
     expect(await parser.scanSessions()).to.have.length(1);
@@ -140,7 +141,7 @@ describe('KimiLocalParser', () => {
 
   it('returns empty when sessions dirs do not exist', async () => {
     const missing = path.join(os.tmpdir(), 'kimi-parser-no-such-dir');
-    const entries = await new KimiLocalParser([missing]).scanSessions();
+    const entries = await new KimiLocalParser([missing], new ClaudeLocalParser('kimi', missing)).scanSessions();
     expect(entries).to.deep.equal([]);
   });
 });

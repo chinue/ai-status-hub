@@ -791,3 +791,12 @@ export function parseCodexUsage(value: unknown, now: number): QuotaData | null {
   const quota = codexRateLimitsToQuota({ primary: window(fields.primary_window), secondary: window(fields.secondary_window) }, now);
   return quota.weeklyLimit > 0 || quota.windowLimit > 0 ? quota : null;
 }
+
+/** Route explicit model names in Claude logs; opaque aliases retain legacy ownership. */
+export function claudeLogProvider(model: unknown): 'claude' | 'kimi' | 'glm' {
+  if (typeof model !== 'string') return 'claude';
+  const parts = model.trim().toLowerCase().split('/');
+  if (parts.some(part => /^(kimi|moonshot)(?:[-_.]|$)/.test(part))) return 'kimi';
+  if (/^glm(?:[-_.]|$)/.test(parts[parts.length - 1])) return 'glm';
+  return 'claude';
+}
