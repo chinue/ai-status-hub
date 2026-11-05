@@ -249,3 +249,105 @@ describe('Dashboard chart refresh', () => {
     } finally { clock.restore(); }
   });
 });
+
+
+describe('Dashboard cost curve window selection', () => {
+  const hour = 3600 * 1000;
+  const start = new Date(2026, 10, 5, 20).getTime();
+  function options(current: number, duration: number) {
+    return [0, 1, 2].map(i => ({ startMs: current - i * duration, endMs: current + (1 - i) * duration, label: String(i) }));
+  }
+  function createSelector() {
+    const html = (DashboardPanel.prototype as any).getHtml.call(
+      { store: { getState: () => defaultState() } }, 'nonce', 'en',
+    ) as string;
+    const elements: Record<string, any> = {};
+    for (const id of ['costcurve-body', 'costcurve-sel-5h-date', 'costcurve-sel-5h-hour', 'costcurve-sel-7d']) {
+      elements[id] = {
+        value: '', innerHTML: '',
+        addEventListener(type: string, listener: () => void) { this['on' + type] = listener; },
+      };
+    }
+    const messages: any[] = [];
+    const sandbox: any = {
+      document: { getElementById: (id: string) => elements[id] },
+      vscode: { postMessage: (msg: any) => messages.push(msg) },
+      esc: (value: string) => value, scheduleCostCurvePending: () => {},
+    };
+    new Script(html.slice(html.indexOf('    // ---- Cost Curve ----'), html.indexOf('    function densifyCostCurveSeries')) + `
+      globalThis.refresh = (options) => { costCurveOptions = options; renderCostCurveCard(); };
+    `).runInNewContext(sandbox);
+    return {
+      refresh(current: number, week = start) {
+        messages.length = 0;
+        sandbox.refresh({ options5h: options(current, 5 * hour), options7d: options(week, 7 * 24 * hour) });
+      },
+      change(id: string, value: string) { elements[id].value = value; elements[id].onchange(); },
+      request(window: string) { return messages.filter(msg => msg.window === window).slice(-1)[0]; },
+      date: (ms: number) => (new Date(ms).getMonth() + 1) + '.' + new Date(ms).getDate(),
+    };
+  }
+
+  it('follows the current 5h window across midnight and subsequent refreshes', () => {
+    const ui = createSelector();
+    ui.refresh(start);
+    ui.refresh(start + 5 * hour);
+    expect(ui.request('5h').startMs).to.equal(start + 5 * hour);
+    ui.refresh(start + 5 * hour);
+    expect(ui.request('5h').startMs).to.equal(start + 5 * hour);
+    ui.refresh(start + 10 * hour);
+    expect(ui.request('5h').startMs).to.equal(start + 10 * hour);
+  });
+
+  it('keeps a manually selected historical hour and resumes following after selecting current', () => {
+    const ui = createSelector();
+    ui.refresh(start);
+    ui.change('costcurve-sel-5h-hour', String(start - 5 * hour));
+    ui.refresh(start + 5 * hour);
+    expect(ui.request('5h').startMs).to.equal(start - 5 * hour);
+    ui.change('costcurve-sel-5h-date', ui.date(start + 5 * hour));
+    expect(ui.request('5h').startMs).to.equal(start + 5 * hour);
+    ui.refresh(start + 10 * hour);
+    expect(ui.request('5h').startMs).to.equal(start + 10 * hour);
+  });
+
+  it('uses refreshed hour options in change handlers', () => {
+    const ui = createSelector();
+    ui.refresh(start);
+    ui.refresh(start + 5 * hour);
+    ui.change('costcurve-sel-5h-date', ui.date(start + 5 * hour));
+    ui.change('costcurve-sel-5h-hour', String(start + 5 * hour));
+    expect(ui.request('5h').startMs).to.equal(start + 5 * hour);
+  });
+
+  it('keeps a manually selected historical date while the current window advances', () => {
+    const ui = createSelector();
+    ui.refresh(start + 5 * hour);
+    ui.change('costcurve-sel-5h-date', ui.date(start));
+    ui.refresh(start + 10 * hour);
+    expect(ui.request('5h').startMs).to.equal(start);
+  });
+
+  it('returns to the current window when a historical selection expires from the list', () => {
+    const ui = createSelector();
+    ui.refresh(start);
+    ui.change('costcurve-sel-5h-hour', String(start - 10 * hour));
+    ui.refresh(start + 5 * hour);
+    expect(ui.request('5h').startMs).to.equal(start + 5 * hour);
+  });
+
+  it('follows the current 7d window and preserves manually selected history independently', () => {
+    const ui = createSelector();
+    ui.refresh(start);
+    const nextWeek = start + 7 * 24 * hour;
+    ui.refresh(start, nextWeek);
+    expect(ui.request('7d').startMs).to.equal(nextWeek);
+    ui.change('costcurve-sel-7d', String(start));
+    ui.refresh(start, nextWeek + 7 * 24 * hour);
+    expect(ui.request('7d').startMs).to.equal(start);
+    ui.change('costcurve-sel-7d', String(nextWeek + 7 * 24 * hour));
+    expect(ui.request('7d').startMs).to.equal(nextWeek + 7 * 24 * hour);
+    ui.refresh(start, nextWeek + 14 * 24 * hour);
+    expect(ui.request('7d').startMs).to.equal(nextWeek + 14 * 24 * hour);
+  });
+});

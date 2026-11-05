@@ -783,3 +783,8 @@ Scheduler 使用 fake timers 验证：任务执行期间重复 force 合并、�
 ### Claude 日志模型归属回归（0.6.10，2026-11-05）
 
 `test/claudeLocalParser.test.ts` 使用临时 JSONL 目录覆盖模型名称大小写、命名空间、未知/缺失别名、混合模型互斥归属、Token 四分类、子代理目录、请求跨文件去重、保留天数、坏行、增量刷新、缓存失效、文件删除、Kimi 原生日志合并及计价、GLM Provider 接线。`test/kimiLocalParser.test.ts` 注入隔离的 Claude 目录，确保原生测试不读取用户真实数据。
+
+
+### Cost Curve 自动切窗回归（0.6.11，2026-11-05）
+
+`test/dashboard.test.ts` 执行实际生成的 WebView 窗口选择代码，新增 6 项测试覆盖：5h 跨午夜连续切窗、历史 Hour 保持及选回当前后恢复跟随、刷新后事件使用新列表、历史日期保持、历史窗口移出列表后回退，以及 7d 自动跟随和独立历史选择。修复前 4 项失败，修复后全部通过；保留已有同窗口曲线不清空的回归测试。

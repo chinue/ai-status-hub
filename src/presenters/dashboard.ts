@@ -1814,6 +1814,8 @@ export class DashboardPanel {
     let selected5hDate = null;
     let selected5hHour = null;
     let selected7d = null;
+    let latest5h = null;
+    let latest7d = null;
 
     function renderCostCurveCard() {
       const root = document.getElementById('costcurve-body');
@@ -1825,14 +1827,18 @@ export class DashboardPanel {
       }
       const opts5h = costCurveOptions.options5h || [];
       const opts7d = costCurveOptions.options7d || [];
-      if ((!selected5h || !opts5h.some(o => String(o.startMs) === String(selected5h))) && opts5h.length) {
+      if ((!selected5h || selected5h === latest5h || !opts5h.some(o => String(o.startMs) === selected5h)) && opts5h.length) {
         selected5h = String(opts5h[0].startMs);
         selected5hDate = null;
         selected5hHour = null;
       }
-      if ((!selected7d || !opts7d.some(o => String(o.startMs) === String(selected7d))) && opts7d.length) {
+      if ((!selected7d || selected7d === latest7d || !opts7d.some(o => String(o.startMs) === selected7d)) && opts7d.length) {
         selected7d = String(opts7d[0].startMs);
       }
+
+      // Follow rollover only while viewing the current window; retain explicit history.
+      if (opts5h.length) latest5h = String(opts5h[0].startMs);
+      if (opts7d.length) latest7d = String(opts7d[0].startMs);
 
       function fmtDateKey(ms) { const d = new Date(ms); return (d.getMonth()+1) + '.' + d.getDate(); }
       function fmtHour(ms) { return String(new Date(ms).getHours()).padStart(2, '0'); }
@@ -1890,49 +1896,42 @@ export class DashboardPanel {
         s5h.innerHTML = hourOpts5h.map(o => '<option value="' + o.startMs + '"' + (String(o.startMs) === String(selected5hHour) ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
       }
 
+      // Replace handlers on render so they use the latest option lists.
       if (s5d && s5h) {
-        if (!s5d.__bound) {
-          s5d.__bound = true;
-          s5d.addEventListener('change', () => {
-            selected5hDate = s5d.value;
-            const g = groups5h.find(x => x.dateKey === selected5hDate) || null;
-            const items = g ? g.items : [];
-            const newHourOpts = items.map(o => ({ value: String(o.startMs), label: fmtHour(o.startMs), endMs: o.endMs }));
-            selected5hHour = newHourOpts.length ? String(newHourOpts[0].value) : null;
-            s5h.innerHTML = newHourOpts.map(o => '<option value="' + o.value + '"' + (String(o.value) === String(selected5hHour) ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
-            const opt = items.find(o => String(o.startMs) === String(selected5hHour));
-            if (opt) {
-              scheduleCostCurvePending('5h', opt.startMs, opt.endMs);
-              vscode.postMessage({ type: 'getCostCurve', window: '5h', startMs: opt.startMs, endMs: opt.endMs });
-            }
-          });
-        }
-        if (!s5h.__bound) {
-          s5h.__bound = true;
-          s5h.addEventListener('change', () => {
-            selected5hHour = s5h.value;
-            selected5h = String(selected5hHour);
-            const items = (groups5h.find(x => x.dateKey === selected5hDate)?.items) || [];
-            const opt = items.find(o => String(o.startMs) === String(selected5hHour));
-            if (opt) {
-              scheduleCostCurvePending('5h', opt.startMs, opt.endMs);
-              vscode.postMessage({ type: 'getCostCurve', window: '5h', startMs: opt.startMs, endMs: opt.endMs });
-            }
-          });
-        }
+        s5d.onchange = () => {
+          selected5hDate = s5d.value;
+          const g = groups5h.find(x => x.dateKey === selected5hDate) || null;
+          const items = g ? g.items : [];
+          const newHourOpts = items.map(o => ({ value: String(o.startMs), label: fmtHour(o.startMs), endMs: o.endMs }));
+          selected5hHour = newHourOpts.length ? String(newHourOpts[0].value) : null;
+          selected5h = selected5hHour;
+          s5h.innerHTML = newHourOpts.map(o => '<option value="' + o.value + '"' + (String(o.value) === String(selected5hHour) ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
+          const opt = items.find(o => String(o.startMs) === String(selected5hHour));
+          if (opt) {
+            scheduleCostCurvePending('5h', opt.startMs, opt.endMs);
+            vscode.postMessage({ type: 'getCostCurve', window: '5h', startMs: opt.startMs, endMs: opt.endMs });
+          }
+        };
+        s5h.onchange = () => {
+          selected5hHour = s5h.value;
+          selected5h = String(selected5hHour);
+          const items = (groups5h.find(x => x.dateKey === selected5hDate)?.items) || [];
+          const opt = items.find(o => String(o.startMs) === String(selected5hHour));
+          if (opt) {
+            scheduleCostCurvePending('5h', opt.startMs, opt.endMs);
+            vscode.postMessage({ type: 'getCostCurve', window: '5h', startMs: opt.startMs, endMs: opt.endMs });
+          }
+        };
       }
       if (s7) {
-        if (!s7.__bound) {
-          s7.__bound = true;
-          s7.addEventListener('change', () => {
-            selected7d = s7.value;
-            const opt = opts7d.find(o => String(o.startMs) === String(selected7d));
-            if (opt) {
-              scheduleCostCurvePending('7d', opt.startMs, opt.endMs);
-              vscode.postMessage({ type: 'getCostCurve', window: '7d', startMs: opt.startMs, endMs: opt.endMs });
-            }
-          });
-        }
+        s7.onchange = () => {
+          selected7d = s7.value;
+          const opt = opts7d.find(o => String(o.startMs) === String(selected7d));
+          if (opt) {
+            scheduleCostCurvePending('7d', opt.startMs, opt.endMs);
+            vscode.postMessage({ type: 'getCostCurve', window: '7d', startMs: opt.startMs, endMs: opt.endMs });
+          }
+        };
       }
 
       const items5 = (groups5h.find(x => x.dateKey === selected5hDate)?.items) || opts5h;
