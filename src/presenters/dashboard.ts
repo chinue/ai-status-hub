@@ -582,7 +582,7 @@ export class DashboardPanel {
     .header h1 { margin: 0; font-size: 1.2em; font-weight: 600; }
     .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .header { flex-wrap: wrap; gap: 10px; }
-    .provider-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .provider-list { display: flex; flex-basis: 100%; flex-wrap: wrap; gap: 6px; align-items: center; }
     .provider-choice { display: inline-flex; align-items: center; gap: 2px; padding: 2px 5px; border: 1px solid transparent; border-radius: 4px; }
     .provider-choice.active { border-color: var(--vscode-focusBorder); background: var(--vscode-button-secondaryBackground); }
     .provider-link { border: none; background: transparent; color: var(--vscode-foreground); padding: 3px; text-decoration: underline; cursor: pointer; }
@@ -784,9 +784,9 @@ export class DashboardPanel {
     <h1>${i18n('dashboard.title')}</h1>
     <div class="header-actions">
       <div class="provider-list" role="group" aria-label="${i18n('dashboard.providers')}">${providerOptions}</div>
-      <button id="btn-signin">${i18n('dashboard.signIn')}</button>
+      <button id="btn-signin" title="${i18n('dashboard.signIn')}" aria-label="${i18n('dashboard.signIn')}">${i18n('dashboard.signInIcon')}</button>
       <button id="btn-refresh">${i18n('dashboard.refresh')}</button>
-      <button id="btn-toggle">$ / %</button>
+      <button id="btn-toggle" title="${i18n('dashboard.toggleMode')}" aria-label="${i18n('dashboard.toggleMode')}">${i18n('dashboard.toggleModeIcon')}</button>
       <button id="btn-lang">&#127760; ${isZh ? 'EN' : '\u4e2d'}</button>
       <button id="btn-settings">&#9881;</button>
     </div>

@@ -22,7 +22,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Kimi Code 用量                    [↻ 刷新] [$ / %] [⚙]           │  ← Header
+│  Kimi Code 用量                    [🏠️] [↻ 刷新] [🔣] [⚙]           │  ← Header
 ├─────────────────────────────────────────────────────────────────────┤
 │  CURRENT USAGE                                                      │  ← Current Usage Card
 │  ┌───────────────────────────────────────────────────────────────┐   │
@@ -178,12 +178,13 @@ body {
 
 **左侧**：`<h1>` 标题文字，字体 `1.2em`，weight `600`
 
-**右侧**：三个按钮组，gap `8px`
+**操作区**：模型选择区通过 `flex-basis: 100%` 独占一行；从 🏠️ 登录按钮开始的操作按钮组固定另起一行，gap `8px`，窄窗口内继续自动换行（0.6.13）。
 
 | 按钮 | ID | 功能 |
 |---|---|---|
 | ↻ 刷新 | `btn-refresh` | 触发 `refresh` message |
-| $ / % | `btn-toggle` | 切换 cost/percent 模式 |
+| 🏠️ | `btn-signin` | 登录 / 重新连接当前 Provider |
+| 🔣 | `btn-toggle` | 切换 cost/percent 模式 |
 | ⚙ | `btn-settings` | 打开 VS Code 设置 |
 
 **刷新状态**：点击后按钮变为旋转的 `⟳` 图标（CSS animation `spin 1s linear infinite`），disabled，刷新完成后恢复。
@@ -483,7 +484,7 @@ function heatmapColor(t) {
 |---|---|---|
 | `ready` | 无 | WebView 加载完成 |
 | `refresh` | 无 | 点击刷新按钮 |
-| `toggleMode` | 无 | 点击 $/% 按钮 |
+| `toggleMode` | 无 | 点击 🔣 按钮 |
 | `openSettings` | 无 | 点击 ⚙ 或编辑定价链接 |
 | `setBudget` | `amount: number \| null` | 保存/清除预算 |
 | `getCostCurveOptions` | 无 | Cost Curve 展开且 options 未加载 |
@@ -873,6 +874,6 @@ Current Usage 的五小时行由 `usage.has5hLimit` 控制：false 时初始 HTM
 
 ### 登录与重新连接（0.6.5，2026-10-26）
 
-Header 增加双语“登录 / 重新连接”按钮，WebView 发送 signIn，宿主使用当前 Dashboard Store 的 activeProvider 调用 aiStatusHub.signIn，避免认证到其他模型。Kimi 优先复用已有有效共享登录；否则启动浏览器授权。状态栏在缺失凭据时也提供明确登录链接。
+Header 的登录 / 重新连接按钮显示 🏠️，cost/percent 切换按钮显示 🔣（0.6.12）。图标通过中英双语字典获取，保留原文字作为 title 和 aria-label。WebView 发送 signIn，宿主使用当前 Dashboard Store 的 activeProvider 调用 aiStatusHub.signIn，避免认证到其他模型。Kimi 优先复用已有有效共享登录；否则启动浏览器授权。状态栏在缺失凭据时也提供明确登录链接。
 
 登录开始、复用、验证码、浏览器打开失败、授权异常/失败/超时和成功均有反馈。成功立即刷新用量；浏览器授权等待期间仍可切换模型与勾选状态栏入口。保持状态栏主点击打开所属仪表盘的行为。
