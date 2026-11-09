@@ -1,5 +1,25 @@
 # AI Status Hub v2 本地估算设计文档
 
+## 0.6.22 提交前计价审查（2026-11-09）
+
+pricingModelKey 的 GLM-5.3 版本只识别紧跟版本号且具有词边界的 Flash / FlashX 后缀。命名空间 flash-gateway/glm-5.3、未登记后缀 superflash/flashxy 均采用旗舰参考价，避免在整个模型字符串中搜索 flash 而误套低价。标准模型、命名空间和显示名映射继续兼容。
+
+## 0.6.19 GLM 模型费率修正（2026-11-09）
+
+calc.pricingModelKey 新增 GLM-5.3/5.2、Flash、FlashX 的别名映射，支持厂商命名空间及显示名称，并用数字边界区分 5.30。LocalUsageService 仍逐条按实际模型重算费用，不直接采纳 Cline metadata.totalCost（可能使用其他币种/单价），不混入套餐积分。
+
+按官方标准 API 价重扫副本：GLM-5.3 48 请求，未缓存输入费用 1.161632 元、输出 0.256424 元、缓存读取 8.141184 元，合计 9.55924 元；Claude 内 GLM-5.3-Flash 一请求 0.02547432 元；今日合计 9.58471432 元。总 Token 4,256,270 中缓存读 4,070,656，约 95.6%。旧固定占位费率算出 2.230329 元，明显低估。该重算为 API 等价金额，不是订阅成本分摊或实扣账单。
+
+## 0.6.18 拷回的新版 Cline 会话（2026-11-09）
+
+根因：之前只扫描 `~/.cline/data/tasks` 等目录中的 `ui_messages.json`，遗漏新版 CLI 的 `~/.cline/data/sessions/<sessionId>/<sessionId>.messages.json`。新增 data/sessions 与 sessions 默认扫描根；磁盘访问仍在 LocalUsageService，只读取消息文件，不采用副本中指向另一台机器的 messages_path，不读取 secrets/providers 等认证配置，也不读取 SQLite 数据库。
+
+`calc.parseClineSessionUsage()` 解析 messages 数组内 assistant 的逐请求 metrics，兼容 `modelInfo.id` 与 modelId、直接 inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens 及 SDK tokens.prompt/completion/cached。inputTokens 是包含缓存的输入总量：扣除缓存分类后得到未缓存输入，缓存分类限制在输入范围内；总量由互斥的输入、输出、缓存读、缓存写四类相加。不会再将缓存输入重复加到 inclusive prompt 上。
+
+仅使用消息 ts（毫秒或 ISO 字符串）进行今日、配额窗口和 retention 聚合，忽略文件拷贝时间。按 sessionId+message.id 去重，缺少 id 时退到消息时间；复制到另一目录的同一会话只计一次。不累加伴随会话元数据中的 usage/aggregateUsage 等累计摘要，不猜测缺少明确模型的历史记录。坏文件、未完成消息、用户消息、零用量及非法时间跳过；后续扫描可读到更新、删除或拷贝完成后的文件。
+
+本机副本实测：两份 Cline 会话共 48 请求；含缓存输入 4,215,796、输出 9,158，总计 4,224,954 Token。其中缓存读为 4,070,592，未缓存输入为 145,204。合并 Claude 一次请求后，今日共 49 请求、4,256,270 Token。网站报告 4.32M 为今日账号数据，仍有约 6.4 万差额，现有副本不能确认来源；不将官方积分或网站总数伪造成本地请求补齐。用户原始消息及凭据不写入测试或仓库。
+
 ## 0.6.17 GLM 远端配额解析（2026-11-09）
 
 新增纯函数 calc.parseGlmQuota，解析国内站个人 Coding Plan 配额；支持 CREDIT_LIMIT/TOKENS_LIMIT、5h/周窗口、秒/毫秒重置时间、数值字符串、百分比上限及缺失字段验证。排除 MCP 月额度，不将缺少或错误响应视为清零。formatProviderStatus 对 has7dLimit=false 仅显示实际 5h 配额，保持本地 Token/费用独立于配额。具体接口及响应依据见 v2-provider-abstraction.md 的 GLM provider。

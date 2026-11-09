@@ -1,5 +1,9 @@
 # AI Status Hub v2 Phase 3 详细实现文档
 
+## 0.6.18 聚合总 Token（2026-11-09）
+
+HistoryService 的 DashboardUsageData 聚合项新增 totalTokens，初始化为 0，addRecord 复用 calc.totalUsageTokens 按互斥分类累加；各日期/窗口/模型原有字段继续使用。每个聚合对象新增一个 number，原始数值空间约 8 字节，不新增持久化文件、逐请求集合或历史保留期。Dashboard 显示该字段以便与网站的总量对比。
+
 > 版本：v2.0.0-draft  
 > 日期：2026-05-12  
 > 前置文档：

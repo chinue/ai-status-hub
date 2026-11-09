@@ -285,6 +285,7 @@ export interface MemoryBreakdownItem {
 }
 
 export interface DashboardUsageData {
+  totalTokens: number;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCacheCreationTokens: number;

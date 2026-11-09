@@ -1,5 +1,64 @@
 # ChangeLog
 
+## [0.6.22] - 2026-11-09
+
+### 修复
+
+- **GLM 型号误套 Flash 低价**（`src/calc.ts`）：Flash / FlashX 必须是 GLM-5.3 版本后的完整型号后缀；命名空间含 flash 或未识别的 superflash/flashxy 后缀不再误触发低价，保留旗舰参考价。
+- **日期测试跨午夜不稳定**（`test/clineSessions.test.ts`）：仅模拟 Date 到固定本地中午，避免运行时刻改变今日和 5h 测试的边界假设；真实文件 IO 不变。
+
+### 验证
+
+- 新增三个计价回归，修复前均失败；类型检查、全部 341 项测试、生产编译及 VSIX 打包通过。审查 Cline 会话解析、缓存分类、定价设置及显示标签，同步设计/测试文档，UTF-8、CRLF、DESIGN 引用检查通过。
+
+## [0.6.21] - 2026-11-09
+
+### 调整
+
+- **精简 GLM 费用说明**（`src/i18n.ts`）：英文改为“API estimate only; Coding Plan uses weighted credits.”（8 个单词），中文同步改为“仅 API 估算；套餐按加权积分计量。”；同步 i18n 设计规范。
+
+### 验证
+
+- 类型检查、全部 338 项测试、生产编译和 VSIX 打包通过，保持 CRLF。
+
+## [0.6.20] - 2026-11-09
+
+### 调整
+
+- **缩短费用标签**（`src/i18n.ts`、`src/presenters/dashboard.ts`）：将 GLM 的 API-equivalent cost (estimated) / API 等价费用（估算）长标签改为 Cost / 费用，窗口金额使用通用费用前缀，节省表头和金额显示空间；估算说明和计价逻辑不变。同步设计文档。
+
+### 验证
+
+- 类型检查、全部 338 项测试、生产编译和 VSIX 打包通过，保持 CRLF。
+
+## [0.6.19] - 2026-11-09
+
+### 修复
+
+- **GLM 总费用使用占位费率导致低估**（`src/providers/glm/pricing.ts`、`index.ts`、`src/config.ts`、`src/calc.ts`）：按官方国内站标准 API 价区分 GLM-5.3、5.2、Flash、FlashX，替换固定 1/2/0.5 的输入/输出/缓存价。新增模型别名映射和 16 项私有费率设置，支持零费率及 customModels 覆盖，默认参考模型改为 GLM-5.3；未知型号暂使用该参考价，不声称是历史账单。
+- **费用与套餐积分语义不清**（`src/presenters/dashboard.ts`、`statusBar.ts`、`src/i18n.ts`）：GLM 金额标注为“API 等价费用（估算）”，解释它不是 Coding Plan 实扣金额，套餐配额按加权积分计算，与人民币费用不成比例。
+
+### 验证
+
+- 类型检查、全部 338 项测试、生产编译及 VSIX 打包通过；新增 8 项模型定价与实际用量回归，同步文档并保持 CRLF。
+- 同一份用户副本实际重扫：GLM-5.3 48 请求约 9.55924 元、Flash 一请求约 0.02547432 元，今日合计 API 等价估算 9.58471432 元；旧费率为 2.230329 元。缓存读取约占总 Token 的 95.6%，按独立缓存费率计价；不包含额外工具费、缓存存储时长费或特殊折扣，不代表用户账单扣款。
+
+## [0.6.18] - 2026-11-09
+
+### 修复
+
+- **拷回的新版 Cline 用量未被统计**（`src/services/localUsageService.ts`、`src/calc.ts`）：新增 `.cline/data/sessions` 和 `.cline/sessions` 扫描，解析 `*.messages.json` 内逐请求 metrics，兼容模型字段与 SDK 嵌套格式。按原始消息时间聚合和保留，不使用文件拷贝时间；同一会话副本去重，不重复累计会话摘要。
+- **缓存输入计数口径**：新版 Cline inputTokens 已包含缓存，拆分成互斥的未缓存输入、输出、缓存读和缓存写，避免重复计数；明确按消息模型归属 Kimi / GLM，隔离坏文件、未完成消息及非法记录。
+
+### 新增
+
+- **总 Token 与来源说明**（`src/services/historyService.ts`、`src/types.ts`、`src/presenters/dashboard.ts`、`src/presenters/statusBar.ts`、`src/i18n.ts`）：明细各时间页显示“总 Token（含缓存）”，输入项明确不含缓存；中英双语说明本机/拷回日志的统计范围，以及网站今日与配额窗口的区别。
+
+### 验证
+
+- 类型检查、全部 330 项测试、生产编译及 VSIX 打包通过；新增 8 项 Cline 会话回归，同步设计文档和索引，保持 CRLF。
+- 实际只读重扫用户副本：Cline 48 请求、4,224,954 Token；合并 Claude 日志后今日共 49 请求、4,256,270 Token。相比用户提供的网站今日 4.32M，仍差约 6.4 万 Token，现有副本无法确认这部分来源；未修改用户日志或按网站总数补造记录。
+
 ## [0.6.17] - 2026-11-09
 
 ### 修复

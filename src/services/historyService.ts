@@ -18,10 +18,12 @@ import {
   buildHourlyBuckets,
   formatDateLocal,
   formatMonthLocal,
+  totalUsageTokens,
 } from '../calc';
 
 function emptyUsage(): DashboardUsageData {
   return {
+    totalTokens: 0,
     totalInputTokens: 0,
     totalOutputTokens: 0,
     totalCacheCreationTokens: 0,
@@ -70,6 +72,7 @@ function orderDailyModelBreakdown(row: DailyModelBreakdown): DailyModelBreakdown
 }
 
 function addRecord(agg: DashboardUsageData, entry: UsageEntry, defaultModelName?: string): void {
+  agg.totalTokens += totalUsageTokens(entry);
   agg.totalInputTokens += entry.inputOther;
   agg.totalOutputTokens += entry.output;
   agg.totalCacheCreationTokens += entry.inputCacheCreation;

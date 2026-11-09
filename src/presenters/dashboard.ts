@@ -555,6 +555,7 @@ export class DashboardPanel {
     const isZh = locale === 'zh-CN';
     const i18n = makeT(locale as any);
     const activeProvider = this.store.getState().activeProvider;
+    const costLabel = i18n(activeProvider === 'glm' ? 'glm.apiEquivalentCost' : 'dashboard.tokenCost');
     const providers = listProviders();
     const providerOptions = providers.map((p) => {
       const label = isZh ? p.displayNameZh : p.displayName;
@@ -799,7 +800,7 @@ export class DashboardPanel {
   <div class="card">
     <div class="card-title">${i18n('dashboard.currentUsage')}</div>
     <div id="quota-warning" style="color:var(--vscode-errorForeground);">⚠ ${i18n('usage.quotaUnavailable')}</div>
-    <div style="color:var(--vscode-descriptionForeground);">${i18n('usage.costEstimated')}</div>
+    <div style="color:var(--vscode-descriptionForeground);">${i18n(activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}</div>
     <div class="progress-row" id="row-5h" style="${this.store.getState().quota?.has5hLimit === false ? 'display:none' : ''}">
       <div class="progress-labels">
         <span>${i18n('dashboard.window5h')}<span id="badge-5h" class="estimate-badge"></span></span>
@@ -877,6 +878,7 @@ export class DashboardPanel {
       <button class="detail-toggle" id="details-toggle">${i18n('dashboard.hide')}</button>
     </div>
     <div id="details-body">
+      <div style="color:var(--vscode-descriptionForeground);">${i18n('usage.localScope')}</div>
       <div class="ccu-tabs" id="ccu-tabs">
         <button class="ccu-tab active" data-tab="w5h">${i18n('dashboard.window5h')}</button>
         <button class="ccu-tab" data-tab="w7d">${i18n('dashboard.window7d')}</button>
@@ -1450,7 +1452,8 @@ export class DashboardPanel {
     function renderCcuSummary(data) {
       if (!data) return '<div class="placeholder">${i18n('dashboard.noData')}</div>';
       const rows = [
-        ['${i18n('dashboard.tokenCost')}', fmtCurrency(data.totalCost)],
+        ['${i18n('dashboard.totalTokens')}', fmtNum(data.totalTokens)],
+        ['${costLabel}', fmtCurrency(data.totalCost)],
         ['${i18n('dashboard.messages')}', fmtNum(data.messageCount)],
         ['${i18n('dashboard.inputTokens')}', fmtNum(data.totalInputTokens)],
         ['${i18n('dashboard.outputTokens')}', fmtNum(data.totalOutputTokens)],
@@ -1489,7 +1492,7 @@ export class DashboardPanel {
       return '<div class="breakdown"><div class="section-title">' + header + '</div>' +
         '<table class="ccu-table"><thead><tr>' +
         '<th>' + firstCol + '</th>' +
-        '<th>${i18n('dashboard.tokenCost')}</th>' +
+        '<th>${costLabel}</th>' +
         '<th>${i18n('dashboard.inputTokens')}</th>' +
         '<th>${i18n('dashboard.outputTokens')}</th>' +
         '<th>${i18n('dashboard.cacheCreate')}</th>' +

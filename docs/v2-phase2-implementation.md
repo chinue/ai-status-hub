@@ -1,5 +1,19 @@
 # AI Status Hub v2 Phase 2 详细实现文档
 
+## 0.6.20 精简费用显示（2026-11-09）
+
+i18n 的 glm.apiEquivalentCost 保留翻译键，显示值缩短为 Cost / 费用，同步作用于状态栏 tooltip 和 Dashboard 表头；窗口前缀复用 dashboard.cost。费用估算说明与价格计算继续沿用 0.6.19。
+
+## 0.6.19 GLM 费率配置与费用语义（2026-11-09）
+
+ConfigService 的 GLM 默认模型更新为 glm-5.3，官方价格链接改为文档定价页；getPricing 可传模型缺省费率，保持自定义关键字、Provider 私有、全局配置的优先级，避免通用 2/10/0.5 覆盖 GLM 参考价。package.json 增加四个 GLM 模型的 16 项私有费率设置，每项仍允许 0。无新增逐请求字段或历史集合。
+
+状态栏 tooltip 中 GLM 的费用列和解释使用“API 等价费用（估算）”，说明与 Coding Plan 加权积分和实际扣款的区别；未改变其他 Provider 的费用语义。中英翻译位于 i18n.ts。
+
+## 0.6.18 本地统计来源及总 Token（2026-11-09）
+
+DashboardUsageData 新增 totalTokens，表示互斥的输入、输出、缓存分类之和，供 Dashboard 各时间页直接显示；不会将它用于配额百分比校准。StatusBarPresenter 的本地用量区注明仅覆盖本机/拷回日志，区分今日与额度窗口。i18n.ts 同时更新中英文：总 Token（含缓存）、输入不含缓存，以及本地来源说明。
+
 ## 0.6.17 GLM 配额和错误展示（2026-11-09）
 
 QuotaData / UnifiedQuota 新增可选 has7dLimit 标记，仅提供 5h 额度时不假报每周 0%。KimiUsageData 新增 weeklyQuotaAvailable 与 quotaError：前者驱动缺失周窗口红色标记，后者将 GLM 已脱敏的查询失败原因显示在 Dashboard。StatusBarPresenter 在没有本地记录和配额但查询失败时显示警告及原因，避免永久转圈；本地统计不被查询失败遮挡。仅 5h 套餐的状态栏颜色取 5h 剩余额度。旧 Provider 未提供新标记时保持原有语义。

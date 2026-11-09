@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.6.17",
+  "version": "0.6.22",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -913,6 +913,118 @@
           "default": [
             "kimi"
           ]
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3.inputPerMillion": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0,
+          "order": 300,
+          "description": "GLM-5.3 inputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3.outputPerMillion": {
+          "type": "number",
+          "default": 28,
+          "minimum": 0,
+          "order": 301,
+          "description": "GLM-5.3 outputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3.cacheReadPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 302,
+          "description": "GLM-5.3 cacheReadPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0,
+          "order": 303,
+          "description": "GLM-5.3 cacheCreatePerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_2.inputPerMillion": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0,
+          "order": 304,
+          "description": "GLM-5.2 inputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_2.outputPerMillion": {
+          "type": "number",
+          "default": 28,
+          "minimum": 0,
+          "order": 305,
+          "description": "GLM-5.2 outputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_2.cacheReadPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 306,
+          "description": "GLM-5.2 cacheReadPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_2.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0,
+          "order": 307,
+          "description": "GLM-5.2 cacheCreatePerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3Flash.inputPerMillion": {
+          "type": "number",
+          "default": 0.8,
+          "minimum": 0,
+          "order": 308,
+          "description": "GLM-5.3-Flash inputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3Flash.outputPerMillion": {
+          "type": "number",
+          "default": 2.8,
+          "minimum": 0,
+          "order": 309,
+          "description": "GLM-5.3-Flash outputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3Flash.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.23,
+          "minimum": 0,
+          "order": 310,
+          "description": "GLM-5.3-Flash cacheReadPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3Flash.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 0.8,
+          "minimum": 0,
+          "order": 311,
+          "description": "GLM-5.3-Flash cacheCreatePerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3FlashX.inputPerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 312,
+          "description": "GLM-5.3-FlashX inputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3FlashX.outputPerMillion": {
+          "type": "number",
+          "default": 7,
+          "minimum": 0,
+          "order": 313,
+          "description": "GLM-5.3-FlashX outputPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3FlashX.cacheReadPerMillion": {
+          "type": "number",
+          "default": 0.57,
+          "minimum": 0,
+          "order": 314,
+          "description": "GLM-5.3-FlashX cacheReadPerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.pricing.glm.models.glm5_3FlashX.cacheCreatePerMillion": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "order": 315,
+          "description": "GLM-5.3-FlashX cacheCreatePerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
         }
       }
     }

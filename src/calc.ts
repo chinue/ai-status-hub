@@ -10,7 +10,7 @@ export function normalizeStatusBarProviders(value: unknown): string[] {
     : [];
   return selected.length ? selected : ['kimi'];
 }
-import { RateLimits } from './providers/base/types';
+import { RateLimits, UnifiedUsageEntry } from './providers/base/types';
 import { makeT, Locale } from './i18n';
 
 export interface UtilizationResult {
@@ -164,6 +164,14 @@ export function parseCustomPricing(value: string): TokenPricing | null {
  */
 export function pricingModelKey(modelName: string): string {
   const m = modelName.toLowerCase();
+  // GLM namespace/display-name aliases; version boundaries keep 5.30 distinct from 5.3.
+  const glm53 = /glm[\s._-]*5[\s._-]+3(?!\d)(?:[\s._-]+(flashx|flash)(?=$|[^a-z0-9]))?/.exec(m);
+  if (glm53) {
+    if (glm53[1] === 'flashx') return 'glm5_3FlashX';
+    if (glm53[1] === 'flash') return 'glm5_3Flash';
+    return 'glm5_3';
+  }
+  if (/glm[\s._-]*5[\s._-]+2(?!\d)/.test(m)) return 'glm5_2';
   // Claude family
   if (/(?:fable|mythos)[\s._-]*5[\s._-]+1(?!\d)/.test(m)) { return 'claudeFable5_1'; }
   if (m.includes('fable') || m.includes('mythos')) { return 'claudeFable'; }
@@ -811,6 +819,40 @@ export function claudeLogProvider(model: unknown): 'claude' | 'kimi' | 'glm' {
   if (parts.some(part => /^(kimi|moonshot)(?:[-_.]|$)/.test(part))) return 'kimi';
   if (/^glm(?:[-_.]|$)/.test(parts[parts.length - 1])) return 'glm';
   return 'claude';
+}
+
+/** Total physical tokens from mutually exclusive input, output and cache categories. */
+export function totalUsageTokens(usage: TokenUsage): number {
+  return usage.inputOther + usage.output + usage.inputCacheRead + usage.inputCacheCreation;
+}
+
+/** Cline prompts include caches. Split request metrics; never add cumulative session summaries. */
+export function parseClineSessionUsage(value: unknown, fallbackSessionId: string): UnifiedUsageEntry[] {
+  if (!value || typeof value !== 'object') return [];
+  const session = value as Record<string, any>;
+  if (!Array.isArray(session.messages)) return [];
+  const sessionId = typeof session.sessionId === 'string' && session.sessionId ? session.sessionId : fallbackSessionId;
+  const count = (n: unknown): number => typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : 0;
+  const entries: UnifiedUsageEntry[] = [];
+  for (const message of session.messages) {
+    if (!message || message.role !== 'assistant' || message.partial || !message.metrics) continue;
+    const model = message.modelInfo?.id ?? message.modelInfo?.modelId;
+    if (typeof model !== 'string' || !['glm', 'kimi'].includes(claudeLogProvider(model))) continue;
+    const timestamp = typeof message.ts === 'number' ? message.ts
+      : typeof message.ts === 'string' ? Date.parse(message.ts) : NaN;
+    if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+    const metrics = message.metrics;
+    const prompt = count(metrics.inputTokens ?? metrics.tokens?.prompt);
+    const output = count(metrics.outputTokens ?? metrics.tokens?.completion);
+    const inputCacheRead = Math.min(prompt, count(metrics.cacheReadTokens ?? metrics.tokens?.cached));
+    const inputCacheCreation = Math.min(prompt - inputCacheRead, count(metrics.cacheWriteTokens));
+    const inputOther = prompt - inputCacheRead - inputCacheCreation;
+    if (prompt + output === 0) continue;
+    const id = typeof message.id === 'string' && message.id ? message.id : String(timestamp);
+    entries.push({ timestamp, model, inputOther, output, inputCacheRead, inputCacheCreation,
+      cost: 0, messageId: `cline:${sessionId}:${id}` });
+  }
+  return entries;
 }
 
 /** GLM Coding Plan windows: unit=3/hour, unit=6/week. TIME_LIMIT is monthly MCP usage. */

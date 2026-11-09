@@ -76,7 +76,7 @@ export class ConfigService {
     switch (this.activeProviderId) {
       case 'kimi': return 'kimi-k2.6';
       case 'claude': return 'claude-sonnet-4';
-      case 'glm': return 'glm-4';
+      case 'glm': return 'glm-5.3';
       case 'cursor': return 'cursor-fast';
       case 'codex':
       default: return 'gpt-5';
@@ -239,7 +239,7 @@ export class ConfigService {
     switch (this.activeProviderId) {
       case 'kimi': return 'https://platform.kimi.com/docs/pricing/chat';
       case 'claude': return 'https://platform.claude.com/docs/en/about-claude/pricing';
-      case 'glm': return 'https://open.bigmodel.cn/pricing';
+      case 'glm': return 'https://docs.bigmodel.cn/cn/guide/start/pricing';
       case 'cursor': return 'https://cursor.com/pricing';
       case 'codex':
       default: return 'https://developers.openai.com/api/docs/pricing';
@@ -250,7 +250,7 @@ export class ConfigService {
     return this.cfg.get<string>('pricing.officialDate', '2026-10-25');
   }
 
-  getPricing(modelName: string, providerId = this.activeProviderId): TokenPricing {
+  getPricing(modelName: string, providerId = this.activeProviderId, defaults?: TokenPricing): TokenPricing {
     const m = modelName.toLowerCase();
 
     // User-defined custom pricing takes priority (key = model name keyword, substring match)
@@ -271,13 +271,13 @@ export class ConfigService {
     const globalPrefix = `pricing.models.${key}`;
 
     const input = this.cfg.get<number>(`${providerPrefix}.inputPerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.inputPerMillion`, 2.00));
+      this.cfg.get<number>(`${globalPrefix}.inputPerMillion`, defaults?.inputPerMillion ?? 2.00));
     const output = this.cfg.get<number>(`${providerPrefix}.outputPerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.outputPerMillion`, 10.00));
+      this.cfg.get<number>(`${globalPrefix}.outputPerMillion`, defaults?.outputPerMillion ?? 10.00));
     const cacheRead = this.cfg.get<number>(`${providerPrefix}.cacheReadPerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.cacheReadPerMillion`, 0.50));
+      this.cfg.get<number>(`${globalPrefix}.cacheReadPerMillion`, defaults?.cacheReadPerMillion ?? 0.50));
     const cacheCreate = this.cfg.get<number>(`${providerPrefix}.cacheCreatePerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.cacheCreatePerMillion`, 2.00));
+      this.cfg.get<number>(`${globalPrefix}.cacheCreatePerMillion`, defaults?.cacheCreatePerMillion ?? 2.00));
 
     return { inputPerMillion: input, outputPerMillion: output, cacheReadPerMillion: cacheRead, cacheCreatePerMillion: cacheCreate };
   }

@@ -456,6 +456,8 @@ Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空
 
 ### GLM provider
 
+0.6.19（2026-11-09）移除 index.ts 内固定 1/2/0.5/1 的占位费率，改用独立 GlmPricingProvider；详情见下方 GLM pricing。模型缺失的参考名及 ConfigService 默认名统一为 glm-5.3。该费用是 API 按量等价估算，不能当作 Coding Plan 的实际扣款或按比例换算配额。
+
 0.6.10（2026-11-05）接入 Claude Code 日志中 `glm-*` 模型的本地 Token、请求数及估算费用；`createGlmProvider()` 创建独立 `ClaudeLocalParser('glm')`。定价沿用当前固定估算费率。
 
 0.6.16（2026-11-09）新增 `GlmAuthProvider`：提供模态登录指引，显示官方 API Keys 链接和“打开登录页面 / 输入 API Key”按钮，支持浏览器失败时手动访问。密钥通过 password 输入框获取，存入独立 SecretStorage 键 `aiStatusHub.glm.apiKey`；环境变量 `ZHIPUAI_API_KEY` / `GLM_API_KEY` 优先。取消或保存失败返回 false，不将打开网页当作登录完成；密钥仅保存，未向服务器验证。官方配额 API 仍未接入，界面明确提示配额不可用，本地统计不受影响。
@@ -469,6 +471,24 @@ Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空
 登录时先使用同一只读接口验证候选密钥，成功后才保存并提示连接成功；失败不覆盖已有密钥，不宣告登录成功。显式输入并保存的密钥优先于 ZHIPUAI_API_KEY / GLM_API_KEY，避免旧环境变量覆盖新输入。已保存的 0.6.16 密钥可直接用于下次刷新。未持有用户真实密钥，本次验证使用模拟接口响应，不声称已对用户账号完成实测。
 
 接口及认证依据：[官方用量插件文档](https://docs.bigmodel.cn/cn/coding-plan/extension/usage-query-plugin)、[官方只读查询脚本](https://github.com/zai-org/zai-coding-plugins/blob/main/plugins/glm-plan-usage/skills/usage-query-skill/scripts/query-usage.mjs)；CREDIT_LIMIT 及周窗口响应参考 [zai-org 配额问题示例](https://github.com/zai-org/feedback/issues/1353)。
+
+### GLM pricing
+
+0.6.22 审查修正：Flash / FlashX 必须是版本号之后的完整型号后缀，不能由命名空间内的 flash 或未知型号后缀触发。未识别后缀保留 GLM-5.3 参考价，防止错误低估。
+
+`src/providers/glm/pricing.ts` 维护国内站标准 API 定价（元/百万 Token，2026-11-09 核验）：
+
+| 模型 | 未缓存输入 | 输出 | 缓存命中 | 缓存创建参考 |
+|---|---:|---:|---:|---:|
+| GLM-5.3 / GLM-5.2 | 8 | 28 | 2 | 8 |
+| GLM-5.3-Flash | 0.8 | 2.8 | 0.23 | 0.8 |
+| GLM-5.3-FlashX | 2 | 7 | 0.57 | 2 |
+
+来源：[官方 API 定价](https://docs.bigmodel.cn/cn/guide/start/pricing)。缓存创建按普通输入价估算；存储时长、工具调用费用及临时折扣不在日志 Token 估算中。缓存存储当前限时免费不等于缓存命中免费。旧型号/未知别名没有伪造已核验专属费率，暂使用 GLM-5.3 参考价；可通过 customModels 自定义，历史分段价格尚未实现，不能声称是历史账单。
+
+优先级：customModels > pricing.glm.models.<key> > pricing.models.<key> > 模型标准参考价；合法 0 覆盖保留。getPricing 的新增可选 defaults 参数只用于无配置时回退，其他 Provider 保持原有默认行为。计算复用 calc.calculateCost。package.json 登记四模型的 16 个 GLM 私有费率设置，币种为 CNY。
+
+与套餐区别：[官方 Coding Plan 积分说明](https://docs.bigmodel.cn/cn/coding-plan/overview)按模型区分输入、缓存、输出系数，并在非高峰时段按 50% 抵扣。官方配额百分比继续来自远端 quota 接口，不按 API 等价费用除以某个人民币预算计算。此次实际本地日志重算为 9.58471432 元，旧占位费率为 2.230329 元；这不是用户账单实扣金额。
 
 ### Claude 日志模型分流（0.6.10）
 

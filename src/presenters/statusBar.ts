@@ -185,7 +185,7 @@ export class StatusBarPresenter {
     if (!hasQuotaData(state) || state.authStatus === 'missing') {
       parts.push(`<span style="color:var(--vscode-errorForeground);">⚠ ${t('usage.quotaUnavailable')}</span> [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`, '');
     }
-    if (state.localEstimate) parts.push(t('usage.costEstimated'), '');
+    if (state.localEstimate) parts.push(t(state.activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated'), '');
     if (authMode === 'degraded') {
       parts.push(`> \uD83D\uDD10 ${t('tooltip.authDegraded')} [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       parts.push('');
@@ -231,9 +231,10 @@ export class StatusBarPresenter {
     const lu = state.localEstimate;
     if (lu && (lu.requests5h > 0 || lu.requests7d > 0 || lu.requestsThisCycle > 0)) {
       parts.push(`**${t('tooltip.localUsage')}**`);
+      parts.push(t('usage.localScope'));
       parts.push('');
       parts.push(this.preTable(
-        ['', t('tooltip.table.col.input'), t('tooltip.table.col.output'), t('tooltip.table.col.cacheRead'), t('tooltip.table.col.cacheCreate'), t('tooltip.table.col.cost')],
+        ['', t('tooltip.table.col.input'), t('tooltip.table.col.output'), t('tooltip.table.col.cacheRead'), t('tooltip.table.col.cacheCreate'), t(state.activeProvider === 'glm' ? 'glm.apiEquivalentCost' : 'tooltip.table.col.cost')],
         [
           [t('tooltip.table.row.today'), fmtTokens(lu.tokensToday), fmtTokens(lu.tokensOutToday), fmtTokens(lu.tokensCacheReadToday), fmtTokens(lu.tokensCacheCreateToday), fmtCost(lu.costToday, this.config.currencyForProvider(this.provider?.id ?? state.activeProvider).symbol)],
           ...(q?.has5hLimit === false ? [] : [[t('tooltip.table.row.5h'), fmtTokens(lu.tokensIn5h), fmtTokens(lu.tokensOut5h), fmtTokens(lu.tokensCacheRead5h), fmtTokens(lu.tokensCacheCreate5h), fmtCost(lu.cost5h, this.config.currencyForProvider(this.provider?.id ?? state.activeProvider).symbol)]]),

@@ -23,6 +23,7 @@
 | `src/providers/glm/index.ts` | `v2-provider-abstraction.md#glm-provider` | GLM 本地日志统计与占位配额接口 |
 | `src/providers/glm/auth.ts` | `v2-provider-abstraction.md#glm-provider` | GLM 手动登录链接、API Key 输入与安全保存 |
 | `src/providers/glm/api.ts` | `v2-provider-abstraction.md#glm-provider` | 智谱国内站个人 Coding Plan 只读配额查询 |
+| `src/providers/glm/pricing.ts` | `v2-provider-abstraction.md#glm-pricing` | GLM 按模型的人民币 API 等价费率与自定义覆盖 |
 | `src/providers/base/types.ts` | `v2-provider-abstraction.md#provider-interfaces` | Provider 协议及可选配额窗口标识 |
 | `src/providers/claude/pricing.ts` | `v2-provider-abstraction.md#claude-pricing` | Claude 各版本标准定价与缓存费率 |
 | `src/providers/codex/api.ts` | `v2-provider-abstraction.md#codex-api` | 官方只读用量、提前重置同步 |
@@ -37,6 +38,7 @@
 | `src/services/authService.ts` | `v2-phase2-implementation.md#servicesauthservicets` | OAuth/API Key 认证、token 缓存 |
 | `src/services/cacheService.ts` | `v2-phase2-implementation.md#servicescacheservicets` | 磁盘缓存读写、schema 版本管理、窗口锚点持久化 |
 | `src/services/localUsageService.ts` | `v2-local-estimation-design.md` | 本地 JSONL 扫描、用量聚合 |
+| `src/services/historyService.ts` | `v2-phase3-implementation.md#serviceshistoryservicets` | Dashboard 聚合、总 Token、热力图和成本曲线 |
 | `src/services/scheduler.ts` | `v2-phase2-implementation.md#servicesschedulerts` | 长短 tick 调度、自动刷新 |
 | `src/services/apiHistoryService.ts` | `v2-phase2-implementation.md#servicesapihistoryservicets` | 估算器历史 JSONL 磁盘读写（api + short tick） |
 

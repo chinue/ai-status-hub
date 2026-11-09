@@ -2,7 +2,7 @@
 // AGENTS: err->try-catch | retention->dataRetentionDays | disk-OK
 
 import { UsageEntry } from '../types';
-import { calculateCost, claudeLogProvider } from '../calc';
+import { calculateCost, claudeLogProvider, parseClineSessionUsage } from '../calc';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -53,6 +53,7 @@ export class LocalUsageService {
     const editorUsers = [path.join(home, '.vscode-server', 'data', 'User'),
       ...['Code', 'Code - Insiders', 'VSCodium', 'Cursor'].map(app => path.join(config, app, 'User'))];
     return [path.join(home, '.cline', 'data', 'tasks'), path.join(home, '.cline', 'tasks'),
+      path.join(home, '.cline', 'data', 'sessions'), path.join(home, '.cline', 'sessions'),
       ...editorUsers.flatMap(user => [path.join(user, 'globalStorage'), path.join(user, 'profiles')])];
   }
 
@@ -73,6 +74,12 @@ export class LocalUsageService {
             await walk(path.join(dir, item.name), depth + 1);
           } else if (item.isFile() && item.name === 'ui_messages.json') {
             await readTask(dir);
+          } else if (item.isFile() && item.name.endsWith('.messages.json')) {
+            try {
+              const session = JSON.parse(await fs.readFile(path.join(dir, item.name), 'utf8'));
+              const parsed = parseClineSessionUsage(session, item.name.slice(0, -'.messages.json'.length));
+              entries.push(...parsed.filter(entry => claudeLogProvider(entry.model) === this.provider?.id));
+            } catch { /* Ignore incomplete copies and retry on the next scan. */ }
           }
         }
       } catch { /* Optional or unreadable Cline roots must not block native usage. */ }
