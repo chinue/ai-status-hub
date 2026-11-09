@@ -38,7 +38,9 @@ export class StatusBarPresenter {
     this.displayName = provider?.ui.displayName ?? 'Codex';
     const icon = provider?.ui.mainIcon ?? '$(openai)';
 
-    this.itemWeekly = vscode.window.createStatusBarItem(alignment, 104);
+    // Explicit IDs keep each provider's persisted visibility independent.
+    const providerId = provider?.id ?? store.getState().activeProvider;
+    this.itemWeekly = vscode.window.createStatusBarItem(`provider.${providerId}`, alignment, 104);
     this.itemWeekly.name = `${this.displayName}StatusPro Weekly`;
     this.itemWeekly.command = this.dashboardCommand();
     this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;

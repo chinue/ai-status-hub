@@ -877,3 +877,9 @@ Current Usage 的五小时行由 `usage.has5hLimit` 控制：false 时初始 HTM
 Header 的登录 / 重新连接按钮显示 🏠️，cost/percent 切换按钮显示 🔣（0.6.12）。图标通过中英双语字典获取，保留原文字作为 title 和 aria-label。WebView 发送 signIn，宿主使用当前 Dashboard Store 的 activeProvider 调用 aiStatusHub.signIn，避免认证到其他模型。Kimi 优先复用已有有效共享登录；否则启动浏览器授权。状态栏在缺失凭据时也提供明确登录链接。
 
 登录开始、复用、验证码、浏览器打开失败、授权异常/失败/超时和成功均有反馈。成功立即刷新用量；浏览器授权等待期间仍可切换模型与勾选状态栏入口。保持状态栏主点击打开所属仪表盘的行为。
+
+### 未登录模型的历史显示（0.6.14，2026-11-09）
+
+切换或勾选未登录 Provider 时，Scheduler 先把本地日志聚合发布到对应 Store，再等待认证及官方 API。Dashboard 沿用 Store 更新链路显示本地费用、Token 和历史，不以远端配额完成为前提；无本地记录时沿用现有空数据展示。首次本地扫描仍需实际读取日志，不保证零延迟显示。
+
+状态栏选择和 Dashboard 模型切换不等待认证请求。取消勾选且该 Provider 已非当前 Dashboard 时，调度停止并清除加载状态，迟到的认证和扫描结果不再回填；当前 Dashboard 的 Provider 仍按既有规则保持调度。其他勾选 Provider 的状态栏保持独立。

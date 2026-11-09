@@ -51,6 +51,112 @@ describe('Scheduler', () => {
     (LocalUsageService as any).instance = undefined;
   });
 
+  it('publishes local history while authentication is pending', async () => {
+    let finish!: (token: null) => void;
+    sinon.stub(auth, 'resolveToken').returns(new Promise(resolve => { finish = resolve; }));
+    const usage = makeLocalUsage({ entries: [{ timestamp: 0, cost: 2 } as any], costToday: 2 });
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(usage);
+    sinon.stub(LocalUsageService.getInstance(), 'getRateLimits').resolves(null);
+    sinon.stub(cache, 'read').resolves(null);
+    scheduler.start();
+    await clock.tickAsync(10);
+    try {
+      expect(store.getState().usageEntries).to.deep.equal(usage.entries);
+      expect(store.getState().localEstimate!.costToday).to.equal(2);
+    } finally {
+      finish(null);
+      await clock.tickAsync(10);
+    }
+    expect(store.getState().authStatus).to.equal('missing');
+    expect(store.getState().isLoading).to.equal(false);
+  });
+
+  it('clears loading and avoids a retry storm when authentication throws', async () => {
+    const resolve = sinon.stub(auth, 'resolveToken').rejects(new Error('credential unavailable'));
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(makeLocalUsage());
+    scheduler.start();
+    await clock.tickAsync(100);
+    expect(store.getState().isLoading).to.equal(false);
+    expect(resolve.callCount).to.equal(1);
+  });
+
+  it('clears loading when the watchdog expires while retaining request ownership', async () => {
+    let finish!: (token: null) => void;
+    sinon.stub(auth, 'resolveToken').returns(new Promise(resolve => { finish = resolve; }));
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(makeLocalUsage());
+    sinon.stub(LocalUsageService.getInstance(), 'getRateLimits').resolves(null);
+    sinon.stub(cache, 'read').resolves(null);
+    scheduler.start();
+    await clock.tickAsync(60_001);
+    try {
+      expect(store.getState().isLoading).to.equal(false);
+    } finally {
+      finish(null);
+      await clock.tickAsync(10);
+    }
+  });
+
+  it('clears loading on stop and ignores late authentication results', async () => {
+    let finish!: (token: string) => void;
+    sinon.stub(auth, 'resolveToken').returns(new Promise(resolve => { finish = resolve; }));
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(makeLocalUsage());
+    const fetch = sinon.stub(api, 'fetchQuota').resolves({ ok: false, error: 'offline' });
+    scheduler.start();
+    await clock.tickAsync(10);
+    scheduler.stop();
+    const state = store.getState();
+    finish('late-token');
+    await clock.tickAsync(10);
+    expect(state.isLoading).to.equal(false);
+    expect(fetch.called).to.equal(false);
+    expect(store.getState()).to.equal(state);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('publishes local history while the quota API is pending', async () => {
+    let finish!: (result: { ok: false; error: string }) => void;
+    sinon.stub(auth, 'resolveToken').resolves('token');
+    sinon.stub(api, 'fetchQuota').returns(new Promise(resolve => { finish = resolve; }));
+    const usage = makeLocalUsage({ entries: [{ timestamp: 0, cost: 3 } as any], costToday: 3 });
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(usage);
+    sinon.stub(LocalUsageService.getInstance(), 'getRateLimits').resolves(null);
+    sinon.stub(cache, 'read').resolves(null);
+    scheduler.start();
+    await clock.tickAsync(10);
+    try {
+      expect(store.getState().usageEntries).to.deep.equal(usage.entries);
+      expect(store.getState().localEstimate!.costToday).to.equal(3);
+    } finally {
+      finish({ ok: false, error: 'offline' });
+      await clock.tickAsync(10);
+    }
+  });
+
+  it('still fetches official quota when the initial local scan fails', async () => {
+    sinon.stub(auth, 'resolveToken').resolves('token');
+    const quota = makeQuotaAt(18_000_000, 604_800_000);
+    const fetch = sinon.stub(api, 'fetchQuota').resolves({ ok: true, data: quota });
+    const scan = sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(makeLocalUsage());
+    scan.onFirstCall().rejects(new Error('temporary scan failure'));
+    sinon.stub(cache, 'write').resolves();
+    scheduler.start();
+    await clock.tickAsync(10);
+    expect(fetch.calledOnce).to.equal(true);
+    expect(store.getState().quota).to.deep.equal(quota);
+    expect(store.getState().isLoading).to.equal(false);
+  });
+
+  it('ignores local results from a short tick stopped during its scan', async () => {
+    let finish!: (usage: ReturnType<typeof makeLocalUsage>) => void;
+    sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').returns(new Promise(resolve => { finish = resolve; }));
+    const pending = (scheduler as any).doShortTick();
+    scheduler.stop();
+    const state = store.getState();
+    finish(makeLocalUsage({ entries: [{ timestamp: 0, cost: 1 } as any] }));
+    await pending;
+    expect(store.getState()).to.equal(state);
+  });
+
   it('coalesces forced refreshes while a tick is pending', async () => {
     let complete!: () => void;
     const work = sinon.stub(scheduler as any, 'doLongTick');
@@ -92,6 +198,8 @@ describe('Scheduler', () => {
     work.resolves();
     scheduler.start();
     await clock.tickAsync(10);
+    expect(work.callCount).to.equal(1);
+    await clock.tickAsync(ConfigService.getInstance().refreshIntervalSeconds * 1000);
     expect(work.callCount).to.equal(2);
     scheduler.stop();
     expect(clock.countTimers()).to.equal(0);
@@ -233,7 +341,7 @@ describe('Scheduler', () => {
     expect(anchors.window5hStartMs).to.equal(0);
     expect(anchors.window7dResetAtMs).to.equal(quota.weeklyResetAt);
     expect(anchors.window7dStartMs).to.equal(0);
-    expect(getUsageStub.firstCall.args[0]).to.include({
+    expect(getUsageStub.lastCall.args[0]).to.include({
       windowResetAtMs: quota.windowResetAt,
       weeklyResetAtMs: quota.weeklyResetAt,
     });
@@ -340,7 +448,7 @@ describe('Scheduler', () => {
     expect(anchors.window5hStartMs).to.equal(windowResetAt - 5 * 3600 * 1000);
     expect(anchors.window7dResetAtMs).to.equal(weeklyResetAt);
     expect(anchors.window7dStartMs).to.equal(weeklyResetAt - 7 * 24 * 3600 * 1000);
-    expect(getUsageStub.firstCall.args[0]).to.include({
+    expect(getUsageStub.lastCall.args[0]).to.include({
       windowResetAtMs: windowResetAt,
       weeklyResetAtMs: weeklyResetAt,
     });
@@ -409,7 +517,7 @@ describe('Scheduler', () => {
 
     // Initial local usage: costThisCycle=10, cost5h=5
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
-    getUsageStub.onFirstCall().resolves({
+    const usageSnapshot0 = {
       tokensToday: 25_000_000, costToday: 10, requestsToday: 5,
       tokensIn5h: 25_000_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
       requests5h: 5,
@@ -418,9 +526,8 @@ describe('Scheduler', () => {
       cost5h: 5,
       tokensThisCycle: 25_000_000, costThisCycle: 10, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
-    // After 5s: cost increases slightly (costThisCycle=10.4, cost5h=5.2)
-    getUsageStub.onSecondCall().resolves({
+    };
+    const usageSnapshot1 = {
       tokensToday: 26_000_000, costToday: 10.4, requestsToday: 6,
       tokensIn5h: 26_000_000, tokensOut5h: 5_200_000, tokensCacheRead5h: 1_100, tokensCacheCreate5h: 520,
       requests5h: 6,
@@ -429,7 +536,14 @@ describe('Scheduler', () => {
       cost5h: 5.2,
       tokensThisCycle: 26_000_000, costThisCycle: 10.4, requestsThisCycle: 6,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
+    };
+    getUsageStub.onFirstCall().resolves(usageSnapshot0);
+    // After 5s: cost increases slightly (costThisCycle=10.4, cost5h=5.2)
+    getUsageStub.onCall(2).resolves(usageSnapshot1);
+
+    // Initial history publication and quota calibration use the same snapshot.
+    getUsageStub.onCall(1).resolves(usageSnapshot0);
+    getUsageStub.resolves(usageSnapshot1);
 
     scheduler.start();
     // First tick = long tick (local quota read + calibration)
@@ -531,7 +645,7 @@ describe('Scheduler', () => {
     sinon.stub(cache, 'write').resolves();
 
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
-    getUsageStub.onFirstCall().resolves({
+    const usageSnapshot0 = {
       tokensOutToday: 10, tokensCacheReadToday: 20, tokensCacheCreateToday: 30,
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 2_000_000, tokensOut5h: 500_000, tokensCacheRead5h: 100, tokensCacheCreate5h: 50,
@@ -541,8 +655,8 @@ describe('Scheduler', () => {
       cost5h: 3,
       tokensThisCycle: 25_000_000, costThisCycle: 50, requestsThisCycle: 20,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
-    getUsageStub.onSecondCall().resolves({
+    };
+    const usageSnapshot1 = {
       tokensOutToday: 110, tokensCacheReadToday: 220, tokensCacheCreateToday: 330,
       tokensToday: 1_100_000, costToday: 5.5, requestsToday: 4,
       tokensIn5h: 2_100_000, tokensOut5h: 550_000, tokensCacheRead5h: 110, tokensCacheCreate5h: 55,
@@ -552,7 +666,13 @@ describe('Scheduler', () => {
       cost5h: 3.5,
       tokensThisCycle: 26_000_000, costThisCycle: 52, requestsThisCycle: 21,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
+    };
+    getUsageStub.onFirstCall().resolves(usageSnapshot0);
+    getUsageStub.onCall(2).resolves(usageSnapshot1);
+
+    // Initial history publication and quota calibration use the same snapshot.
+    getUsageStub.onCall(1).resolves(usageSnapshot0);
+    getUsageStub.resolves(usageSnapshot1);
 
     scheduler.start();
     await clock.tickAsync(100); // long tick
@@ -587,7 +707,7 @@ describe('Scheduler', () => {
     expect(le!.requestsThisCycle).to.equal(21);
 
     // Verify getLocalUsage was called on short tick (no force param in incremental mode)
-    const secondCall = getUsageStub.getCall(1);
+    const secondCall = getUsageStub.getCall(2);
     expect(secondCall).to.not.be.null;
   });
 
@@ -782,8 +902,7 @@ describe('Scheduler', () => {
     sinon.stub(cache, 'write').resolves();
 
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
-    // First long tick: costThisCycle=10, cost5h=5
-    getUsageStub.onCall(0).resolves({
+    const usageSnapshot0 = {
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 25_000_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
       requests5h: 5,
@@ -792,40 +911,29 @@ describe('Scheduler', () => {
       cost5h: 5,
       tokensThisCycle: 25_000_000, costThisCycle: 10, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
+    };
+    const usageSnapshot1 = {
+      tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
+      tokensIn5h: 25_300_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
+      requests5h: 5,
+      tokensIn7d: 25_300_000, tokensOut7d: 5_000_000, tokensCacheRead7d: 1_000, tokensCacheCreate7d: 500,
+      cost7d: 10, requests7d: 5,
+      cost5h: 5.06,
+      tokensThisCycle: 25_300_000, costThisCycle: 10.12, requestsThisCycle: 5,
+      entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
+    };
+    // First long tick: costThisCycle=10, cost5h=5
+    getUsageStub.onCall(0).resolves(usageSnapshot0);
     // Short tick: cost increases slightly -> creates smooth estimate
-    getUsageStub.onCall(1).resolves({
-      tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
-      tokensIn5h: 25_300_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
-      requests5h: 5,
-      tokensIn7d: 25_300_000, tokensOut7d: 5_000_000, tokensCacheRead7d: 1_000, tokensCacheCreate7d: 500,
-      cost7d: 10, requests7d: 5,
-      cost5h: 5.06,
-      tokensThisCycle: 25_300_000, costThisCycle: 10.12, requestsThisCycle: 5,
-      entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
+    getUsageStub.onCall(2).resolves(usageSnapshot1);
     // Second long tick: API still 25%, local cost same as short tick
-    getUsageStub.onCall(2).resolves({
-      tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
-      tokensIn5h: 25_300_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
-      requests5h: 5,
-      tokensIn7d: 25_300_000, tokensOut7d: 5_000_000, tokensCacheRead7d: 1_000, tokensCacheCreate7d: 500,
-      cost7d: 10, requests7d: 5,
-      cost5h: 5.06,
-      tokensThisCycle: 25_300_000, costThisCycle: 10.12, requestsThisCycle: 5,
-      entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
+    getUsageStub.onCall(3).resolves(usageSnapshot1);
     // Short tick after second long tick: same usage
-    getUsageStub.onCall(3).resolves({
-      tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
-      tokensIn5h: 25_300_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
-      requests5h: 5,
-      tokensIn7d: 25_300_000, tokensOut7d: 5_000_000, tokensCacheRead7d: 1_000, tokensCacheCreate7d: 500,
-      cost7d: 10, requests7d: 5,
-      cost5h: 5.06,
-      tokensThisCycle: 25_300_000, costThisCycle: 10.12, requestsThisCycle: 5,
-      entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
+    getUsageStub.onCall(4).resolves(usageSnapshot1);
+
+    // Initial history publication and quota calibration use the same snapshot.
+    getUsageStub.onCall(1).resolves(usageSnapshot0);
+    getUsageStub.resolves(usageSnapshot1);
 
     scheduler.start();
     // First long tick
@@ -845,7 +953,7 @@ describe('Scheduler', () => {
     expect(afterShort!.weeklyPct).to.be.lessThan(26);
 
     // Second long tick -> should preserve smooth estimate
-    await clock.tickAsync(60000);
+    await clock.tickAsync(ConfigService.getInstance().refreshIntervalSeconds * 1000);
     await Promise.resolve();
     await Promise.resolve();
 
@@ -946,8 +1054,7 @@ describe('Scheduler', () => {
     sinon.stub(cache, 'write').resolves();
 
     const getUsageStub = sinon.stub(localUsage, 'getLocalUsage');
-    // First long tick: normal usage with entries
-    getUsageStub.onCall(0).resolves({
+    const usageSnapshot0 = {
       tokensToday: 1_000_000, costToday: 5, requestsToday: 3,
       tokensIn5h: 25_000_000, tokensOut5h: 5_000_000, tokensCacheRead5h: 1_000, tokensCacheCreate5h: 500,
       requests5h: 5,
@@ -956,9 +1063,8 @@ describe('Scheduler', () => {
       cost5h: 5,
       tokensThisCycle: 25_000_000, costThisCycle: 10, requestsThisCycle: 5,
       entries: [{ timestamp: Date.now(), inputOther: 100, output: 50, inputCacheRead: 10, inputCacheCreation: 5, cost: 0.01, messageId: null }],
-    });
-    // Short tick: no local cache files (entries empty)
-    getUsageStub.onCall(1).resolves({
+    };
+    const usageSnapshot1 = {
       tokensToday: 0, costToday: 0, requestsToday: 0,
       tokensIn5h: 0, tokensOut5h: 0, tokensCacheRead5h: 0, tokensCacheCreate5h: 0,
       requests5h: 0,
@@ -967,7 +1073,15 @@ describe('Scheduler', () => {
       cost5h: 0,
       tokensThisCycle: 0, costThisCycle: 0, requestsThisCycle: 0,
       entries: [],
-    });
+    };
+    // First long tick: normal usage with entries
+    getUsageStub.onCall(0).resolves(usageSnapshot0);
+    // Short tick: no local cache files (entries empty)
+    getUsageStub.onCall(2).resolves(usageSnapshot1);
+
+    // Initial history publication and quota calibration use the same snapshot.
+    getUsageStub.onCall(1).resolves(usageSnapshot0);
+    getUsageStub.resolves(usageSnapshot1);
 
     scheduler.start();
     // First long tick

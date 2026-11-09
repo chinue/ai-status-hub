@@ -2639,3 +2639,17 @@ Scheduler 通过 tickInFlight 串行执行长短 tick。执行期间 force() 合
 Store 的 CACHE_LOADED 将缓存 fetchedAt 同步恢复到 lastSuccessfulFetchAt（缺失则 null），过期判断采用缓存原时间，包含 Unix epoch 0；无时间的缓存按过期处理。缓存恢复不修改已有错误，不伪装成刚刚成功请求。
 
 短 tick 的 LOCAL_ESTIMATE 补齐今日及本周期的输出、缓存读取、缓存创建 Token，与长 tick 字段保持一致，确保 tooltip 和 dashboard 不保留旧值。
+
+### 未登录账号本地优先与调度停止保护（0.6.14，2026-11-09）
+
+Scheduler 长 tick 先按已有窗口锚点（内存 → 磁盘 → fallback）扫描并发布本地用量，再解析凭据、请求官方配额。认证或网络等待期间，Dashboard 可从 Store 显示历史记录；配额返回后仍按官方窗口重新聚合及校准，保留官方提前重置和小数平滑规则。本地首次扫描失败会记录日志，继续尝试官方数据。
+
+长 tick 在开始时记录尝试时间，异常后按正常刷新间隔重试，避免失败时以零延迟循环扫描。异常和 60 秒 watchdog 超时都会清除 isLoading；watchdog 仍保留底层任务所有权直到其结束，避免并发请求与缓存覆盖，不声称已取消网络请求。未结束的请求仍会阻止该实例的后续刷新，但已发布的本地记录和其他 Provider 的切换、勾选保持可用。
+
+stop() 清除加载状态并递增 generation。长短 tick 在异步读取后核对 generation，丢弃停止前任务的迟到结果；官方数据处理和缓存写入间也设置检查，避免已停止任务继续发布状态或追加窗口缓存。已经发出的磁盘写入不能撤销。每实例仅新增一个数字计数器，无新增历史集合，内存为常数，不影响 retention 预算。
+
+### 状态栏独立可见性标识（0.6.15，2026-11-09）
+
+StatusBarPresenter 使用带显式 id 的 createStatusBarItem 重载，标识固定为 `provider.<providerId>`，优先使用注入 Provider 的 id，缺省时使用 Store.activeProvider；保留已有对齐和优先级 104。重新创建相同 Provider 时 id 不变，VS Code 可独立记忆各模型的可见性。
+
+旧实现未传 id，所有模型归入扩展级 `kayuii.ai-status-hub`。本机排查确认该标识位于 VS Code 的 workbench.statusbar.hidden 隐藏列表，即使扩展成功激活、配额持续刷新，状态栏也不可见；重装不会清除这一偏好。新模型标识独立于旧标识，首次使用新标识时恢复默认可见性，之后尊重用户对每个模型的隐藏选择。无需修改 VS Code 数据库或其他状态栏设置。

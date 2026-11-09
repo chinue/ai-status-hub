@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { StatusBarPresenter } from '../src/presenters/statusBar';
 import { Store } from '../src/store';
+import { getProvider } from '../src/providers/registry';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 
@@ -15,6 +16,55 @@ describe('StatusBarPresenter', () => {
 
   afterEach(() => {
     presenter.dispose();
+  });
+
+  it('uses stable, distinct provider identifiers when status bars are recreated', () => {
+    const create = sinon.spy(vscode.window, 'createStatusBarItem');
+    const items: StatusBarPresenter[] = [];
+    try {
+      for (const id of ['codex', 'kimi', 'claude', 'glm', 'cursor']) {
+        const providerStore = new Store();
+        providerStore.dispatch({ type: 'SET_PROVIDER', payload: id });
+        items.push(new StatusBarPresenter(providerStore, getProvider(id)));
+      }
+      const ids = create.getCalls().map(call => call.args[0]);
+      expect(ids.every(id => typeof id === 'string')).to.equal(true);
+      expect(new Set(ids).size).to.equal(5);
+      const fallback = new Store();
+      fallback.dispatch({ type: 'SET_PROVIDER', payload: 'kimi' });
+      items.push(new StatusBarPresenter(fallback));
+      expect(create.lastCall.args[0]).to.equal(ids[1]);
+      expect(create.firstCall.args.slice(1)).to.deep.equal([vscode.StatusBarAlignment.Right, 104]);
+    } finally {
+      for (const item of items) item.dispose();
+      create.restore();
+    }
+  });
+
+  it('keeps other providers visible when the legacy entry or one provider is hidden', () => {
+    const original = vscode.window.createStatusBarItem;
+    const hidden = new Set(['kayuii.ai-status-hub']);
+    const create = sinon.stub(vscode.window, 'createStatusBarItem').callsFake((...args: any[]) => {
+      const item = original() as any;
+      const id = typeof args[0] === 'string' ? args[0] : 'kayuii.ai-status-hub';
+      item.show = () => { item.visible = !hidden.has(id); };
+      return item;
+    });
+    const items: StatusBarPresenter[] = [];
+    try {
+      const codex = new StatusBarPresenter(new Store(), getProvider('codex'));
+      items.push(codex);
+      expect((codex as any).itemWeekly.visible).to.equal(true);
+      hidden.add(create.firstCall.args[0] as string);
+      (codex as any).render(new Store().getState());
+      expect((codex as any).itemWeekly.visible).to.equal(false);
+      const kimi = new StatusBarPresenter(new Store(), getProvider('kimi'));
+      items.push(kimi);
+      expect((kimi as any).itemWeekly.visible).to.equal(true);
+    } finally {
+      for (const item of items) item.dispose();
+      create.restore();
+    }
   });
 
   it('renders loading state initially', () => {

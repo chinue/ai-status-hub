@@ -22,6 +22,7 @@ const WINDOW_7D_MS = 7 * 24 * 3600 * 1000;
 export class Scheduler {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  private generation = 0;
   private tickInFlight = false;
   private refreshPending = false;
   private tickTimeout: NodeJS.Timeout | null = null;
@@ -86,7 +87,7 @@ export class Scheduler {
     return this.fallbackWindowAnchors(providerId, now);
   }
 
-  private async resolveWindowAnchorsFromFallbackChain(now: number): Promise<WindowAnchorData> {
+  private async resolveWindowAnchorsFromFallbackChain(now: number, generation = this.generation): Promise<WindowAnchorData> {
     const providerId = this.currentProviderId();
     const stateAnchors = this.store.getState().windowAnchors;
     if (stateAnchors?.providerId === providerId) {
@@ -95,7 +96,7 @@ export class Scheduler {
 
     const diskAnchors = await this.cacheService.readWindowAnchors(providerId);
     const anchors = diskAnchors ?? this.fallbackWindowAnchors(providerId, now);
-    this.store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
+    if (generation === this.generation) this.store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
     return anchors;
   }
 
@@ -110,6 +111,8 @@ export class Scheduler {
 
   stop(): void {
     this.running = false;
+    this.generation++;
+    if (this.store.getState().isLoading) this.store.dispatch({ type: 'LOADING_END' });
     this.refreshPending = false;
     if (this.tickTimeout) { clearTimeout(this.tickTimeout); this.tickTimeout = null; }
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
@@ -142,6 +145,7 @@ export class Scheduler {
     this.timer = null;
     this.tickInFlight = true;
     const now = Date.now();
+    const generation = this.generation;
     const forced = this.refreshPending;
     this.refreshPending = false;
     const isLong = forced || now - this.lastLongTick >= this.longMs;
@@ -152,7 +156,9 @@ export class Scheduler {
       // Invalidate after the previous request settles so its cache cannot mask a forced refresh.
       if (forced) this.apiService.invalidateCache?.();
       if (isLong) {
-        operation = this.doLongTick();
+        // Count attempts too: failures must not create zero-delay retry loops.
+        this.lastLongTick = now;
+        operation = this.doLongTick(generation);
         await Promise.race([
           operation,
           new Promise<void>((_, reject) => {
@@ -168,6 +174,9 @@ export class Scheduler {
       }
     } catch (err) {
       log(`Scheduler tick error: ${err}`);
+      if (generation === this.generation && this.store.getState().isLoading) {
+        this.store.dispatch({ type: 'LOADING_END' });
+      }
       // A timeout does not cancel work. Keep ownership until it settles to prevent
       // a late response from racing a newer tick and overwriting its state/cache.
       if (timedOut && operation) {
@@ -184,6 +193,7 @@ export class Scheduler {
   }
 
   private async doShortTick(): Promise<void> {
+    const generation = this.generation;
     if (this.store.getState().ui.isPaused) {
       return;
     }
@@ -197,6 +207,8 @@ export class Scheduler {
       windowResetAtMs: anchors.window5hResetAtMs,
       dataRetentionDays: this.config.dataRetentionDays,
     });
+
+    if (generation !== this.generation) return;
 
     // Skip short tick when no local data is available to avoid overwriting
     // API percentages with zeros.
@@ -244,6 +256,7 @@ export class Scheduler {
     // We only do this when API is completely missing; otherwise stale local
     // rate_limits can drift behind the actual API value.
     const rateLimits = !quota ? await this.localUsageService.getRateLimits() : null;
+    if (generation !== this.generation) return;
     const weeklyPctLocal = rateLimits?.secondary?.used_percent;
     const windowPctLocal = rateLimits?.primary?.used_percent;
 
@@ -339,92 +352,19 @@ export class Scheduler {
     });
   }
 
-  private async doLongTick(): Promise<void> {
-    if (this.store.getState().ui.isPaused) {
-      return;
-    }
-
-    this.store.dispatch({ type: 'LOADING_START' });
-    const now = Date.now();
-
-    // ── Step 1: try API first ────────────────────────────────────────────────
-    const token = await this.authService.resolveToken();
-    let apiResult: import('../providers/base/types').ApiResult | null = null;
-
-    if (!token) {
-      const detailStatus = this.authService.getAuthStatus?.() ?? 'missing';
-      const currentAuthStatus = this.store.getState().authStatus;
-      if (currentAuthStatus !== detailStatus && currentAuthStatus !== 'failed') {
-        this.store.dispatch({ type: 'AUTH_STATUS', payload: detailStatus });
-      }
-      log(`Scheduler: no token for provider ${this.currentProviderId()} (status=${detailStatus})`);
-    }
-
-    if (token) {
-      try {
-        apiResult = await this.apiService.fetchQuota(token, {
-          credentialType: this.authService.getCredentialType?.() ?? 'unknown',
-        });
-      } catch (err) {
-        log(`Scheduler: API exception for ${this.currentProviderId()}: ${(err as Error).message}`);
-        apiResult = null;
-      }
-    }
-
-    // ── Step 2: API success ──────────────────────────────────────────────────
-    if (apiResult && apiResult.ok && apiResult.data) {
-      log(`Scheduler: API success for ${this.currentProviderId()}`);
-      await this.processQuotaData(apiResult.data, now, 'api');
-      this.store.dispatch({ type: 'LOADING_END' });
-      return;
-    }
-
-    if (apiResult) {
-      log(`Scheduler: API failed for ${this.currentProviderId()}: ${apiResult.error} (authFailed=${apiResult.authFailed}, networkError=${apiResult.networkError})`);
-      if (apiResult.authFailed) {
-        this.authService.invalidate();
-      }
-    }
-
-    // ── Step 3: API failed → fallback to local JSONL rate_limits ────────────
-    const rateLimits = await this.localUsageService.getRateLimits();
-    let quotaData: import('../types').QuotaData | null = null;
-    if (rateLimits?.primary || rateLimits?.secondary) {
-      quotaData = this.rateLimitsToQuota(rateLimits, now);
-    }
-
-    const previous = this.store.getState();
-    const hasOfficialQuota = this.currentProviderId() === 'codex'
-      && !!previous.quota && ['api', 'cache', 'stale'].includes(previous.dataSource);
-    if (quotaData && !hasOfficialQuota) {
-      // Local rate_limits are temporary fallback only; do NOT persist to cache
-      // because they can be severely stale (e.g. other devices, old sessions).
-      await this.processQuotaData(quotaData, now, 'local-only', false);
-      this.store.dispatch({ type: 'LOADING_END' });
-      return;
-    }
-
-    // ── Step 4: both failed ──────────────────────────────────────────────────
-    const apiError = apiResult?.error ?? 'No API data and no local rate limits available.';
-    this.store.dispatch({
-      type: 'API_ERROR',
-      payload: {
-        error: apiError,
-        authFailed: apiResult?.authFailed ?? false,
-        networkError: apiResult?.networkError ?? false,
-      },
-    });
-
+  private async publishLocalUsage(now: number, generation: number): Promise<void> {
     // Even without API or local rate_limits, still scan local session files
     // so the user sees usage data (tokens, cost, entries) in the status bar.
     // This is especially important for providers like Claude whose JSONL
     // does not contain rate_limits — without this, the UI stays blank.
-    const anchors = await this.resolveWindowAnchorsFromFallbackChain(now);
+    const anchors = await this.resolveWindowAnchorsFromFallbackChain(now, generation);
+    if (generation !== this.generation) return;
     const localUsageFallback = await this.localUsageService.getLocalUsage({
       weeklyResetAtMs: anchors.window7dResetAtMs,
       windowResetAtMs: anchors.window5hResetAtMs,
       dataRetentionDays: this.config.dataRetentionDays,
     });
+    if (generation !== this.generation) return;
     if (localUsageFallback.entries.length > 0) {
       this.store.dispatch({
         type: 'LOCAL_ESTIMATE',
@@ -457,8 +397,100 @@ export class Scheduler {
         },
       });
     }
+  }
+
+  private async doLongTick(generation = this.generation): Promise<void> {
+    if (this.store.getState().ui.isPaused) {
+      return;
+    }
+
+    this.store.dispatch({ type: 'LOADING_START' });
+    const now = Date.now();
+
+    // Local history must not wait for credentials or a remote quota response.
+    try {
+      await this.publishLocalUsage(now, generation);
+    } catch (err) {
+      log(`Scheduler local history error: ${err}`);
+    }
+    if (generation !== this.generation) return;
+
+    // ── Step 1: try API first ────────────────────────────────────────────────
+    const token = await this.authService.resolveToken();
+    if (generation !== this.generation) return;
+    let apiResult: import('../providers/base/types').ApiResult | null = null;
+
+    if (!token) {
+      const detailStatus = this.authService.getAuthStatus?.() ?? 'missing';
+      const currentAuthStatus = this.store.getState().authStatus;
+      if (currentAuthStatus !== detailStatus && currentAuthStatus !== 'failed') {
+        this.store.dispatch({ type: 'AUTH_STATUS', payload: detailStatus });
+      }
+      log(`Scheduler: no token for provider ${this.currentProviderId()} (status=${detailStatus})`);
+    }
+
+    if (token) {
+      try {
+        apiResult = await this.apiService.fetchQuota(token, {
+          credentialType: this.authService.getCredentialType?.() ?? 'unknown',
+        });
+      } catch (err) {
+        log(`Scheduler: API exception for ${this.currentProviderId()}: ${(err as Error).message}`);
+        apiResult = null;
+      }
+    }
+
+    if (generation !== this.generation) return;
+
+    // ── Step 2: API success ──────────────────────────────────────────────────
+    if (apiResult && apiResult.ok && apiResult.data) {
+      log(`Scheduler: API success for ${this.currentProviderId()}`);
+      await this.processQuotaData(apiResult.data, now, 'api', true, undefined, generation);
+      if (generation !== this.generation) return;
+      this.store.dispatch({ type: 'LOADING_END' });
+      return;
+    }
+
+    if (apiResult) {
+      log(`Scheduler: API failed for ${this.currentProviderId()}: ${apiResult.error} (authFailed=${apiResult.authFailed}, networkError=${apiResult.networkError})`);
+      if (apiResult.authFailed) {
+        this.authService.invalidate();
+      }
+    }
+
+    // ── Step 3: API failed → fallback to local JSONL rate_limits ────────────
+    const rateLimits = await this.localUsageService.getRateLimits();
+    if (generation !== this.generation) return;
+    let quotaData: import('../types').QuotaData | null = null;
+    if (rateLimits?.primary || rateLimits?.secondary) {
+      quotaData = this.rateLimitsToQuota(rateLimits, now);
+    }
+
+    const previous = this.store.getState();
+    const hasOfficialQuota = this.currentProviderId() === 'codex'
+      && !!previous.quota && ['api', 'cache', 'stale'].includes(previous.dataSource);
+    if (quotaData && !hasOfficialQuota) {
+      // Local rate_limits are temporary fallback only; do NOT persist to cache
+      // because they can be severely stale (e.g. other devices, old sessions).
+      await this.processQuotaData(quotaData, now, 'local-only', false, undefined, generation);
+      if (generation !== this.generation) return;
+      this.store.dispatch({ type: 'LOADING_END' });
+      return;
+    }
+
+    // ── Step 4: both failed ──────────────────────────────────────────────────
+    const apiError = apiResult?.error ?? 'No API data and no local rate limits available.';
+    this.store.dispatch({
+      type: 'API_ERROR',
+      payload: {
+        error: apiError,
+        authFailed: apiResult?.authFailed ?? false,
+        networkError: apiResult?.networkError ?? false,
+      },
+    });
 
     const cached = await this.cacheService.read();
+    if (generation !== this.generation) return;
     if (cached && !hasOfficialQuota) {
       this.store.dispatch({ type: 'CACHE_LOADED', payload: cached.quota, fetchedAt: cached.fetchedAt });
       if (cached.calibration) {
@@ -486,6 +518,7 @@ export class Scheduler {
     source: DataSource,
     persistToCache: boolean = true,
     anchorOverride?: WindowAnchorData,
+    generation = this.generation,
   ): Promise<void> {
     const oldQuota = this.store.getState().quota;
     const providerId = this.currentProviderId();
@@ -539,6 +572,8 @@ export class Scheduler {
       dataRetentionDays: this.config.dataRetentionDays,
     });
 
+    if (generation !== this.generation) return;
+
     // Official decreases or reset-window changes must replace old smoothing exactly.
     const weeklyChanged = source === 'api' && !!oldQuota && (
       quotaData.weeklyUsedPct < oldQuota.weeklyUsedPct
@@ -587,9 +622,11 @@ export class Scheduler {
           reset7dAt: quotaData.weeklyResetAt,
         },
       });
+      if (generation !== this.generation) return;
       await this.cacheService.writeWindowAnchors(providerId, anchors);
     }
 
+    if (generation !== this.generation) return;
     this.store.dispatch({ type: 'API_SUCCESS', payload: quotaData, source });
     this.store.dispatch({
       type: 'LOCAL_ESTIMATE',

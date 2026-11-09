@@ -8,10 +8,72 @@ import { ApiHistoryService } from '../src/services/apiHistoryService';
 import { DashboardPanel } from '../src/presenters/dashboard';
 import { ConfigService } from '../src/config';
 import { makeContext } from './mocks/vscode';
+import { LocalUsageService } from '../src/services/localUsageService';
+import { CodexAuthProvider } from '../src/providers/codex/auth';
+import { ClaudeAuthProvider } from '../src/providers/claude/auth';
 import { KimiAuthProvider } from '../src/providers/kimi/auth';
 
 describe('multiple provider status bars', () => {
   afterEach(() => { sinon.restore(); });
+
+  it('switches and unchecks an unauthenticated provider while its credentials are pending', async () => {
+    const clock = sinon.useFakeTimers();
+    const callbacks = new Map<string, Function>();
+    const settings: Record<string, unknown> = { provider: 'codex', 'statusBar.providers': ['codex'] };
+    sinon.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, fallback: unknown) => settings[key] ?? fallback,
+      update: async (key: string, value: unknown) => { settings[key] = value; },
+    } as any);
+    sinon.stub(vscode.commands, 'registerCommand').callsFake((name: string, callback: any) => {
+      callbacks.set(name, callback); return { dispose() {} };
+    });
+    sinon.stub(vscode.commands, 'executeCommand').callsFake(async (name: string, ...args: any[]) => callbacks.get(name)?.(...args));
+    sinon.stub(CacheService.prototype, 'read').resolves(null);
+    sinon.stub(CacheService.prototype, 'readWindowAnchors').resolves(null);
+    sinon.stub(CacheService.prototype, 'writeWindowAnchors').resolves();
+    sinon.stub(ApiHistoryService.prototype, 'readFromDisk').resolves([]);
+    const entry = { timestamp: 0, inputOther: 100, output: 0, cost: 1 };
+    sinon.stub(LocalUsageService.prototype, 'getLocalUsage').resolves({ entries: [entry], costToday: 1 } as any);
+    sinon.stub(LocalUsageService.prototype, 'getRateLimits').resolves(null);
+    sinon.stub(CodexAuthProvider.prototype, 'resolveToken').resolves(null);
+    let finish!: (token: undefined) => void;
+    sinon.stub(ClaudeAuthProvider.prototype, 'resolveToken').returns(new Promise(resolve => { finish = resolve; }));
+    const show = sinon.stub(DashboardPanel, 'createOrShow');
+    const createItem = sinon.spy(vscode.window, 'createStatusBarItem');
+    const context = makeContext();
+    try {
+      await activate(context as any);
+      await clock.tickAsync(10);
+      const target = { selectionUpdate: Promise.resolve() };
+      const send = (checked: boolean) => (DashboardPanel.prototype as any).handleMessage.call(target, {
+        type: 'setStatusBarProvider', providerId: 'claude', checked,
+      });
+      send(true);
+      await target.selectionUpdate;
+      await callbacks.get('aiStatusHub.showDashboard')!('claude');
+      await clock.tickAsync(10);
+      const claudeStore = show.lastCall.args[0];
+      expect(claudeStore.getState().isLoading).to.equal(true);
+      expect(claudeStore.getState().usageEntries).to.deep.equal([entry]);
+      await callbacks.get('aiStatusHub.showDashboard')!('codex');
+      send(false);
+      await target.selectionUpdate;
+      expect(ConfigService.getInstance().statusBarProviders).to.deep.equal(['codex']);
+      expect(show.lastCall.args[0].getState().activeProvider).to.equal('codex');
+      expect(createItem.firstCall.returnValue.text).to.include('Codex');
+      const stoppedState = claudeStore.getState();
+      finish(undefined);
+      await clock.tickAsync(10);
+      expect(claudeStore.getState()).to.equal(stoppedState);
+      expect(stoppedState.isLoading).to.equal(false);
+    } finally {
+      finish?.(undefined);
+      await clock.tickAsync(10);
+      for (const disposable of context.subscriptions) disposable.dispose();
+      await deactivate();
+      clock.restore();
+    }
+  });
 
   it('keeps selected providers independent and opens the clicked provider dashboard', async () => {
     const callbacks = new Map<string, Function>();

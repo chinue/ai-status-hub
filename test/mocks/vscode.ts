@@ -39,8 +39,11 @@ export class ThemeColor {
 }
 
 export const window = {
-  createStatusBarItem: (_alignment?: number, _priority?: number) => {
+  createStatusBarItem: (idOrAlignment?: string | number, alignmentOrPriority?: number, priority?: number) => {
     const item = {
+      id: typeof idOrAlignment === 'string' ? idOrAlignment : undefined,
+      alignment: typeof idOrAlignment === 'string' ? alignmentOrPriority : idOrAlignment,
+      priority: typeof idOrAlignment === 'string' ? priority : alignmentOrPriority,
       text: '', tooltip: '', color: undefined, backgroundColor: undefined,
       command: undefined, name: '', visible: false,
       show: () => { item.visible = true; },
