@@ -30,6 +30,8 @@ export interface UnifiedQuota {
   fableWeeklyResetAt?: number;
   /** False when the provider exposes only a weekly quota. Undefined preserves legacy behavior. */
   has5hLimit?: boolean;
+  /** False when the provider does not report a weekly quota. */
+  has7dLimit?: boolean;
   windowLimit: number;
   windowUsed: number;
   windowRemaining: number;

@@ -1,5 +1,17 @@
 # AI Status Hub v2 Phase 2 详细实现文档
 
+## 0.6.17 GLM 配额和错误展示（2026-11-09）
+
+QuotaData / UnifiedQuota 新增可选 has7dLimit 标记，仅提供 5h 额度时不假报每周 0%。KimiUsageData 新增 weeklyQuotaAvailable 与 quotaError：前者驱动缺失周窗口红色标记，后者将 GLM 已脱敏的查询失败原因显示在 Dashboard。StatusBarPresenter 在没有本地记录和配额但查询失败时显示警告及原因，避免永久转圈；本地统计不被查询失败遮挡。仅 5h 套餐的状态栏颜色取 5h 剩余额度。旧 Provider 未提供新标记时保持原有语义。
+
+内存变化为每份 quota 一个可选布尔值、每次 Dashboard 更新一个布尔值及已有错误字符串引用，不新增历史集合，不改变 retention 预算。新增 GLM 中英翻译覆盖连接验证、鉴权失败、套餐缺失、HTTP 错误及网络异常。
+
+## 0.6.16 未登录本地展示与数据协议（2026-11-09）
+
+StatusBarPresenter 的 missing 分支只在没有 quota 和 localEstimate 时提前返回；存在本地数据时继续显示今日本地输入 Token、费用以及 tooltip 中完整用量统计。calc.hasQuotaData 统一判断配额依据，没有依据时不渲染百分比进度条和重置时间，提供红色配额提示和该 Provider 的登录命令。语言取有效语言，货币取状态栏 Provider 的配置。认证过期/失败时仍保留已有数据。
+
+types.ts 的 KimiUsageData 新增 quotaAvailable 字段，让 Dashboard 分别处理配额可用性与本地数据。Scheduler 继续先发布本地记录。新增中英翻译位于 i18n.ts，包含 GLM 登录引导、浏览器失败、密钥保存结果、配额警告及估算费用说明。
+
 > 版本：v2.0.0-draft
 > 日期：2026-05-12
 > 前置文档：

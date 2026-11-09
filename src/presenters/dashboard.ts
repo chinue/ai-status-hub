@@ -7,7 +7,7 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, resolveResetTime, estimateStateMemory, formatMemorySize } from '../calc';
+import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
   AppState, UsageEntry, DashboardMessage, KimiUsageData, DashboardAggregates,
@@ -331,6 +331,9 @@ export class DashboardPanel {
 
     return {
       utilization5h: windowPct / 100,
+      quotaAvailable: hasQuotaData(state),
+      weeklyQuotaAvailable: hasQuotaData(state) && quota?.has7dLimit !== false,
+      quotaError: state.activeProvider === 'glm' ? state.error ?? undefined : undefined,
       utilization7d: weeklyPct / 100,
       utilizationFable7d: isClaude ? (fableWeeklyPct ?? 0) / 100 : undefined,
       resetIn5h: (quota || anchors) ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
@@ -343,7 +346,7 @@ export class DashboardPanel {
       limitStatus: 'allowed',
       has5hLimit: quota?.has5hLimit !== false,
       has7dLimit: !!quota && quota.weeklyLimit > 0,
-      hasFable7dLimit: isClaude,
+      hasFable7dLimit: isClaude && hasQuotaData(state),
       providerType: state.activeProvider,
       cost5h: le?.cost5h ?? 0,
       costDay: le?.costToday ?? 0,
@@ -795,6 +798,8 @@ export class DashboardPanel {
   <!-- Current Usage -->
   <div class="card">
     <div class="card-title">${i18n('dashboard.currentUsage')}</div>
+    <div id="quota-warning" style="color:var(--vscode-errorForeground);">⚠ ${i18n('usage.quotaUnavailable')}</div>
+    <div style="color:var(--vscode-descriptionForeground);">${i18n('usage.costEstimated')}</div>
     <div class="progress-row" id="row-5h" style="${this.store.getState().quota?.has5hLimit === false ? 'display:none' : ''}">
       <div class="progress-labels">
         <span>${i18n('dashboard.window5h')}<span id="badge-5h" class="estimate-badge"></span></span>
@@ -915,6 +920,7 @@ export class DashboardPanel {
 
     const labels = {
       loading: '${i18n('dashboard.loading')}',
+      quotaUnavailable: '${i18n('usage.quotaUnavailable')}',
       estimate: '${i18n('dashboard.estimate')}',
       justNow: '${i18n('dashboard.justNow')}',
       minutesAgo: '${i18n('dashboard.minutesAgo')}',
@@ -1326,7 +1332,7 @@ export class DashboardPanel {
       fill5h.style.width = w5h + '%';
       fill5h.className = 'progress-fill' + (w5h >= 75 ? ' warning' : '') + (w5h >= 90 ? ' error' : '');
       const lbl5h = document.getElementById('lbl-5h');
-      if (mode === 'absolute' && usage.has7dLimit) {
+      if (mode === 'absolute' && usage.has5hLimit) {
         lbl5h.textContent = usage.used5h + ' / ' + usage.limit5h;
       } else {
         lbl5h.textContent = w5h.toFixed(2) + '%';
@@ -1347,6 +1353,21 @@ export class DashboardPanel {
       document.getElementById('badge-7d').textContent = isEstimate ? labels.estimate : '';
       document.getElementById('meta-7d').textContent = usage.resetIn7dText || '';
       document.getElementById('cost-7d').textContent = usage.cost7d > 0 ? labels.cost + CURRENCY_SYMBOL + usage.cost7d.toFixed(2) : '';
+
+      const quotaWarning = document.getElementById('quota-warning');
+      quotaWarning.style.display = usage.quotaAvailable && !usage.quotaError ? 'none' : '';
+      quotaWarning.textContent = '⚠ ' + (usage.quotaError || labels.quotaUnavailable);
+      for (const id of ['5h', '7d']) {
+        document.getElementById('lbl-' + id).style.color = '';
+        if (!usage.quotaAvailable || (id === '7d' && usage.weeklyQuotaAvailable === false)) {
+          const label = document.getElementById('lbl-' + id);
+          label.textContent = '⚠ —';
+          label.style.color = 'var(--vscode-errorForeground)';
+          document.getElementById('fill-' + id).style.width = '0%';
+          document.getElementById('meta-' + id).textContent = '';
+          document.getElementById('badge-' + id).textContent = '';
+        }
+      }
 
       const fableRow = document.getElementById('row-fable-7d');
       if (fableRow) {

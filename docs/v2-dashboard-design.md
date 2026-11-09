@@ -1,5 +1,13 @@
 # AI Status Hub v2 仪表盘设计文档
 
+## 0.6.17 GLM 查询诊断（2026-11-09）
+
+weeklyQuotaAvailable=false 时周进度显示红色 `⚠ —`，独立保留 7d 本地费用；5h 额度、绝对用量模式正常展示。quotaError 携带 GLM 查询的脱敏失败信息，通过 textContent 填入红色警告，配额刷新恢复后清除。成功读取 5h 但未提供周额度时，不显示虚假的周使用百分比。
+
+## 0.6.16 未登录与缺失配额展示（2026-11-09）
+
+数据新增 `KimiUsageData.quotaAvailable`，复用 calc.hasQuotaData，独立于本地 Token/请求数/费用/历史图表。缺少配额或校准依据时，5h/7d 百分比显示红色 `⚠ —`，清除进度填充、重置时间与估算徽标，显示红色缺失配额提示；窗口费用和本地统计继续保留。配额恢复后恢复百分比、颜色与时间。无配额时隐藏 Claude Fable 行。费用注明为本地估算，不代表账单。登录按钮继续发送当前 Dashboard Provider 的 signIn 命令。
+
 > 版本：v2.0.0-draft  
 > 日期：2026-05-10  
 > 基准：Claude Status Ex v0.5.4 仪表盘  

@@ -2,7 +2,10 @@
 // AGENTS: err->try-catch | retention->dataRetentionDays | disk-OK
 
 import { UsageEntry } from '../types';
-import { calculateCost } from '../calc';
+import { calculateCost, claudeLogProvider } from '../calc';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
 import { log } from '../utils';
 import { ConfigService } from '../config';
 import { IProvider, UnifiedUsageEntry } from '../providers/base/types';
@@ -39,6 +42,75 @@ export class LocalUsageService {
   private static instance: LocalUsageService;
   private aggregate: LocalAggregatedUsage | null = null;
   private provider: IProvider | undefined;
+
+  constructor(private readonly clineRoots = LocalUsageService.defaultClineRoots()) {}
+
+  private static defaultClineRoots(): string[] {
+    const home = os.homedir();
+    const config = process.platform === 'win32' ? process.env.APPDATA || path.join(home, 'AppData', 'Roaming')
+      : process.platform === 'darwin' ? path.join(home, 'Library', 'Application Support')
+        : process.env.XDG_CONFIG_HOME || path.join(home, '.config');
+    const editorUsers = [path.join(home, '.vscode-server', 'data', 'User'),
+      ...['Code', 'Code - Insiders', 'VSCodium', 'Cursor'].map(app => path.join(config, app, 'User'))];
+    return [path.join(home, '.cline', 'data', 'tasks'), path.join(home, '.cline', 'tasks'),
+      ...editorUsers.flatMap(user => [path.join(user, 'globalStorage'), path.join(user, 'profiles')])];
+  }
+
+  /** Cline disk access stays in LocalUsageService; provider parsers keep their native formats. */
+  private async scanClineUsage(): Promise<UnifiedUsageEntry[]> {
+    if (this.provider?.id !== 'kimi' && this.provider?.id !== 'glm') return [];
+    const entries: UnifiedUsageEntry[] = [];
+    const visited = new Set<string>();
+    const walk = async (dir: string, depth: number): Promise<void> => {
+      if (depth > 7 || visited.has(path.resolve(dir))) return;
+      visited.add(path.resolve(dir));
+      try {
+        const items = await fs.readdir(dir, { withFileTypes: true });
+        for (const item of items) {
+          if (item.isDirectory() && !['node_modules', '.git', 'checkpoints'].includes(item.name)) {
+            // Limit editor storage traversal to profiles and the Cline extension.
+            if (path.basename(dir) === 'globalStorage' && item.name !== 'saoudrizwan.claude-dev') continue;
+            await walk(path.join(dir, item.name), depth + 1);
+          } else if (item.isFile() && item.name === 'ui_messages.json') {
+            await readTask(dir);
+          }
+        }
+      } catch { /* Optional or unreadable Cline roots must not block native usage. */ }
+    };
+    const readTask = async (dir: string): Promise<void> => {
+      let models: Array<{ ts: number; model_id: string }> = [];
+      try {
+        const metadata = JSON.parse(await fs.readFile(path.join(dir, 'task_metadata.json'), 'utf8'));
+        if (Array.isArray(metadata?.model_usage)) {
+          models = metadata.model_usage.filter((m: any) => Number.isFinite(m?.ts) && typeof m?.model_id === 'string')
+            .sort((a: any, b: any) => a.ts - b.ts);
+        }
+      } catch { /* Newer messages carry modelInfo directly. */ }
+      try {
+        const messages = JSON.parse(await fs.readFile(path.join(dir, 'ui_messages.json'), 'utf8'));
+        if (!Array.isArray(messages)) return;
+        for (const message of messages) {
+          try {
+            if (message?.say !== 'api_req_started' || message.partial || !Number.isFinite(message.ts)) continue;
+            const usage = JSON.parse(message.text);
+            const history = models.filter(m => m.ts <= message.ts);
+            const model = message.modelInfo?.modelId ?? usage?.model ?? usage?.modelId ?? history[history.length - 1]?.model_id;
+            if (typeof model !== 'string' || claudeLogProvider(model) !== this.provider?.id) continue;
+            const count = (value: unknown): number => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+            const inputOther = count(usage.tokensIn);
+            const output = count(usage.tokensOut);
+            const inputCacheRead = count(usage.cacheReads);
+            const inputCacheCreation = count(usage.cacheWrites);
+            if (inputOther + output + inputCacheRead + inputCacheCreation === 0) continue;
+            entries.push({ timestamp: message.ts, model, inputOther, output, inputCacheRead, inputCacheCreation,
+              cost: 0, messageId: `cline:${path.basename(dir)}:${message.ts}` });
+          } catch { /* Skip malformed individual requests, retaining other task usage. */ }
+        }
+      } catch { /* Ignore incomplete writes and retry on the next scan. */ }
+    };
+    for (const root of this.clineRoots) await walk(root, 0);
+    return entries;
+  }
 
   static getInstance(): LocalUsageService {
     if (!LocalUsageService.instance) { LocalUsageService.instance = new LocalUsageService(); }
@@ -100,11 +172,12 @@ export class LocalUsageService {
 
     let unifiedEntries: UnifiedUsageEntry[];
     try {
-      unifiedEntries = await this.provider.localUsage.scanSessions();
+      unifiedEntries = await this.provider.localUsage.scanSessions(opts);
     } catch (err) {
       log(`Local usage scan error: ${(err as Error).message}`);
-      return empty;
+      unifiedEntries = [];
     }
+    unifiedEntries = unifiedEntries.concat(await this.scanClineUsage());
 
     const now = Date.now();
     const retentionDays = opts?.dataRetentionDays ?? 365;

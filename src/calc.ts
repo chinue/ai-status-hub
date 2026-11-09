@@ -11,6 +11,7 @@ export function normalizeStatusBarProviders(value: unknown): string[] {
   return selected.length ? selected : ['kimi'];
 }
 import { RateLimits } from './providers/base/types';
+import { makeT, Locale } from './i18n';
 
 export interface UtilizationResult {
   weeklyPct: number;
@@ -724,7 +725,12 @@ export function formatMemorySize(bytes: number): string {
 }
 
 /** Format both quota windows in one provider status cell. */
-export function formatProviderStatus(state: AppState, icon: string, name: string, mode: 'percent' | 'absolute', now = Date.now(), refreshIntervalSeconds = 300): string {
+export function formatProviderStatus(state: AppState, icon: string, name: string, mode: 'percent' | 'absolute', now = Date.now(), refreshIntervalSeconds = 300, locale?: Locale, currencySymbol?: string): string {
+  if (!hasQuotaData(state)) {
+    const t = makeT(locale ?? (state.ui.language === 'zh-CN' ? 'zh-CN' : 'en'));
+    const currency = currencySymbol ?? (state.activeProvider === 'kimi' || state.activeProvider === 'glm' ? '¥' : '$');
+    return `${icon} ${name}: ${t('usage.localSummary')} ${fmtTokens(state.localEstimate?.tokensToday ?? 0)} / ${fmtCost(state.localEstimate?.costToday ?? 0, currency)} $(warning)`;
+  }
   const weekly = resolveWeeklyPct(state);
   const window = resolveWindowPct(state);
   const quota = state.quota;
@@ -733,8 +739,14 @@ export function formatProviderStatus(state: AppState, icon: string, name: string
   // A healthy scheduled poll must not become stale before the next poll is due.
   const staleThresholdMs = refreshIntervalSeconds * 1000 + 120_000;
   const indicators = buildIndicatorSuffix(state, now, staleThresholdMs, ['stale', 'source', 'auth']);
+  if (quota?.has7dLimit === false) return `${icon} ${name}:5️⃣ ${windowText}${indicators}`;
   const shortCell = quota?.has5hLimit === false ? '' : ` | 5️⃣ ${windowText}`;
   return `${icon} ${name}:${weeklyText}${shortCell}${indicators}`;
+}
+
+/** Local costs alone cannot establish quota percentages. */
+export function hasQuotaData(state: AppState): boolean {
+  return !!state.quota || !!state.localEstimate?.calibratedAt;
 }
 
 /** Preserve the configured quota colors, using remaining weekly quota as the input. */
@@ -799,4 +811,42 @@ export function claudeLogProvider(model: unknown): 'claude' | 'kimi' | 'glm' {
   if (parts.some(part => /^(kimi|moonshot)(?:[-_.]|$)/.test(part))) return 'kimi';
   if (/^glm(?:[-_.]|$)/.test(parts[parts.length - 1])) return 'glm';
   return 'claude';
+}
+
+/** GLM Coding Plan windows: unit=3/hour, unit=6/week. TIME_LIMIT is monthly MCP usage. */
+export function parseGlmQuota(value: unknown): QuotaData | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, any>;
+  if (raw.success === false || (raw.code != null && String(raw.code) !== '200')) return null;
+  const limits = raw.data?.limits ?? raw.limits;
+  if (!Array.isArray(limits)) return null;
+  const number = (n: unknown): number | null => {
+    if (typeof n !== 'number' && (typeof n !== 'string' || !n.trim())) return null;
+    const parsed = Number(n);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  };
+  const windows = limits.filter(limit => limit && ['TOKENS_LIMIT', 'CREDIT_LIMIT'].includes(limit.type));
+  const parseWindow = (limit: any) => {
+    if (!limit) return null;
+    const total = number(limit.usage);
+    const used = number(limit.currentValue);
+    const explicitPct = number(limit.percentage);
+    const pct = explicitPct ?? (total != null && total > 0 && used != null ? used / total * 100 : null);
+    if (pct == null) return null;
+    const reset = number(limit.nextResetTime);
+    return { total: total ?? 100, used: used ?? pct, pct: Math.min(100, pct),
+      remaining: number(limit.remaining) ?? Math.max(0, (total ?? 100) - (used ?? pct)),
+      reset: reset == null || reset === 0 ? 0 : reset < 1e12 ? reset * 1000 : reset };
+  };
+  const short = parseWindow(windows.find(limit => (Number(limit.unit) === 3 && Number(limit.number) === 5)
+    || (limit.type === 'TOKENS_LIMIT' && limit.unit == null && limit.number == null)));
+  const weekly = parseWindow(windows.find(limit => Number(limit.unit) === 6 && Number(limit.number) === 1));
+  if (!short && !weekly) return null;
+  return {
+    has5hLimit: !!short, has7dLimit: !!weekly,
+    weeklyLimit: weekly?.total ?? 0, weeklyUsed: weekly?.used ?? 0, weeklyUsedPct: weekly?.pct ?? 0,
+    weeklyResetAt: weekly?.reset ?? 0,
+    windowLimit: short?.total ?? 0, windowUsed: short?.used ?? 0, windowUsedPct: short?.pct ?? 0,
+    windowRemaining: short?.remaining ?? 0, windowResetAt: short?.reset ?? 0, parallelLimit: 0,
+  };
 }

@@ -21,6 +21,9 @@
 | `src/providers/claude/localParser.ts` | `v2-local-estimation-design.md` | Claude 日志递归扫描与模型归属过滤 |
 | `src/providers/kimi/localParser.ts` | `v2-local-estimation-design.md` | Kimi 原生会话及 Claude 内 Kimi 日志合并 |
 | `src/providers/glm/index.ts` | `v2-provider-abstraction.md#glm-provider` | GLM 本地日志统计与占位配额接口 |
+| `src/providers/glm/auth.ts` | `v2-provider-abstraction.md#glm-provider` | GLM 手动登录链接、API Key 输入与安全保存 |
+| `src/providers/glm/api.ts` | `v2-provider-abstraction.md#glm-provider` | 智谱国内站个人 Coding Plan 只读配额查询 |
+| `src/providers/base/types.ts` | `v2-provider-abstraction.md#provider-interfaces` | Provider 协议及可选配额窗口标识 |
 | `src/providers/claude/pricing.ts` | `v2-provider-abstraction.md#claude-pricing` | Claude 各版本标准定价与缓存费率 |
 | `src/providers/codex/api.ts` | `v2-provider-abstraction.md#codex-api` | 官方只读用量、提前重置同步 |
 | `src/providers/codex/pricing.ts` | `v2-provider-abstraction.md#codex-pricing` | Codex / OpenAI 各模型标准定价 |

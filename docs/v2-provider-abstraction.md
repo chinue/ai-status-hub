@@ -456,7 +456,19 @@ Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空
 
 ### GLM provider
 
-0.6.10（2026-11-05）接入 Claude Code 日志中 `glm-*` 模型的本地 Token、请求数及估算费用；`createGlmProvider()` 创建独立 `ClaudeLocalParser('glm')`。身份验证和官方配额 API 仍未实现，定价沿用当前固定估算费率。
+0.6.10（2026-11-05）接入 Claude Code 日志中 `glm-*` 模型的本地 Token、请求数及估算费用；`createGlmProvider()` 创建独立 `ClaudeLocalParser('glm')`。定价沿用当前固定估算费率。
+
+0.6.16（2026-11-09）新增 `GlmAuthProvider`：提供模态登录指引，显示官方 API Keys 链接和“打开登录页面 / 输入 API Key”按钮，支持浏览器失败时手动访问。密钥通过 password 输入框获取，存入独立 SecretStorage 键 `aiStatusHub.glm.apiKey`；环境变量 `ZHIPUAI_API_KEY` / `GLM_API_KEY` 优先。取消或保存失败返回 false，不将打开网页当作登录完成；密钥仅保存，未向服务器验证。官方配额 API 仍未接入，界面明确提示配额不可用，本地统计不受影响。
+
+官方依据：[API Key 获取与认证说明](https://docs.bigmodel.cn/cn/guide/develop/http/introduction)，其 API Keys 链接为 https://bigmodel.cn/usercenter/proj-mgmt/apikeys。本次不发送模型请求或付费校验调用。
+
+0.6.17（2026-11-09）替换占位接口为 `GlmApiProvider`，固定查询国内站 `GET https://open.bigmodel.cn/api/monitor/usage/quota/limit`，按官方插件发送原始 Authorization API Key；不创建模型请求。15 秒超时覆盖网络及正文读取，finally 清除计时器，拒绝重定向，不输出密钥、原始响应或服务端消息。HTTP 401/403 和业务鉴权码返回 authFailed；429/5xx 标记可重试；其余缺失套餐与网络/解析异常使用中英翻译提示。本次用户确认使用 bigmodel.cn；不自动将密钥发送给 z.ai 国际站。
+
+`calc.parseGlmQuota()` 兼容新 `CREDIT_LIMIT` 和旧 `TOKENS_LIMIT`，按 unit=3/number=5 与 unit=6/number=1 分别读取 5 小时和周窗口。旧版无 unit/number 的 TOKENS_LIMIT 仅视为 5h；TIME_LIMIT 为 MCP 月用量，不能作为周配额。支持 percentage 或 currentValue/usage 推导，合法 0 不判为缺失；非法、空数组和业务失败不伪造 0%。协议 `UnifiedQuota` / `QuotaData` 新增可选 has7dLimit，undefined 保留旧行为，false 表示缺失周配额。实际窗口的 nextResetTime 转为毫秒；缺少重置时间时沿用 Scheduler 现有 fallback 窗口，不声称是官方重置时间。
+
+登录时先使用同一只读接口验证候选密钥，成功后才保存并提示连接成功；失败不覆盖已有密钥，不宣告登录成功。显式输入并保存的密钥优先于 ZHIPUAI_API_KEY / GLM_API_KEY，避免旧环境变量覆盖新输入。已保存的 0.6.16 密钥可直接用于下次刷新。未持有用户真实密钥，本次验证使用模拟接口响应，不声称已对用户账号完成实测。
+
+接口及认证依据：[官方用量插件文档](https://docs.bigmodel.cn/cn/coding-plan/extension/usage-query-plugin)、[官方只读查询脚本](https://github.com/zai-org/zai-coding-plugins/blob/main/plugins/glm-plan-usage/skills/usage-query-skill/scripts/query-usage.mjs)；CREDIT_LIMIT 及周窗口响应参考 [zai-org 配额问题示例](https://github.com/zai-org/feedback/issues/1353)。
 
 ### Claude 日志模型分流（0.6.10）
 

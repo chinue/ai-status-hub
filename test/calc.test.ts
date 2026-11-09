@@ -36,7 +36,9 @@ describe('combined provider status', () => {
     state.dataSource = 'api';
     expect(formatProviderStatus(state, '$(openai)', 'Codex', 'percent')).to.equal('$(openai) Codex:4.12% | 5️⃣ 5.32% 🌐');
     expect(formatProviderStatus(state, '$(openai)', 'Codex', 'absolute')).to.equal('$(openai) Codex:4.12/100 | 5️⃣ 10.64/200 🌐');
-    expect(formatProviderStatus(defaultState(), 'X', 'Test', 'absolute')).to.include('Test:0.00% | 5️⃣ 0.00%');
+    const local = formatProviderStatus(defaultState(), 'X', 'Test', 'absolute');
+    expect(local).to.include('Local today');
+    expect(local).not.to.include('%');
   });
 
   it('keeps API data fresh throughout the default five-minute polling interval', () => {

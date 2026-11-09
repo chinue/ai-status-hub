@@ -1,5 +1,21 @@
 # AI Status Hub v2 本地估算设计文档
 
+## 0.6.17 GLM 远端配额解析（2026-11-09）
+
+新增纯函数 calc.parseGlmQuota，解析国内站个人 Coding Plan 配额；支持 CREDIT_LIMIT/TOKENS_LIMIT、5h/周窗口、秒/毫秒重置时间、数值字符串、百分比上限及缺失字段验证。排除 MCP 月额度，不将缺少或错误响应视为清零。formatProviderStatus 对 has7dLimit=false 仅显示实际 5h 配额，保持本地 Token/费用独立于配额。具体接口及响应依据见 v2-provider-abstraction.md 的 GLM provider。
+
+## 0.6.16 离线展示与 Cline 合并（2026-11-09）
+
+`calc.hasQuotaData()` 区分真实配额/已校准估算与单纯本地成本。没有配额或校准依据时，不显示虚假的 0%。`formatProviderStatus()` 改为显示本地今日输入 Token 与费用，接受有效语言及货币符号；完整输入、输出、缓存、请求数与周期费用仍由 tooltip / Dashboard 展示。
+
+`LocalUsageService` 为 Kimi/GLM 额外扫描 Cline：`~/.cline/data/tasks`、`~/.cline/tasks`，以及 Code、Code Insiders、VSCodium、Cursor 的 User/globalStorage 和 User/profiles 中 `saoudrizwan.claude-dev` 目录；兼容 VS Code Server。Windows 使用 APPDATA，macOS 使用 Library/Application Support，Linux 使用 XDG_CONFIG_HOME 或 ~/.config。限定扩展目录，跳过 checkpoints、node_modules、.git，不跟随符号链接，递归最多七层。
+
+读取 `ui_messages.json` 的 `api_req_started`，按 `modelInfo.modelId`（兼容 payload.model/modelId）归属模型；旧记录按 `task_metadata.json` 中 `model_usage` 的 ts 查找请求时刻的 model_id，支持任务切换模型。没有明确模型依据、partial、零用量、坏 JSON 或非法时间的记录忽略，不依当前配置猜测历史模型。保留 tokensIn/tokensOut/cacheReads/cacheWrites，按现有 Provider 定价估算费用；GLM 仍使用现有固定估算费率，不代表账单。Cline 请求用 taskId+ts 去重，再与原生/Claude 日志合并应用 retention。原有 Claude projects 扫描与 Kimi 原生合并继续生效。
+
+新增磁盘访问均位于 LocalUsageService，异常隔离当前文件/请求；原生扫描失败仍可展示 Cline 用量。每次刷新重读任务文件，删除或写入变化可在后续刷新反映。无法可靠归属的记录会漏计，不按任务总数重复累加。
+
+格式依据：[Cline 消息字段](https://github.com/cline/cline/blob/main/apps/vscode/src/shared/ExtensionMessage.ts)、[模型元信息](https://github.com/cline/cline/blob/main/apps/vscode/src/shared/messages/metrics.ts)、[模型时间线](https://github.com/cline/cline/blob/main/apps/vscode/src/core/context/context-tracking/ContextTrackerTypes.ts)、[任务文件名](https://github.com/cline/cline/blob/main/apps/vscode/src/core/storage/disk.ts)。
+
 > 版本：v2.0.0-draft  
 > 日期：2026-05-10  
 > 状态：待评审  

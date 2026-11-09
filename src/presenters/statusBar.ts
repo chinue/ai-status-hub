@@ -9,7 +9,7 @@ import {
   fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime,
   buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
-  resolveAuthDisplayMode,
+  resolveAuthDisplayMode, hasQuotaData,
 } from '../calc';
 import { AppState } from '../types';
 import { IProvider } from '../providers/base/types';
@@ -68,7 +68,7 @@ export class StatusBarPresenter {
       if (state.ui.isPaused) {
         this.stopUpdateAnimation();
         this.itemWeekly.text = icon;
-      } else if (state.authStatus === 'missing') {
+      } else if (state.authStatus === 'missing' && !state.localEstimate && !state.quota) {
         this.stopUpdateAnimation();
         this.itemWeekly.text = `$(key) ${this.displayName}: ${t('statusBar.signIn')}`;
       } else if (resolveAuthDisplayMode(state) === 'blocked') {
@@ -78,7 +78,10 @@ export class StatusBarPresenter {
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
       } else if (!state.quota && !state.localEstimate) {
         this.stopUpdateAnimation();
-        this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
+        if (state.activeProvider === 'glm' && state.error) {
+          this.itemWeekly.text = `$(warning) ${this.displayName}: ${t('usage.quotaUnavailable')}`;
+          this.itemWeekly.color = new vscode.ThemeColor('errorForeground');
+        } else this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
       } else {
         const weeklyPct = resolveWeeklyPct(state);
         const windowPct = resolveWindowPct(state);
@@ -86,12 +89,13 @@ export class StatusBarPresenter {
         const changed = this.lastSeenWeeklyPct !== weeklyPct || this.lastSeenWindowPct !== windowPct;
         this.lastSeenWeeklyPct = weeklyPct;
         this.lastSeenWindowPct = windowPct;
-        this.itemWeekly.text = formatProviderStatus(state, icon, this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds);
-        this.itemWeekly.color = remainingQuotaColor(100 - weeklyPct, [
+        this.itemWeekly.text = formatProviderStatus(state, icon, this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds, this.config.effectiveLanguage, this.config.currencyForProvider(this.provider?.id ?? this.store.getState().activeProvider).symbol);
+        this.itemWeekly.color = remainingQuotaColor(100 - (state.quota?.has7dLimit === false ? windowPct : weeklyPct), [
           this.config.statusBarUtilizationColorLt20, this.config.statusBarUtilizationColorLt40,
           this.config.statusBarUtilizationColorLt60, this.config.statusBarUtilizationColorLt80,
           this.config.statusBarUtilizationColorGte80,
         ]);
+        if (!hasQuotaData(state)) this.itemWeekly.color = new vscode.ThemeColor('errorForeground');
         if (changed && !first) this.triggerUpdateAnimation();
       }
       this.itemWeekly.show();
@@ -141,8 +145,9 @@ export class StatusBarPresenter {
     md.supportHtml = true;
     md.isTrusted = true;
     const commandArgs = encodeURIComponent(JSON.stringify([this.provider?.id ?? state.activeProvider]));
+    const glmError = state.activeProvider === 'glm' ? state.error : undefined;
 
-    if (state.authStatus === 'missing') {
+    if (state.authStatus === 'missing' && !state.localEstimate && !state.quota) {
       md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.notLoggedIn')}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       return md;
     }
@@ -150,7 +155,7 @@ export class StatusBarPresenter {
     const authMode = resolveAuthDisplayMode(state);
     if (authMode === 'blocked') {
       const tip = state.authStatus === 'expired' ? t('tooltip.authExpired') : t('tooltip.authFailed');
-      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${tip}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
+      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${glmError ?? tip}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       return md;
     }
 
@@ -158,7 +163,7 @@ export class StatusBarPresenter {
     const hasEstimate = !!state.localEstimate;
 
     if (!hasApiData && !hasEstimate) {
-      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('dashboard.loading')}`);
+      md.appendMarkdown(`**${t('tooltip.title')}**\n\n${glmError ?? t('dashboard.loading')}\n\n[${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       return md;
     }
 
@@ -176,6 +181,11 @@ export class StatusBarPresenter {
     else if (state.dataSource === 'local-only') { sourceLabel = '&nbsp;*' + t('dashboard.estimate') + '*'; }
 
     const parts: string[] = [];
+    if (glmError) parts.push(`⚠ ${glmError}`, '');
+    if (!hasQuotaData(state) || state.authStatus === 'missing') {
+      parts.push(`<span style="color:var(--vscode-errorForeground);">⚠ ${t('usage.quotaUnavailable')}</span> [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`, '');
+    }
+    if (state.localEstimate) parts.push(t('usage.costEstimated'), '');
     if (authMode === 'degraded') {
       parts.push(`> \uD83D\uDD10 ${t('tooltip.authDegraded')} [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       parts.push('');
@@ -184,14 +194,18 @@ export class StatusBarPresenter {
     parts.push('');
 
     // Progress bars as HTML block (layout only)
-    parts.push(`<table style="border-collapse:collapse;width:100%;font-size:12px;">`);
-    if (q?.has5hLimit !== false) {
-      parts.push(`<tr><td style="padding:2px 6px;width:80px;"><strong>${t('tooltip.window5h')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(windowUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(windowPct, 2)}</strong></td></tr>`);
-      parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowResetText}</td></tr>`);
+    if (hasQuotaData(state)) {
+      parts.push(`<table style="border-collapse:collapse;width:100%;font-size:12px;">`);
+      if (q?.has5hLimit !== false) {
+        parts.push(`<tr><td style="padding:2px 6px;width:80px;"><strong>${t('tooltip.window5h')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(windowUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(windowPct, 2)}</strong></td></tr>`);
+        parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${windowResetText}</td></tr>`);
+      }
+      if (q?.has7dLimit !== false) {
+        parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('tooltip.window7d')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(weeklyUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(weeklyPct, 2)}</strong></td></tr>`);
+        parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyResetText}</td></tr>`);
+      }
+      parts.push(`</table>`);
     }
-    parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('tooltip.window7d')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(weeklyUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(weeklyPct, 2)}</strong></td></tr>`);
-    parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyResetText}</td></tr>`);
-    parts.push(`</table>`);
     parts.push('');
 
     // Quota Summary — Markdown table
@@ -202,7 +216,7 @@ export class StatusBarPresenter {
         ['', t('tooltip.table.col.used'), t('tooltip.table.col.limit'), t('tooltip.table.col.remaining')],
         [
           ...(q.has5hLimit === false ? [] : [[t('tooltip.window5h'), String(q.windowUsed), String(q.windowLimit), String(q.windowRemaining)]]),
-          [t('tooltip.window7d'), String(q.weeklyUsed), String(q.weeklyLimit), String(q.weeklyLimit - q.weeklyUsed)],
+          ...(q.has7dLimit === false ? [] : [[t('tooltip.window7d'), String(q.weeklyUsed), String(q.weeklyLimit), String(q.weeklyLimit - q.weeklyUsed)]]),
         ],
         ['l', 'r', 'r', 'r']
       ));
@@ -266,12 +280,12 @@ export class StatusBarPresenter {
 
     // Start new animation — moon cycles while keeping the live percentage visible
     this.updateFrame = 0;
-    this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[0], this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds);
+    this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[0], this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds, this.config.effectiveLanguage, this.config.currencyForProvider(this.provider?.id ?? this.store.getState().activeProvider).symbol);
     this.itemWeekly.show();
 
     this.updateAnimInterval = setInterval(() => {
       this.updateFrame = (this.updateFrame + 1) % UPDATE_FRAMES.length;
-      this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[this.updateFrame], this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds);
+      this.itemWeekly.text = formatProviderStatus(this.store.getState(), UPDATE_FRAMES[this.updateFrame], this.displayName, this.config.displayMode, Date.now(), this.config.refreshIntervalSeconds, this.config.effectiveLanguage, this.config.currencyForProvider(this.provider?.id ?? this.store.getState().activeProvider).symbol);
     }, this.config.updateAnimationIntervalMs);
 
     this.updateAnimTimeout = setTimeout(() => {
