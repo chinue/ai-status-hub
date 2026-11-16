@@ -872,3 +872,9 @@ localOnly.test.ts 使用真实 Store → Dashboard 数据 → WebView renderCurr
 ## 0.6.36：余额账户七天窗口回归
 
 DeepSeek 集成回归构造 1 天、6 天、8 天前的本地请求，通过 Scheduler.processQuotaData 处理实际余额结构，验证七天只包含前两条且费用非零；验证短 tick 随时间滚动、有/无旧锚点与无余额的 Dashboard 边界、磁盘旧锚点修复。原实现先失败（0 次而非 2 次），离线旧锚点也先失败，再修复通过。
+
+## Bounded JSONL reading
+
+0.6.37 的 jsonlStreaming.test.ts 先禁止 fs/promises.readFile 复现原解析器返回空记录，再以 LocalUsageService.readJsonl 流式实现通过。覆盖跨 64 KiB 边界的 UTF-8 字符、CRLF、EOF 非换行记录、超长记录丢弃和后继正常记录、末尾超长记录、纯指纹一致性、缺失文件/回调异常、安全保留旧缓存、Claude/Kimi/Codex 三种原生格式、Codex 累计差分、精确相同 mtime/size 的重写和 rate_limits 提取。
+
+额外独立低内存进程扫描实际日志，五个 Claude 渠道解析器与原生 Codex、Kimi 并行完成；记录峰值内存，不把它当作整个 VS Code 宿主的内存数值或其他扩展无问题的证明。

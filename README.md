@@ -169,3 +169,7 @@ The Dashboard and status bar show the actual account balance and its granted/top
 Ark Economy aliases remain exclusively Volcengine. Explicit ark/ and deepseek/ namespaces take priority. Shared bare names such as v4-pro/v4-flash default to official ownership; where a channel cannot be established from the log, configure claudeLog.sessionProviders or modelProviders. Current credentials never retroactively identify old traffic.
 
 Sources: [official pricing](https://api-docs.deepseek.com/quick_start/pricing/), [balance API](https://api-docs.deepseek.com/api/get-user-balance/).
+
+### Large-log memory protection (0.6.37)
+
+Native Claude, Kimi and Codex JSONL paths now use bounded streaming reads instead of loading entire transcripts into the extension host. Original logs remain intact. Records larger than 8 MiB are skipped with a count warning in the AI Status Hub output; usage inside a skipped record cannot be counted. Concurrent scanning of the local large-log dataset passed in a separate memory-constrained process. This does not rule out memory problems in other extensions sharing the host.

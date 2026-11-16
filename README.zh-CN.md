@@ -215,3 +215,7 @@ Remove-Item Env:NODE_TLS_REJECT_UNAUTHORIZED -ErrorAction SilentlyContinue
 火山 deepseek-v4.1-flash-economy / deepseek-v4-1-flash-economy 继续归火山。显式 ark/ 命名空间归火山，deepseek/ 归官方。v4-pro/v4-flash 等裸名可能跨渠道相同，缺少端点证据时默认官方；若通过火山调用这些同名模型，请用 aiStatusHub.claudeLog.sessionProviders 或 modelProviders 明确归属，避免混计。原始 Claude 日志不改写。
 
 价格和接口依据：[官方定价](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)、[余额接口](https://api-docs.deepseek.com/api/get-user-balance/)。实际账户余额需配置 Key 后查询。
+
+### 大日志内存防护（0.6.37）
+
+Claude、Kimi、Codex 原生 JSONL 日志改为有界流式读取，避免多个供应商同时将大文件全文载入扩展宿主。原始日志不会被修改。单条超过 8 MiB 的记录会跳过并在 AI Status Hub 输出中记录数量；若该记录包含使用量，统计可能缺少该条。修复已通过本机大日志并行扫描验证，其他扩展引起的宿主内存问题仍需单独排查。

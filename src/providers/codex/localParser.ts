@@ -6,7 +6,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { createHash } from 'crypto';
+import { LocalUsageService } from '../../services/localUsageService';
 import { ILocalUsageProvider, UnifiedUsageEntry, RateLimits } from '../base/types';
 import { log } from '../../utils';
 
@@ -110,7 +110,7 @@ export class CodexLocalParser implements ILocalUsageProvider {
 
     for (const filePath of files) {
       const fileState = await this.updateFileState(filePath);
-      allEntries.push(...fileState.entries);
+      for (const entry of fileState.entries) allEntries.push(entry);
     }
 
     return allEntries;
@@ -134,13 +134,7 @@ export class CodexLocalParser implements ILocalUsageProvider {
       // Force re-parse to extract rate_limits regardless of fileStates cache.
       // updateFileState skips parsing when the file is unchanged, which would
       // leave latestRateLimits as null after we cleared it above.
-      let text: string;
-      try {
-        text = await fs.readFile(filePath, 'utf-8');
-      } catch {
-        continue;
-      }
-      this.parseText(text, Date.now());
+      await this.parseFile(filePath, Date.now(), false);
     }
     return this.latestRateLimits;
   }
@@ -188,28 +182,30 @@ export class CodexLocalParser implements ILocalUsageProvider {
       return existing ?? { mtimeMs: 0, size: 0, contentHash: '', entries: [], lineCount: 0, lastTotals: undefined };
     }
 
-    let text: string;
-    try {
-      text = await fs.readFile(filePath, 'utf-8');
-    } catch {
-      return existing ?? { mtimeMs: stat.mtimeMs, size: stat.size, contentHash: '', entries: [], lineCount: 0, lastTotals: undefined };
+    if (existing && existing.mtimeMs === stat.mtimeMs && existing.size === stat.size) {
+      const digest = await LocalUsageService.readJsonl(filePath);
+      if (!digest || digest.fingerprint === existing.contentHash) return existing;
     }
-
-    const contentHash = this.quickHash(text);
-
-    if (existing && existing.mtimeMs === stat.mtimeMs && existing.size === stat.size && existing.contentHash === contentHash) {
-      return existing;
-    }
-
-    const lines = text.split(/\r?\n/);
-    const parsed = this.parseLines(lines, stat.mtimeMs, undefined, undefined);
-    const entries = parsed.entries;
-    const lineCount = lines.length;
-    const lastTotals = parsed.lastTotals;
-
-    const fileState: FileState = { mtimeMs: stat.mtimeMs, size: stat.size, contentHash, entries, lineCount, lastTotals };
+    const parsed = await this.parseFile(filePath, stat.mtimeMs);
+    if (!parsed) return existing ?? { mtimeMs: stat.mtimeMs, size: stat.size, contentHash: '', entries: [], lineCount: 0, lastTotals: undefined };
+    const fileState: FileState = { mtimeMs: stat.mtimeMs, size: stat.size,
+      contentHash: parsed.fingerprint, entries: parsed.entries, lineCount: parsed.lineCount, lastTotals: parsed.lastTotals };
     this.fileStates.set(filePath, fileState);
     return fileState;
+  }
+
+  private async parseFile(filePath: string, fileMtimeMs: number, collectEntries = true) {
+    const entries: UnifiedUsageEntry[] = [];
+    let previousTotals: CodexTotals | undefined, lastTotals: CodexTotals | undefined;
+    const result = await LocalUsageService.readJsonl(filePath, line => {
+      if (!line.trim()) return;
+      const parsed = this.parseLine(line, fileMtimeMs, previousTotals, lastTotals);
+      if (!parsed) return;
+      if (collectEntries) entries.push(parsed.entry);
+      previousTotals = parsed.nextTotals;
+      lastTotals = parsed.lastTotals;
+    });
+    return result ? { ...result, entries, lastTotals: previousTotals } : null;
   }
 
   private parseLines(
@@ -432,7 +428,4 @@ export class CodexLocalParser implements ILocalUsageProvider {
     return `codex:${timestamp}:${usage.inputOther}:${usage.output}:${usage.cacheRead}:${usage.cacheCreate}${model ? ':' + model : ''}`;
   }
 
-  private quickHash(text: string): string {
-    return createHash('md5').update(text).digest('hex').slice(0, 16);
-  }
 }

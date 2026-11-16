@@ -784,3 +784,13 @@ ClaudeLogProviderId 增加 deepseek；先识别显式 Ark 命名空间及 Econom
 不同渠道可能返回相同裸模型名（尤其 v4-pro、v4-flash）；日志未记录端点时无法可靠自动识别来源，需显式会话/模型归属。当前凭据不能用来推断历史请求。官方 Claude 日志独立扫描、去重与保留，不纳入火山 Economy 请求。原始日志不改写。
 
 calc.ts 新增 parseDeepseekBalance（严格校验响应币种、数值及布尔可用状态，真实零/负余额有效，优先显示配置币种，无该币种则显示实际可用币种），formatAccountBalance（统一双语余额/赠送/充值文本），isDeepseekPeak（UTC+8 时段及假期排除）。余额不用于本地额度校准、分母或虚构请求总数。
+
+## 0.6.37：有界 JSONL 流式读取
+
+现场扩展宿主三次崩溃的 minidump 异常码为 Chromium OUT_OF_MEMORY（0xe0000008）；本机 Claude 日志合计约 1.6 GiB，最大文件约 396 MiB。旧实现 readFile 全文后 split，多个供应商并行扫描时会同时保留大文本和数组，存在明显内存峰值风险。不能仅凭转储将所有其他扩展因素排除。
+
+LocalUsageService.readJsonl 集中管理流式磁盘访问：64 KiB 字节块、增量 MD5 指纹、逐行回调，不保存原始会话正文；先拼接完整记录字节再 UTF-8 解码，正确处理跨块多字节字符、CRLF 和无末尾换行。单条记录上限 8 MiB，超长记录跳过至下一换行并记录数量警告，不打印原文或密钥、不修改源日志。若超长记录自身包含 usage，该条用量不会计入，需在诊断中注意日志警告。读取或回调失败返回 null，finally 关闭流，调用方保留既有缓存以便下次重试。
+
+ClaudeLocalParser、KimiLocalParser 只保留精简用量条目，不再整文件读取/拆分。跨文件去重、模型归属和保留期不变。Codex 原生扫描也复用此服务，详见 Provider 设计。
+
+独立进程以 --max-old-space-size=128 启动，七个扫描器并行读取现场日志成功；采样 JS heap 峰值约 39 MiB、进程 maxRSS 约 155 MiB。Node 报告的总 heap limit 为约 320 MiB，该命令仅限制 old space，不能称为总内存上限。未重启或修改用户正在运行的 VS Code。

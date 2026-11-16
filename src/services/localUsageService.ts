@@ -4,6 +4,8 @@
 import { UsageEntry } from '../types';
 import { calculateCost, claudeLogProvider, parseClineSessionUsage } from '../calc';
 import * as fs from 'fs/promises';
+import { createReadStream } from 'fs';
+import { createHash } from 'crypto';
 import * as os from 'os';
 import * as path from 'path';
 import { log } from '../utils';
@@ -39,6 +41,48 @@ export interface LocalAggregatedUsage {
 }
 
 export class LocalUsageService {
+  /** Keep chat/tool payloads off the heap; cap a single JSONL record at 8 MiB. */
+  static async readJsonl(filePath: string, onLine?: (line: string) => void, maxLineBytes = 8 * 1024 * 1024):
+    Promise<{ fingerprint: string; lineCount: number; skippedLines: number } | null> {
+    let stream: ReturnType<typeof createReadStream> | undefined;
+    try {
+      stream = createReadStream(filePath, { highWaterMark: 64 * 1024 });
+      const hash = createHash('md5');
+      let parts: Buffer[] = [], bytes = 0, dropping = false, lineCount = 0, skippedLines = 0;
+      const finishLine = () => {
+        lineCount++;
+        if (dropping) skippedLines++;
+        else {
+          const buffer = Buffer.concat(parts, bytes);
+          const end = buffer.length && buffer[buffer.length - 1] === 13 ? buffer.length - 1 : buffer.length;
+          onLine?.(buffer.toString('utf8', 0, end));
+        }
+        parts = []; bytes = 0; dropping = false;
+      };
+      for await (const chunk of stream) {
+        const buffer = chunk as Buffer;
+        hash.update(buffer);
+        if (!onLine) continue; // Fingerprint-only pass never decodes or buffers records.
+        let start = 0;
+        while (start < buffer.length) {
+          const newline = buffer.indexOf(10, start);
+          const end = newline < 0 ? buffer.length : newline;
+          const length = end - start;
+          if (!dropping) {
+            if (bytes + length > maxLineBytes) { dropping = true; parts = []; bytes = 0; }
+            else { parts.push(buffer.subarray(start, end)); bytes += length; }
+          }
+          if (newline >= 0) finishLine();
+          start = end + 1;
+        }
+      }
+      if (onLine && (bytes > 0 || dropping)) finishLine();
+      if (skippedLines) log(`Local JSONL: skipped ${skippedLines} oversized records (limit ${maxLineBytes} bytes).`);
+      return { fingerprint: hash.digest('hex').slice(0, 16), lineCount, skippedLines };
+    } catch { return null; }
+    finally { stream?.destroy(); }
+  }
+
   private static instance: LocalUsageService;
   private aggregate: LocalAggregatedUsage | null = null;
   private provider: IProvider | undefined;

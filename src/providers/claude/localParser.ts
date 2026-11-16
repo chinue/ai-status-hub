@@ -9,6 +9,7 @@ import { ILocalUsageProvider, UnifiedUsageEntry, RateLimits } from '../base/type
 import { log } from '../../utils';
 import { ClaudeLogProviderId, resolveClaudeLogProvider } from '../../calc';
 import { ConfigService } from '../../config';
+import { LocalUsageService } from '../../services/localUsageService';
 
 const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
@@ -115,30 +116,19 @@ export class ClaudeLocalParser implements ILocalUsageProvider {
       return existing;
     }
 
-    let text: string;
-    try {
-      text = await fs.readFile(filePath, 'utf-8');
-    } catch {
+    const newEntries: UnifiedUsageEntry[] = [];
+    const seenRequestIds = new Set<string>();
+    const result = await LocalUsageService.readJsonl(filePath, line => {
+      if (!line.trim()) return;
+      const entry = this.parseLine(line, seenRequestIds);
+      if (entry) newEntries.push(entry);
+    });
+    if (!result) {
       return existing ?? { mtimeMs: stat.mtimeMs, size: stat.size, entries: [] };
     }
-
-    const newEntries = this.parseText(text);
     const fileState: FileState = { mtimeMs: stat.mtimeMs, size: stat.size, entries: newEntries };
     this.fileStates.set(filePath, fileState);
     return fileState;
-  }
-
-  private parseText(text: string): UnifiedUsageEntry[] {
-    const entries: UnifiedUsageEntry[] = [];
-    const lines = text.split(/\r?\n/);
-    const seenRequestIds = new Set<string>();
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const entry = this.parseLine(line, seenRequestIds);
-      if (entry) entries.push(entry);
-    }
-    return entries;
   }
 
   private parseLine(line: string, seenRequestIds: Set<string>): UnifiedUsageEntry | null {

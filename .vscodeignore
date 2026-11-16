@@ -16,3 +16,5 @@ tsconfig.test.json
 *.code-workspace
 out/*.map
 bin/**
+.tmp/
+tmp/

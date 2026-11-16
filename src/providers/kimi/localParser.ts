@@ -8,6 +8,7 @@ import * as os from 'os';
 import { ILocalUsageProvider, UnifiedUsageEntry, RateLimits } from '../base/types';
 import { log } from '../../utils';
 import { ClaudeLocalParser } from '../claude/localParser';
+import { LocalUsageService } from '../../services/localUsageService';
 
 // k3.0 (Kimi Code) sessions live in ~/.kimi-code; ~/.kimi is the legacy k2.6 location.
 const DEFAULT_SESSIONS_DIRS = [
@@ -106,28 +107,18 @@ export class KimiLocalParser implements ILocalUsageProvider {
       return existing;
     }
 
-    let text: string;
-    try {
-      text = await fs.readFile(filePath, 'utf-8');
-    } catch {
+    const newEntries: UnifiedUsageEntry[] = [];
+    const result = await LocalUsageService.readJsonl(filePath, line => {
+      if (!line.trim()) return;
+      const entry = this.parseLine(line);
+      if (entry) newEntries.push(entry);
+    });
+    if (!result) {
       return existing ?? { mtimeMs: stat.mtimeMs, size: stat.size, entries: [] };
     }
-
-    const newEntries = this.parseText(text);
     const fileState: FileState = { mtimeMs: stat.mtimeMs, size: stat.size, entries: newEntries };
     this.fileStates.set(filePath, fileState);
     return fileState;
-  }
-
-  private parseText(text: string): UnifiedUsageEntry[] {
-    const entries: UnifiedUsageEntry[] = [];
-    const lines = text.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const entry = this.parseLine(line);
-      if (entry) entries.push(entry);
-    }
-    return entries;
   }
 
   private parseLine(line: string): UnifiedUsageEntry | null {

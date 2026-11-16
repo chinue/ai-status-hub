@@ -575,3 +575,9 @@ UnifiedQuota / QuotaData 新增可选 balance，保存实际 currency、total、
 pricing.ts 按官方当前 Flash / Pro 分别提供 CNY 与 USD 单价，使用请求日志时间确定高峰/空闲；高峰是北京时间周一至周五 9–12、14–18，排除内置 2026 年中国节假日。额外年份假期通过 deepseek.offPeakDates 配置。基础与 Peak 独立配置，可在 pricing.deepseek.models.deepseekFlash/deepseekFlashPeak/deepseekPro/deepseekProPeak 下覆盖；无默认配置值，确保自动币种与时段规则不被配置注册默认值覆盖。未知历史模型仅计 Token，费用默认 0，可自定义费率。费用不含缓存存储时长、联网工具、语音或图像额外收费。
 
 官方依据（2026-11-16）：https://api-docs.deepseek.com/api/get-user-balance/ 、https://api-docs.deepseek.com/zh-cn/quick_start/pricing/ 、https://api-docs.deepseek.com/guides/anthropic_api/ 。2026 假期依据 https://www.gov.cn/gongbao/2025/issue_12406/202511/content_7048922.html （国务院办公厅 2026 年节假日安排）。实际账号仍需在 VS Code 内输入自己的 Key 后核验。
+
+## 0.6.37：Codex 原生日志的内存上限
+
+CodexLocalParser 的 updateFileState 改用 LocalUsageService.readJsonl 流式解析；元数据不变时以增量 MD5 验证内容，保留同大小/mtime 重写检测。累计 token delta 的 previousTotals / lastTotals 按文件顺序保留，usage 条目仍是精简结构。getRateLimits 强制流式解析但不积累 usage entries，仅提取原有模型/额度状态，避免整文件文本和输出数组占用。
+
+原私有 parseText / parseLines 保留供纯解析测试使用，不再用于磁盘路径。聚合文件条目改用迭代 push，避免超多条目展开为函数参数。其他模型归属和官方配额优先级不变。

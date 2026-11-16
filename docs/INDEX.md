@@ -140,3 +140,13 @@ calc.ts 同步本地估算设计，types.ts / base/types.ts 同步 Phase 2 和 P
 | src/providers/deepseek/pricing.ts | v2-provider-abstraction.md#deepseek-provider | Flash/Pro、CNY/USD、峰谷价格 |
 
 calc.ts 同步本地估算；config.ts、types.ts、statusBar.ts 同步 Phase 2；base/types.ts、registry.ts 同步 Provider；dashboard.ts 同步 Dashboard；i18n.ts 同步编码规范；test/deepseek.test.ts 同步测试设计。
+
+## 有界 JSONL 读取（0.6.37）
+
+| 代码文件 | 设计文档 | 说明 |
+|---|---|---|
+| src/services/localUsageService.ts | v2-local-estimation-design.md | 64 KiB 流式读取与记录大小上限 |
+| src/providers/claude/localParser.ts | v2-local-estimation-design.md | Claude 多渠道流式扫描 |
+| src/providers/kimi/localParser.ts | v2-local-estimation-design.md | 原生 Kimi 流式扫描 |
+| src/providers/codex/localParser.ts | v2-provider-abstraction.md#codex-local-parser | 原生 Codex 用量/额度流式读取 |
+| test/jsonlStreaming.test.ts | v2-test-design.md#bounded-jsonl-reading | 有界读取与三种格式回归 |
