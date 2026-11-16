@@ -493,3 +493,75 @@ Codex Pro 的 primary 可能是每周窗口（10080 分钟），secondary 为空
 ### Claude 日志模型分流（0.6.10）
 
 Claude parser 默认排除明确的 Kimi/GLM 模型；Kimi parser 合并原生会话和 Claude 日志内的 Kimi 条目。分类由 calc.ts 的 `claudeLogProvider` 统一实现，不依据当前配置或 UI 选择推断历史模型；不明别名保留旧归属。详细扫描、去重、缓存与内存策略见 `v2-local-estimation-design.md` 的“Claude 日志跨模型归属”。
+
+## Volcengine Provider
+
+`src/providers/volcengine/index.ts` 注册独立供应商 `volcengine`，界面名称固定为“火山”，货币 CNY；复用 Claude JSONL 扫描器。当前只统计本地日志，不查询账户账单、套餐积分或配额，也不要求 API Key。注册表、状态栏选择白名单、配置枚举均包含火山，缓存与其他供应商隔离。
+
+### Volcengine Pricing
+
+`src/providers/volcengine/pricing.ts` 按模型及记录时间提供独立单价，单位元/百万 Token：
+
+| 模型 | 未缓存输入 | 输出 | 缓存读取 | 缓存创建参考价 |
+|---|---:|---:|---:|---:|
+| deepseek-v4.1-flash-economy 空闲 | 0.8 | 3.2 | 0.016 | 0.8 |
+| deepseek-v4.1-flash-economy 高峰 | 1.6 | 6.4 | 0.032 | 1.6 |
+| kimi-k3.1-pro | 13 | 68 | 1.3 | 13 |
+| glm-5.3-flash | 0.8 | 2.8 | 0.23 | 0.8 |
+| kimi-k2.8-preview | 待配置 | 待配置 | 待配置 | 待配置 |
+
+来源：[火山官方模型价格](https://docs.volcengine.com/docs/ark/model-pricing?lang=zh&redirect=1)，核对日期 2026-11-16；用户入口为 https://ark.volcengine.com/region:cn-beijing/docs/model-pricing 。K2.8 Preview 未查到公开 API 单价，不能套用 K2.6、K3 或其他供应商价格；默认零仅用于保留 Token 聚合，界面明确提示费用缺项，可通过 `pricing.volcengine.models.k2_8Preview.*` 补充。
+
+高峰定义为北京时间周一至周五 09:00–12:00、14:00–18:00，其余为空闲。`isVolcenginePeak` 使用固定 UTC+8；`IPricingProvider.getPricing(model, timestamp?)` 新增可选时间参数，由 LocalUsageService 传入每条日志的时间，避免所有历史记录按当前时刻重算。创建缓存暂按普通输入参考价，不计算缓存存储时长费、工具费、音频、批量折扣、套餐积分及活动折扣；K3 的 1h 缓存创建档无法由现有日志分类还原。
+
+支持点号/连字符版本拼写、命名空间和日期后缀。火山特有 K2.8/DeepSeek 配置键只在 `pricingModelKey(model, 'volcengine')` 下启用，避免改变已有 Kimi 配置键。独立配置路径 `pricing.volcengine.models.<key>.*`，峰值键为 `deepseekV4_1FlashEconomyPeak`；现有 `pricing.customModels` 仍为全供应商共用覆盖，需分别设置同名 GLM 价格时应使用供应商私有字段。
+
+火山的 `mainIcon` 固定为 🌋；GLM 的 `mainIcon` 按用户要求改为希腊大写 Zeta `Ζ`（U+0396），状态栏使用供应商 UI 图标。
+
+0.6.24 用户确认 GLM 5.3 在 2026-11-16 13:00（UTC+8）切换到火山，默认 Claude 裸名 GLM 5.3 记录按此时间归属，具体优先级见本地估算设计。GLM 和火山各自按其私有费率重算归属后的记录。
+
+### 0.6.25 Kimi 费用隔离
+
+官方 k3.1-pro 使用 Kimi 的 k3_1Pro 私有价格；kimi-for-coding 沿用旧日志参考费率 k2_6，不根据自述推测后台版本。火山 kimi-k3.1-pro 使用火山 k3_1Pro，kimi-k2-8-preview 使用火山 k2_8Preview。相同费率族键不会跨供应商合并。渠道识别仅在 Claude 日志应用已核对的火山别名，官方原生来源继续归 Kimi，见本地估算设计。
+
+### Volcengine Auth
+
+0.6.26：新增 src/providers/volcengine/auth.ts，点击火山登录直接 showInputBox（password / ignoreFocusOut）输入 API Key，无前置选择或浏览器跳转。空白或取消不覆盖旧密钥；成功保存到 SecretStorage 的 aiStatusHub.volcengine.apiKey，不写配置/磁盘文件、不记录密钥或底层异常。resolveToken 每次从私有 secret 读取，重建实例可恢复；getCredentialType 为 api-key。暂不验证密钥、不执行模型推理或套餐配额查询，保存提示明确说明这一范围。
+
+IAuthProvider 增加可选 signOut(): Promise<boolean>。火山只删除自己的私有密钥，返回 false 时保留界面登录状态并显示通用错误；扩展优先调用该接口，其他供应商沿用已有退出流程。本地 Token/费用统计继续独立于登录和配额服务。
+
+### Volcengine API
+
+0.6.27 接入个人 Coding Plan 的 GetCodingPlanUsage：POST https://open.volcengineapi.com/?Action=GetCodingPlanUsage&Version=2024-01-01，固定空 JSON body，仅只读查询。signing.ts 使用 Node crypto 实现 HMAC-SHA256 V4，scope 为 日期/cn-beijing/ark/request，签名头 host、x-content-sha256、x-date；不添加 AWS4 密钥前缀。签名规则参考[官方 Node SDK](https://github.com/volcengine/volc-sdk-nodejs/blob/main/src/base/sign.ts)。套餐窗口定义参考[官方 Ark CLI 用量说明](https://github.com/volcengine/ark-cli/blob/main/skills/arkcli-usage/references/arkcli-usage-plan.md)，区别于推理量和结算账单。
+
+api.ts 只接受序列化的 AccessKey ID / Secret Access Key 对，模型 API Key 缺少这组凭据时直接返回配置指引，不向控制面发送 Bearer 推理密钥。15 秒 AbortController 超时，拒绝重定向，保护网络、JSON.parse 与返回结构；401/403/鉴权错误、无有效套餐、HTTP、网络/格式异常使用双语固定提示，不回显服务端原文、签名头或密钥。
+
+calc.ts 的 parseVolcengineCodingQuota 解析 Result.QuotaUsage 中 Level=session/weekly/monthly、Percent（已用百分比）、ResetTimestamp（秒转毫秒）。缺失/非法数据不伪装成零，合法零值保留；超过 100% 的显示封顶。percentOnly 标记说明 windowLimit/weeklyLimit=100 仅供既有百分比计算兼容，不代表请求总额。monthlyUsedPct/monthlyResetAt 为可选字段，缓存沿用现有 quota 序列化。暂无真实用户 AK/SK，自动化使用响应夹具验证；真实账户需由用户在插件输入后完成只读验证。
+
+认证：原模型 API Key 不变，新增 SecretStorage 私有键 aiStatusHub.volcengine.quotaCredentials，整对 JSON 原子保存。已有凭据时点击登录，选择“连接 Coding Plan 套餐”，依次以密码框输入 AK/SK，查询成功才替换旧对；取消或失败保留旧值。resolveToken 优先读取查询凭据，CredentialType 增加 access-key。退出删除火山模型密钥及查询凭据，不触碰其他供应商。无推理调用、无依赖 CLI，当前只支持个人 Coding Plan，不自动切 Agent Plan 或企业席位。
+
+0.6.27 同步用户最新图标要求：GLM 的 mainIcon 从 Ζ 改为 ⚡，火山仍为 🌋。
+
+### 0.6.28 火山 TLS 校验加固
+
+VolcengineApiProvider 对每个配额请求显式创建 https.Agent({ rejectUnauthorized: true })，保留 Node 默认 CA/域名校验，不继承 NODE_TLS_REJECT_UNAUTHORIZED=0；finally 销毁 Agent 并释放超时。仍禁止重定向。没有手工设置 ca，所以 Node 启动时配置的 NODE_EXTRA_CA_CERTS 可继续用于可信组织代理。不得添加跳过证书检查或自动信任未知 CA 的后备路径。
+
+证书链、自签名、过期、主机名或签名算法错误按固定错误码分类为 TLS 提示，networkError=true，不当作密钥失效，不输出底层错误或响应。当前仅加固火山套餐查询，不宣称修改其他供应商请求。实测用户级/系统级 NODE_TLS_REJECT_UNAUTHORIZED 未设置，当前工具进程值为 0，未确定其父进程来源；没有修改注册表或安装任何证书。
+
+### Kimi API
+
+0.6.30：继续调用 https://api.kimi.com/coding/v1/usages，复用现有 OAuth/API Key，不增加浏览器抓取或其他凭据。根据[官方 managed-usage 源码](https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts)解析 usages.limit_5h、limit_7d、limit_month_total、limit_month_code 的 used_ratio / reset_time，比例乘 100。月总池为会员共享额度，Code 月池为独立字段，不能与加油包 boosterWallet 的月消费上限混用。
+
+parseKimiQuota 位于 calc.ts。旧 usage / limits 格式保留，5 小时按窗口时长匹配而非固定取第一项；仅旧格式缺少 window 元数据且只有一个 limits 条目时沿用旧单项。旧的绝对 count 优先于并存 ratio，remaining 可推算 used；goods_version=2 未返回 limit_7d 时不制造周限额。仅返回月额度也可作为有效快照；缺失或非法月字段保持 undefined，零值有效，显示封顶 100%。月重置直接采用服务端时间，不按自然月或固定 30 天推算。
+
+UnifiedQuota / QuotaData 新增 monthlyCodeUsedPct / monthlyCodeResetAt，与已有 monthlyUsedPct / monthlyResetAt 分开。原生只返回比率的窗口标记 percentOnly，避免显示虚假的 /100 请求总量。HTTP、网络、JSON/结构错误采用双语固定提示，不回显底层异常；30 秒超时，禁止重定向、显式 TLS 校验并 finally 销毁 Agent。缺少有效窗口时不以成功零额度覆盖旧快照。
+
+### 0.6.31 Kimi 月度现场诊断
+
+本机检查发现已安装 0.6.30 且 bundle 与 VSIX 一致，多个 VS Code 窗口仍在写共享缓存；读到的 Kimi 缓存是旧结构，没有月度字段。工具侧仅能读取过期的原生凭据，无法读取 VS Code SecretStorage 内当前有效登录，故未成功取得当前账户实时响应，不能据缓存就断言服务器一定不提供月数据。
+
+KimiApiProvider 成功解析后输出固定字段可用性：Kimi quota fields: 5h=true/false, 7d=true/false, month_total=true/false, month_code=true/false。只记录字段是否有有效值，不记录密钥、比例、响应正文或任意服务端字段名。新版启动日志带版本，方便用户刷新后确认实际运行版本与 API 可用性。不使用未知接口、其他账号凭据或绕过 SecretStorage 获取数据。
+
+## 0.6.34：GLM 退出凭据隔离
+
+GlmAuthProvider 实现可选 signOut()，只删除 aiStatusHub.glm.apiKey。extension.ts 复用已有供应商私有退出协议，避免 GLM 落入通用分支删除 Kimi 的 aiStatusHub.apiKey / aiStatusHub.oauthCredentials 或其他凭据。未初始化存储、删除失败均返回 false，显示双语固定错误，不执行 SIGN_OUT 状态切换、不回显底层异常。环境变量凭据仍由启动环境管理，插件不会修改。

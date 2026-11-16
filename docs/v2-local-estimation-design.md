@@ -735,3 +735,44 @@ calc.buildIndicatorSuffix 用显式 null 判定成功时间，支持时间戳 0�
 - GLM Provider 的 localUsage 使用目标为 GLM 的 Claude parser；LocalUsageService 继续按目标 Provider 的计价器聚合今日、窗口和周期的输入、输出、缓存读取、缓存创建、请求与费用。Kimi 使用现有按模型定价；GLM 使用现有占位费率，属于估算费用，尚无官方配额 API。
 - 读取复用现有本地 parser 的 IO 边界，不在 Presenter 或编排 Service 增加直接磁盘访问；不增加 UsageEntry 字段。三个目标 parser 的缓存按模型互斥，不复制全部 Claude 条目；新增开销为目录状态和 Map 元数据，不改变每条记录的存储量及原有 365 天内存预算。聚合数组仅保存现有条目引用。
 - 回归：`test/claudeLocalParser.test.ts` 覆盖归属、混合模型、子代理、重复请求、保留天数、坏行、缓存更新、删除及 Kimi 合并计价；原生 Kimi 测试注入独立 Claude 目录，避免读取用户日志。
+
+## 火山与同名模型分流
+
+ClaudeLocalParser 现在支持 `volcengine`。按以下顺序确定归属，每条 Claude 请求只进入一个供应商：
+
+1. `aiStatusHub.claudeLog.sessionProviders`：会话 ID 的显式归属，优先级最高；适用于历史同名 GLM 会话。
+2. 模型命名空间：`volcengine/`、`ark/`、`volcengine-coding-plan/`、`volcengine-agent-plan/` 识别为火山；其他带命名空间的模型沿用原供应商规则。
+3. `aiStatusHub.claudeLog.modelProviders`：裸模型完整名的归属，忽略大小写及首尾空格。
+4. 原有模型族识别：DeepSeek v4.1 Flash Economy（含 v4-1 拼写/日期后缀）归火山；裸 GLM 仍归智谱、裸 Kimi 仍归 Kimi；未知别名保留 Claude 归属。
+
+不能根据当前 API Key、当前 Base URL 或历史模型名推断过去的请求渠道。本机已观察到 `glm-5.3-flash` 和 `glm-5-3-flash` 两种拼写，但日志未保留请求域名，不能据此保证区分。会话中途切换渠道而模型名未变化时，会话级配置也无法按请求区分，需补充可审计的渠道信息后再细分；不猜测历史流量。
+
+扫描开始时读取归属配置快照；配置签名变化自动清除文件解析缓存，即使 JSONL 的大小和 mtime 未变化也会重算归属。保留原请求去重、递归扫描、保留期和缓存 Token 分类；Cline 的现有归属规则不应用 Claude 专用覆盖。LocalUsageService 用记录时间获取火山峰谷单价，所有 Dashboard 聚合继续消费同一份重新计价的 entries。
+
+归属变化后即使某供应商结果变为空，Scheduler 也会清除旧 entries 和本地费用，不改变官方配额，避免残留统计导致界面看似重复。
+
+### 0.6.24 GLM 5.3 按时间切换渠道
+
+根据用户提供的渠道历史，新增 `aiStatusHub.claudeLog.glmVolcengineCutover`，默认 `2026-11-16T13:00:00+08:00`。裸名 GLM 5.3 系列（包括 `glm-5.3-flash`、`glm-5-3-flash`）在该时刻之前归 GLM 官方，从该时刻起归火山。使用每条 assistant 日志时间，能够在同一会话内分开切换前后的请求；不依赖当前扫描时间。该信息来自用户声明，并非根据模型拼写推断。
+
+当前优先级：会话显式覆盖 > 明确命名空间 > 有效 GLM 5.3 切换时间规则 > 完整裸模型覆盖 > 原模型族规则。留空或无效切换时间会禁用该规则；GLM 5.30 等其他版本不匹配。缓存签名包含切换时间，设置或清空都会重算。Cline 不应用 Claude 专用切换时间规则。
+
+### 0.6.25 火山 Kimi 与官方 Kimi 费用隔离
+
+依据用户的实际提问及本机 Claude JSONL，resolveClaudeLogProvider 在显式会话、命名空间和模型覆盖后，将 kimi-k2-8-preview / kimi-k2.8-preview、kimi-k3.1-pro / kimi-k3-1-pro 自动归火山；k3.1-pro / k3-1-pro 和 kimi-for-coding 归官方。支持大小写、首尾空格、日期后缀及 [1m] 归属标记，未知型号后缀不误匹配。
+
+火山 Kimi 别名仅应用于 Claude 日志。原生 Kimi 的 kimi-code/k3.1-pro 也会规范化为 kimi-k3.1-pro，因此不能在合并原生日志后再次按该名字分流。通用 claudeLogProvider 补充官方裸名和 moonshotai 命名空间，保留 Cline/原生模型族语义。各供应商先过滤自己的 entries，再使用私有价格聚合，每条 Claude 请求只进入一个供应商。Kimi 无需 14:35 分界，GLM 保留 13:00 规则；K2.8 未配置价格仍仅计 Token。
+
+### 0.6.27 官方套餐与本地费用口径
+
+新增 parseVolcengineCodingQuota 和 fmtReportedResetTime，分别解析官方三窗口百分比与格式化实际返回的重置时间。套餐配额并非本地费用或 Token 换算，不能把内部归一化的总量 100 标记为请求次数。月重置未知时显示破折号，不推算固定 30 天；本地火山/官方 Kimi 分流与独立计价保持既有规则。
+
+### 0.6.30 Kimi 用量解析
+
+新增 parseKimiQuota 解析官方新旧 API 结构：月度共享和 Code 专用池、5 小时/周窗口均独立。使用严格有限非负数判断，合法 0 不视作缺失，未知/非法字段不转成 0%；旧格式优先由 limit / used / remaining 解析并按 duration/timeUnit 找到 5 小时窗口。月数据只能来自服务端，不从本地日志费用、周额度或加油包余额推导。formatProviderStatus 支持只有月窗口的快照。
+
+## 0.6.33：GLM 官方切回与动态窗口修复
+
+现场日志证据：同一 Claude 会话内，火山返回 message.model=glm-5-3-flash，17:22 后切回官方返回 glm-5.3-flash；两者 requestedModel 均为 glm-5.3-flash[1m]，不能用于渠道判断。旧的 13:00 时间规则误将后续官方请求划入火山。修正 resolveClaudeLogProvider：会话覆盖 → 命名空间 → 模型覆盖 → 已核对的官方点号 Flash 回复名 → 剩余 GLM 5.3 时间规则 → 其他已核对名称。时间配置仍可禁用，显式归属仍可覆盖。
+
+官方文档 https://docs.bigmodel.cn/cn/coding-plan/overview 说明五小时积分按每次消耗五小时后动态恢复，周积分从套餐下单时起按七天刷新。GLM LocalUsageService 的五小时费用、Token 与请求数统一按 now−5h 汇总，不用 nextResetTime−5h 划桶；周窗口继续采用官方 weeklyResetAt−7d，不把积分百分比换算为金额。其他供应商沿用原边界策略。归属修复会重新读原日志，不修改原记录，火山不再包含这批 GLM 官方请求。

@@ -125,3 +125,83 @@ npx vsce package
 ## License
 
 MIT
+
+## 火山（Claude 插件日志）
+
+Dashboard 的供应商列表增加“火山”。选择火山或设置 `aiStatusHub.provider` 为 `volcengine`，勾选火山可显示独立状态栏。本地 Claude 日志中的 Token 和人民币 API 等价费用无需登录即可统计；使用单独的 AK/SK 凭据可连接个人 Coding Plan 配额查询，不查询实际账单。
+
+已按用户确认的历史设置默认切换时间：**2026-11-16 13:00（UTC+8）**。此时间规则仅处理仍有歧义的裸名 GLM 5.3：此前归 GLM，此刻起归火山。已核对日志中，官方回复 `glm-5.3-flash` 保持归 GLM（包括 13 点后切回官方的请求）；火山回复 `glm-5-3-flash` 继续按切换时间分流。同一会话逐条处理，不使用两者相同的 requestedModel 判断渠道。可修改 `aiStatusHub.claudeLog.glmVolcengineCutover`（含时区的 ISO 8601 时间），留空禁用时间规则；显式会话、命名空间和模型覆盖优先。
+
+Claude 通常不保存请求域名；同名 `glm-5.3-flash` 无法自动判断是火山还是智谱。未应用上述时间规则时，裸 GLM 归智谱。已核实的 Kimi 名称自动区分渠道（见下表）；下列 settings.json 仅供手动覆盖归属：
+
+```json
+{
+  "aiStatusHub.provider": "volcengine",
+  "aiStatusHub.claudeLog.modelProviders": {
+    "deepseek-v4.1-flash-economy": "volcengine",
+    "kimi-k2.8-preview": "volcengine",
+    "kimi-k3.1-pro": "volcengine",
+    "glm-5.3-flash": "glm",
+    "glm-5-3-flash": "volcengine"
+  },
+  "aiStatusHub.claudeLog.sessionProviders": {
+    "替换为智谱官方会话的-sessionId": "glm"
+  }
+}
+```
+
+会话 ID 取自 `.claude/projects/**/*.jsonl` 中的 `sessionId`，会话设置优先于模型设置。也可不设置 GLM 模型覆盖，仅将确认来自火山的会话 ID 指定为 `volcengine`。修改设置后下一次扫描会重新分流，无需更改日志；每条 Claude 请求只计入一个供应商。一个会话中途切换渠道时，需提供切换时间等依据；仍有歧义的 GLM 5.3 按用户提供的 13:00 分界处理，已核对的官方 `glm-5.3-flash` 不受该时间规则影响。
+
+已内置 GLM Flash、Kimi K3.1 Pro、DeepSeek Flash Economy 的[火山官方 API 价格](https://docs.volcengine.com/docs/ark/model-pricing?lang=zh&redirect=1)，核对于 2026-11-16。DeepSeek 按记录的北京时间工作日高峰/空闲计价。K2.8 Preview 暂未查到公开 API 单价：默认只计 Token，费用估算不含该模型；可填写 `aiStatusHub.pricing.volcengine.models.k2_8Preview.inputPerMillion`、`outputPerMillion`、`cacheReadPerMillion`、`cacheCreatePerMillion`（元/百万 Token）。费用不含存储时长、工具调用、套餐积分或活动优惠。区分同名模型的费率请使用 `pricing.volcengine.models.*` 与 `pricing.glm.models.*`；`pricing.customModels` 是跨供应商共用覆盖。
+
+### 火山与 Kimi 官方自动分开（0.6.25）
+
+已按你的 Claude 实际记录自动分流，无需另外设置 Kimi 时间分界：
+
+| message.model | 统计位置 |
+|---|---|
+| deepseek-v4-1-flash-economy | 火山 |
+| kimi-k2-8-preview / kimi-k2.8-preview | 火山 |
+| kimi-k3.1-pro / kimi-k3-1-pro | 火山 |
+| k3.1-pro / k3-1-pro | Kimi 官方 |
+| kimi-for-coding | Kimi 官方 |
+
+火山汇总其自己的 Claude 请求，Kimi 汇总官方 Claude 请求和官方原生使用量，分别使用各自费率；重复 assistant 块只计一次。官方命名空间和显式会话/模型覆盖仍优先，若此前配置过反向归属，请移除相应覆盖。GLM 的 13:00 分界继续保留。K2.8 未配置单价时，火山费用仍不含该模型，Token 正常计入。kimi-for-coding 使用既有旧日志参考费率，不代表套餐实际扣款。
+
+### 火山 API Key 输入（0.6.26）
+
+选择火山后点击“登录”，会直接弹出 API Key 密码输入框。确认后密钥保存到 VS Code SecretStorage，下次启动可恢复；取消或空白不修改已有密钥。退出登录只删除火山自己的密钥。
+
+当前仅保存密钥并刷新本地统计，不校验密钥有效性、不查询套餐配额；本地 Token 和费用估算无需登录也可使用。
+
+### 查询 Coding Plan 套餐用量（0.6.27）
+
+模型 API Key 和套餐查询凭据不同。已保存模型 API Key 后，再点击火山“登录” → “连接 Coding Plan 套餐”，依次输入账户 AccessKey ID、Secret Access Key；插件先验证，只在成功后安全保存，后续自动刷新。
+
+账户凭据在[火山 IAM 密钥管理](https://console.volcengine.com/iam/keymanage)获取，需允许方舟套餐用量只读查询。无需将密钥发到聊天，也不要将模型 API Key 填作 AccessKey ID。取消或失败保留旧查询凭据。查询走官方控制面，不进行模型推理、不产生测试推理费用。
+
+当前支持个人 Coding Plan 的 5 小时、每周及订阅月已用百分比/重置时间。接口没有提供绝对请求总量，绝对值模式也保持百分比；套餐额度与本地 Token/API 等价费用分开展示。网络或权限错误会显示具体类别并保留本地统计。尚未用真实账户 AK/SK 完成现场验证，安装后首次配置会自动验证连接。
+
+### TLS 证书校验（0.6.28）
+
+火山套餐请求已强制启用证书和域名校验，即使启动环境设置 NODE_TLS_REJECT_UNAUTHORIZED=0，也不绕过校验。若你的 PowerShell 会话存在该变量，先执行：
+
+```powershell
+Remove-Item Env:NODE_TLS_REJECT_UNAUTHORIZED -ErrorAction SilentlyContinue
+```
+
+之后完全退出所有 VS Code 窗口，从没有该变量的新终端重新启动；仅 Reload Window 可能仍继承原父进程环境。当前检查到用户级/系统级均未设置该变量，无需修改注册表。
+
+若组织网络确实使用 HTTPS 检查代理，向管理员获取并核实 CA 的来源后，通过 NODE_EXTRA_CA_CERTS 指向其 PEM 文件，再完整重启 VS Code。该变量只在 Node 启动时读取。不能通过下载陌生 CA、关闭证书校验或跳过主机名验证来解决；普通网络超时也不等于缺少 CA。
+
+### Kimi 月度用量（0.6.30）
+
+在 Kimi Dashboard 中刷新用量，可显示“会员月度共享额度”和“Kimi Code 月度额度”，状态栏悬停提示也显示各自的已用百分比与重置时间。继续使用现有 Kimi 登录，无需添加其他密钥。
+
+两个月池按官方接口分别返回的值显示，不能相加；共享池可能包含 Kimi 的其他会员功能消费。旧套餐的每周/5 小时额度仍支持，新套餐未返回周限制时隐藏周行。接口未提供的月池不显示，不会从本地 Token/费用或周额度推算，也不把加油包月预算当成套餐额度。
+
+### Kimi 看不到月度数字时（0.6.31）
+
+安装新版后，完全退出所有 VS Code 窗口再重新打开，避免旧窗口继续运行旧代码；在 Kimi Dashboard 中刷新。月度共享额度区域会保留：有数据则显示真实百分比，没有数据则显示“尚未获取月度额度”和官方查看入口，不会伪造为 0%。
+
+如仍没有数值，打开 VS Code“输出”→“AI Status Hub”，查看启动版本及 Kimi quota fields 行。month_total / month_code 表示接口是否提供有效月字段，均为布尔值，不含密钥或响应正文。当前不能仅凭旧缓存认定服务器一定没有月度数据；接口未提供时，可通过“查看会员额度”进入官方订阅页核对。

@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, and Cursor",
-  "version": "0.6.22",
+  "version": "0.6.34",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -64,6 +64,7 @@
             "kimi",
             "claude",
             "glm",
+            "volcengine",
             "cursor"
           ],
           "default": "auto",
@@ -903,6 +904,7 @@
               "kimi",
               "claude",
               "glm",
+              "volcengine",
               "cursor"
             ]
           },
@@ -1025,6 +1027,159 @@
           "minimum": 0,
           "order": 315,
           "description": "GLM-5.3-FlashX cacheCreatePerMillion standard API-equivalent reference price (CNY per million tokens). Not Coding Plan charges."
+        },
+        "aiStatusHub.claudeLog.sessionProviders": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "kimi",
+              "glm",
+              "volcengine"
+            ]
+          },
+          "description": "Claude 日志按会话 ID指定供应商；会话设置优先。Assign Claude log ownership by session ID. Session overrides take priority. Reload/refresh to apply."
+        },
+        "aiStatusHub.claudeLog.modelProviders": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "kimi",
+              "glm",
+              "volcengine"
+            ]
+          },
+          "description": "Claude 日志按完整模型名（不区分大小写）指定供应商；会话设置优先。Assign Claude log ownership by exact model name. Session overrides take priority. Reload/refresh to apply."
+        },
+        "aiStatusHub.pricing.volcengine.models.glm5_3Flash.inputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.8,
+          "description": "火山 glm5_3Flash inputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.glm5_3Flash.outputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 2.8,
+          "description": "火山 glm5_3Flash outputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.glm5_3Flash.cacheReadPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.23,
+          "description": "火山 glm5_3Flash cacheReadPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.glm5_3Flash.cacheCreatePerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.8,
+          "description": "火山 glm5_3Flash cacheCreatePerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k3_1Pro.inputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 13,
+          "description": "火山 k3_1Pro inputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k3_1Pro.outputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 68,
+          "description": "火山 k3_1Pro outputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k3_1Pro.cacheReadPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.3,
+          "description": "火山 k3_1Pro cacheReadPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k3_1Pro.cacheCreatePerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 13,
+          "description": "火山 k3_1Pro cacheCreatePerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k2_8Preview.inputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "火山 k2_8Preview inputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k2_8Preview.outputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "火山 k2_8Preview outputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k2_8Preview.cacheReadPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "火山 k2_8Preview cacheReadPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.k2_8Preview.cacheCreatePerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "火山 k2_8Preview cacheCreatePerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomy.inputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.8,
+          "description": "火山 deepseekV4_1FlashEconomy inputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomy.outputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 3.2,
+          "description": "火山 deepseekV4_1FlashEconomy outputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomy.cacheReadPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.016,
+          "description": "火山 deepseekV4_1FlashEconomy cacheReadPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomy.cacheCreatePerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.8,
+          "description": "火山 deepseekV4_1FlashEconomy cacheCreatePerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomyPeak.inputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.6,
+          "description": "火山 deepseekV4_1FlashEconomyPeak inputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomyPeak.outputPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 6.4,
+          "description": "火山 deepseekV4_1FlashEconomyPeak outputPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomyPeak.cacheReadPerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.032,
+          "description": "火山 deepseekV4_1FlashEconomyPeak cacheReadPerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.pricing.volcengine.models.deepseekV4_1FlashEconomyPeak.cacheCreatePerMillion": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.6,
+          "description": "火山 deepseekV4_1FlashEconomyPeak cacheCreatePerMillion（元/百万 Token）；K2.8 的 0 表示价格待配置。Ark CNY per million tokens; K2.8 zero defaults mean unpriced."
+        },
+        "aiStatusHub.claudeLog.glmVolcengineCutover": {
+          "type": "string",
+          "default": "2026-11-16T13:00:00+08:00",
+          "description": "仍有歧义的裸名 GLM 5.3 渠道切换时间（ISO 8601，含时区）：此前归 GLM，此刻起归火山。已核对的 glm-5.3-flash 回复归 GLM；显式会话/模型覆盖优先。留空禁用时间规则。Ambiguous bare GLM 5.3 cutoff: before = GLM, at/after = Volcengine. Audited glm-5.3-flash replies stay GLM; explicit session/model overrides take priority. Empty disables the time rule."
         }
       }
     }

@@ -54,7 +54,7 @@ export class Scheduler {
   ): WindowAnchorData {
     return {
       providerId,
-      window5hStartMs: Math.round(window5hResetAtMs - WINDOW_5H_MS),
+      window5hStartMs: Math.round((providerId === 'glm' ? updatedAt : window5hResetAtMs) - WINDOW_5H_MS),
       window5hResetAtMs: Math.round(window5hResetAtMs),
       window7dStartMs: Math.round(window7dResetAtMs - WINDOW_7D_MS),
       window7dResetAtMs: Math.round(window7dResetAtMs),
@@ -71,6 +71,7 @@ export class Scheduler {
     const state = this.store.getState();
     const providerId = this.currentProviderId();
     if (state.windowAnchors?.providerId === providerId) {
+      if (providerId === 'glm') return { ...state.windowAnchors, window5hStartMs: now - WINDOW_5H_MS };
       return state.quota?.has5hLimit === false
         ? { ...state.windowAnchors, window5hStartMs: now - WINDOW_5H_MS, window5hResetAtMs: now }
         : state.windowAnchors;
@@ -91,11 +92,13 @@ export class Scheduler {
     const providerId = this.currentProviderId();
     const stateAnchors = this.store.getState().windowAnchors;
     if (stateAnchors?.providerId === providerId) {
-      return stateAnchors;
+      return this.stateWindowAnchors(now);
     }
 
     const diskAnchors = await this.cacheService.readWindowAnchors(providerId);
-    const anchors = diskAnchors ?? this.fallbackWindowAnchors(providerId, now);
+    const anchors = diskAnchors && providerId === 'glm'
+      ? { ...diskAnchors, window5hStartMs: now - WINDOW_5H_MS }
+      : diskAnchors ?? this.fallbackWindowAnchors(providerId, now);
     if (generation === this.generation) this.store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
     return anchors;
   }
@@ -213,6 +216,9 @@ export class Scheduler {
     // Skip short tick when no local data is available to avoid overwriting
     // API percentages with zeros.
     if (localUsage.entries.length === 0) {
+      // Ownership changes can move every local record to another provider.
+      // Clear stale usage without replacing official quota percentages.
+      if (state.usageEntries.length > 0) await this.publishLocalUsage(Date.now(), generation);
       return;
     }
 
@@ -365,7 +371,7 @@ export class Scheduler {
       dataRetentionDays: this.config.dataRetentionDays,
     });
     if (generation !== this.generation) return;
-    if (localUsageFallback.entries.length > 0) {
+    if (localUsageFallback.entries.length > 0 || this.store.getState().usageEntries.length > 0) {
       this.store.dispatch({
         type: 'LOCAL_ESTIMATE',
         payload: {

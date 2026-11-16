@@ -15,6 +15,48 @@ import { GlmApiProvider } from '../src/providers/glm/api';
 import { Script } from 'vm';
 
 describe('Local usage without remote quota', () => {
+
+  it('uses a rolling five-hour GLM cost window while preserving the official subscription week', async () => {
+    const now = Date.now();
+    const hour = 3600000;
+    const provider = createGlmProvider();
+    provider.localUsage = { scanSessions: async () => [4, 6, 200].map((age, index) => ({
+      timestamp: now - age * hour, inputOther: 100, output: 20, inputCacheRead: 0,
+      inputCacheCreation: 0, cost: 0, messageId: String(index), model: 'glm-5.3-flash',
+    })), getRateLimits: async () => null, invalidate() {} };
+    const service = new LocalUsageService([]);
+    service.setProvider(provider);
+    const usage = await service.getLocalUsage({ windowResetAtMs: now + 4 * hour,
+      weeklyResetAtMs: now + 24 * hour });
+    expect(usage.requests5h).to.equal(1);
+    expect(usage.cost5h).to.be.greaterThan(0);
+    expect(usage.requests7d).to.equal(2);
+    expect(usage.cost7d).to.be.closeTo(usage.cost5h * 2, 1e-10);
+  });
+  it('keeps zero and positive Current Usage costs visible for every CNY provider', () => {
+    for (const provider of ['glm', 'kimi', 'volcengine']) {
+      const store = new Store();
+      store.dispatch({ type: 'SET_PROVIDER', payload: provider });
+      const html = (DashboardPanel.prototype as any).getHtml.call(
+        { store }, 'nonce', 'en') as string;
+      const elements = new Map<string, any>();
+      const document = { getElementById(id: string) {
+        if (!elements.has(id)) elements.set(id, { style: {}, textContent: '', className: '' });
+        return elements.get(id);
+      } };
+      const source = html.slice(html.indexOf('    function renderCurrentUsage('), html.indexOf('      // Memory breakdown')) + '\n}';
+      const sandbox: any = { document, labels: { cost: 'Cost ', estimate: 'Estimate' }, CURRENCY_SYMBOL: '¥' };
+      new Script(source + '\nglobalThis.render = renderCurrentUsage;').runInNewContext(sandbox);
+      for (const [cost5h, cost7d] of [[0, 0], [0, 2.5], [1.25, 2.5], [0, 0]]) {
+        store.dispatch({ type: 'LOCAL_ESTIMATE', payload: { cost5h, cost7d } });
+        const usage = (DashboardPanel.prototype as any).buildKimiUsageData.call({}, store.getState());
+        sandbox.render(usage, 'percent');
+        expect(elements.get('cost-5h').textContent, provider).to.equal('Cost ¥' + cost5h.toFixed(2));
+        expect(elements.get('cost-7d').textContent, provider).to.equal('Cost ¥' + cost7d.toFixed(2));
+      }
+    }
+  });
+
   it('keeps local costs visible when login is missing or expired', async () => {
     for (const auth of ['missing', 'expired', 'failed'] as const) {
       const store = new Store();
@@ -53,7 +95,11 @@ describe('Local usage without remote quota', () => {
     const source = html.slice(html.indexOf('    function renderCurrentUsage('), html.indexOf('      // Memory breakdown')) + '\n}';
     const sandbox: any = { document, labels: { cost: 'Cost ', estimate: 'Estimate' }, CURRENCY_SYMBOL: '¥' };
     new Script(source + '\nglobalThis.render = renderCurrentUsage;').runInNewContext(sandbox);
-    sandbox.render({ quotaAvailable: false, cost5h: 1.25, cost7d: 2.5 }, 'percent');
+    const store = new Store();
+    store.dispatch({ type: 'SET_PROVIDER', payload: 'glm' });
+    store.dispatch({ type: 'LOCAL_ESTIMATE', payload: { cost5h: 1.25, cost7d: 2.5 } });
+    const usage = (DashboardPanel.prototype as any).buildKimiUsageData.call({}, store.getState());
+    sandbox.render(usage, 'percent');
     expect(document.getElementById('lbl-7d').textContent).not.to.include('%');
     expect(document.getElementById('lbl-7d').style.color).to.equal('var(--vscode-errorForeground)');
     expect(document.getElementById('cost-7d').textContent).to.include('2.50');

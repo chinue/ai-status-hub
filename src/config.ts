@@ -35,6 +35,18 @@ export class ConfigService {
     await this.cfg.update('provider', id, true);
   }
 
+  get claudeLogGlmVolcengineCutover(): string {
+    return this.cfg.get<string>('claudeLog.glmVolcengineCutover', '2026-11-16T13:00:00+08:00');
+  }
+
+  get claudeLogSessionProviders(): Record<string, unknown> {
+    return this.cfg.get<Record<string, unknown>>('claudeLog.sessionProviders', {}) ?? {};
+  }
+
+  get claudeLogModelProviders(): Record<string, unknown> {
+    return this.cfg.get<Record<string, unknown>>('claudeLog.modelProviders', {}) ?? {};
+  }
+
   get displayMode(): DisplayMode {
     return this.cfg.get<DisplayMode>('displayMode', 'percent');
   }
@@ -77,6 +89,7 @@ export class ConfigService {
       case 'kimi': return 'kimi-k2.6';
       case 'claude': return 'claude-sonnet-4';
       case 'glm': return 'glm-5.3';
+      case 'volcengine': return 'glm-5.3-flash';
       case 'cursor': return 'cursor-fast';
       case 'codex':
       default: return 'gpt-5';
@@ -95,6 +108,7 @@ export class ConfigService {
     switch (providerId) {
       case 'kimi':
       case 'glm':
+      case 'volcengine':
         return { code: 'CNY', symbol: '¥' };
       case 'codex':
       case 'claude':
@@ -240,6 +254,7 @@ export class ConfigService {
       case 'kimi': return 'https://platform.kimi.com/docs/pricing/chat';
       case 'claude': return 'https://platform.claude.com/docs/en/about-claude/pricing';
       case 'glm': return 'https://docs.bigmodel.cn/cn/guide/start/pricing';
+      case 'volcengine': return 'https://ark.volcengine.com/region:cn-beijing/docs/model-pricing';
       case 'cursor': return 'https://cursor.com/pricing';
       case 'codex':
       default: return 'https://developers.openai.com/api/docs/pricing';
@@ -250,7 +265,7 @@ export class ConfigService {
     return this.cfg.get<string>('pricing.officialDate', '2026-10-25');
   }
 
-  getPricing(modelName: string, providerId = this.activeProviderId, defaults?: TokenPricing): TokenPricing {
+  getPricing(modelName: string, providerId = this.activeProviderId, defaults?: TokenPricing, modelKey?: string): TokenPricing {
     const m = modelName.toLowerCase();
 
     // User-defined custom pricing takes priority (key = model name keyword, substring match)
@@ -264,7 +279,7 @@ export class ConfigService {
     }
 
     // Setting keys must match package.json registration exactly (case-sensitive)
-    const key = pricingModelKey(m);
+    const key = modelKey ?? pricingModelKey(m);
 
     // Provider-private config takes priority: pricing.{provider}.models.{key}
     const providerPrefix = `pricing.${providerId}.models.${key}`;

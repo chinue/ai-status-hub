@@ -8,6 +8,7 @@ import { IProvider } from './base/types';
 import { createCodexProvider } from './codex';
 import { createKimiProvider } from './kimi';
 import { createClaudeProvider } from './claude';
+import { createVolcengineProvider } from './volcengine';
 import { createGlmProvider } from './glm';
 import { createCursorProvider } from './cursor';
 
@@ -23,6 +24,7 @@ const PROVIDERS: ProviderInfo[] = [
   { id: 'kimi', displayName: 'Kimi', displayNameZh: 'Kimi', create: createKimiProvider },
   { id: 'claude', displayName: 'Claude', displayNameZh: 'Claude', create: createClaudeProvider },
   { id: 'glm', displayName: 'GLM', displayNameZh: '智谱', create: createGlmProvider },
+  { id: 'volcengine', displayName: '火山', displayNameZh: '火山', create: createVolcengineProvider },
   { id: 'cursor', displayName: 'Cursor', displayNameZh: 'Cursor', create: createCursorProvider },
 ];
 

@@ -13,6 +13,20 @@ export class GlmAuthProvider implements IAuthProvider {
   private secrets?: vscode.SecretStorage;
   initSecrets(secrets: vscode.SecretStorage): void { this.secrets = secrets; }
   invalidate(): void { /* Credentials are read afresh from SecretStorage. */ }
+  async signOut(): Promise<boolean> {
+    const t = makeT(ConfigService.getInstance().effectiveLanguage);
+    try {
+      if (!this.secrets) {
+        await vscode.window.showErrorMessage(t('glm.signOutFailed'));
+        return false;
+      }
+      await this.secrets.delete(SECRET_KEY);
+      return true;
+    } catch {
+      await vscode.window.showErrorMessage(t('glm.signOutFailed'));
+      return false;
+    }
+  }
   getCredentialType(): 'api-key' { return 'api-key'; }
   async resolveToken(): Promise<string | undefined> {
     try {

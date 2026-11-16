@@ -22,14 +22,14 @@ describe('StatusBarPresenter', () => {
     const create = sinon.spy(vscode.window, 'createStatusBarItem');
     const items: StatusBarPresenter[] = [];
     try {
-      for (const id of ['codex', 'kimi', 'claude', 'glm', 'cursor']) {
+      for (const id of ['codex', 'kimi', 'claude', 'glm', 'volcengine', 'cursor']) {
         const providerStore = new Store();
         providerStore.dispatch({ type: 'SET_PROVIDER', payload: id });
         items.push(new StatusBarPresenter(providerStore, getProvider(id)));
       }
       const ids = create.getCalls().map(call => call.args[0]);
       expect(ids.every(id => typeof id === 'string')).to.equal(true);
-      expect(new Set(ids).size).to.equal(5);
+      expect(new Set(ids).size).to.equal(6);
       const fallback = new Store();
       fallback.dispatch({ type: 'SET_PROVIDER', payload: 'kimi' });
       items.push(new StatusBarPresenter(fallback));

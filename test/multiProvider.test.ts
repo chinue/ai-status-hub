@@ -16,6 +16,39 @@ import { KimiAuthProvider } from '../src/providers/kimi/auth';
 describe('multiple provider status bars', () => {
   afterEach(() => { sinon.restore(); });
 
+  it('refreshes cached usage when opening or switching a dashboard', async () => {
+    const callbacks = new Map<string, Function>();
+    sinon.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, fallback: unknown) => key === 'provider' ? 'kimi'
+        : key === 'statusBar.providers' ? ['kimi'] : fallback,
+    } as any);
+    sinon.stub(vscode.commands, 'registerCommand').callsFake((name: string, callback: any) => {
+      callbacks.set(name, callback); return { dispose() {} };
+    });
+    sinon.stub(Scheduler.prototype, 'start');
+    const force = sinon.stub(Scheduler.prototype, 'force');
+    sinon.stub(CacheService.prototype, 'read').resolves({ quota: {
+      weeklyLimit: 100, weeklyUsed: 20, weeklyUsedPct: 20, weeklyResetAt: Date.now() + 86400000,
+      windowLimit: 100, windowUsed: 1, windowRemaining: 99, windowUsedPct: 1,
+      windowResetAt: Date.now() + 3600000, parallelLimit: 0,
+    }, fetchedAt: Date.now() });
+    sinon.stub(ApiHistoryService.prototype, 'readFromDisk').resolves([]);
+    sinon.stub(DashboardPanel, 'createOrShow');
+    const context = makeContext();
+    try {
+      await activate(context as any);
+      await callbacks.get('aiStatusHub.showDashboard')!('kimi');
+      expect(force.calledOnce).to.equal(true);
+      expect((force.firstCall.thisValue as any).store.getState().activeProvider).to.equal('kimi');
+      await callbacks.get('aiStatusHub.showDashboard')!('volcengine');
+      expect(force.calledTwice).to.equal(true);
+      expect((force.secondCall.thisValue as any).store.getState().activeProvider).to.equal('volcengine');
+    } finally {
+      for (const item of context.subscriptions) item.dispose();
+      await deactivate();
+    }
+  });
+
   it('switches and unchecks an unauthenticated provider while its credentials are pending', async () => {
     const clock = sinon.useFakeTimers();
     const callbacks = new Map<string, Function>();

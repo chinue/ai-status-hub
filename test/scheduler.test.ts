@@ -14,6 +14,19 @@ import { QuotaData, WindowAnchorData } from '../src/types';
 import { codexRateLimitsToQuota, resolveWeeklyPct } from '../src/calc';
 
 describe('Scheduler', () => {
+  it('keeps GLM local anchors rolling on API updates and subsequent short ticks', () => {
+    const now = Date.now();
+    const hour = 3600000;
+    store.dispatch({ type: 'SET_PROVIDER', payload: 'glm' });
+    const anchors = (scheduler as any).anchorsFromResets('glm', now + 4 * hour,
+      now + 24 * hour, now, 'api');
+    expect(anchors.window5hStartMs).to.equal(now - 5 * hour);
+    expect(anchors.window5hResetAtMs).to.equal(now + 4 * hour);
+    store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
+    const refreshed = (scheduler as any).stateWindowAnchors(now + hour);
+    expect(refreshed.window5hStartMs).to.equal(now - 4 * hour);
+    expect(refreshed.window7dStartMs).to.equal(anchors.window7dStartMs);
+  });
   let clock: sinon.SinonFakeTimers;
   let store: Store;
   let auth: IAuthProvider;
@@ -50,6 +63,23 @@ describe('Scheduler', () => {
     (CacheService as any).instance = undefined;
     (LocalUsageService as any).instance = undefined;
   });
+
+  for (const mode of ['short', 'long'] as const) {
+    it(`clears reassigned local history on a ${mode} tick without altering official quota`, async () => {
+      const quota = makeQuotaAt(Date.now() + 3600000, Date.now() + 86400000);
+      store.dispatch({ type: 'API_SUCCESS', payload: quota });
+      store.dispatch({ type: 'LOCAL_ESTIMATE', payload: {
+        costToday: 2, tokensToday: 100, entries: [makeUsageEntry(Date.now())],
+      } });
+      sinon.stub(LocalUsageService.getInstance(), 'getLocalUsage').resolves(makeLocalUsage());
+      if (mode === 'short') await (scheduler as any).doShortTick();
+      else await (scheduler as any).publishLocalUsage(Date.now(), 0);
+      expect(store.getState().usageEntries).to.deep.equal([]);
+      expect(store.getState().localEstimate!.costToday).to.equal(0);
+      expect(store.getState().localEstimate!.tokensToday).to.equal(0);
+      expect(store.getState().quota).to.deep.equal(quota);
+    });
+  }
 
   it('publishes local history while authentication is pending', async () => {
     let finish!: (token: null) => void;

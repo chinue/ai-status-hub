@@ -17,6 +17,29 @@ const response = (type = 'CREDIT_LIMIT') => ({ code: 200, success: true, data: {
 ] } });
 
 describe('GLM quota API', () => {
+  it('signs out only GLM credentials and preserves other provider secrets', async () => {
+    const secrets = new MemorySecretStorage();
+    await secrets.store('aiStatusHub.glm.apiKey', 'glm-fixture');
+    await secrets.store('aiStatusHub.apiKey', 'kimi-fixture');
+    await secrets.store('aiStatusHub.oauthCredentials', 'kimi-oauth-fixture');
+    await secrets.store('aiStatusHub.volcengine.quotaCredentials', 'ark-fixture');
+    const auth = createGlmProvider().auth;
+    auth.initSecrets!(secrets as any);
+    expect(auth.signOut).to.be.a('function');
+    expect(await auth.signOut!()).to.equal(true);
+    expect(await secrets.get('aiStatusHub.glm.apiKey')).to.equal(undefined);
+    expect(await secrets.get('aiStatusHub.apiKey')).to.equal('kimi-fixture');
+    expect(await secrets.get('aiStatusHub.oauthCredentials')).to.equal('kimi-oauth-fixture');
+    expect(await secrets.get('aiStatusHub.volcengine.quotaCredentials')).to.equal('ark-fixture');
+  });
+
+  it('reports GLM sign-out storage failures without changing the UI to signed out', async () => {
+    const auth = createGlmProvider().auth;
+    expect(auth.signOut).to.be.a('function');
+    expect(await auth.signOut!()).to.equal(false);
+    auth.initSecrets!({ delete: async () => { throw new Error('private-fixture'); } } as any);
+    expect(await auth.signOut!()).to.equal(false);
+  });
   afterEach(() => sinon.restore());
   function create(fetcher: any) {
     return new GlmApiProvider(fetcher);

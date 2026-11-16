@@ -125,3 +125,37 @@ Project-level Kimi skills are kept in `.kimi/skills` for collaboration and relea
 ## License
 
 MIT
+
+## 火山 / Volcengine (Claude logs)
+
+Select `volcengine` in the dashboard/provider setting to view local Claude usage in CNY. Local estimates work without login. Personal Coding Plan quotas can be connected with separate AK/SK credentials; billed amounts are not queried. The user-confirmed GLM 5.3 cutoff defaults to `2026-11-16T13:00:00+08:00`: ambiguous bare GLM 5.3 records before it belong to GLM, and those at or after it belong to 火山. Audited official replies named `glm-5.3-flash` remain GLM even after switching back later; Ark replies named `glm-5-3-flash` continue to use the cutoff. Their shared requestedModel is not channel evidence. Configure `aiStatusHub.claudeLog.glmVolcengineCutover`, or clear it to disable. Explicit sessions/namespaces and exact model overrides take priority. Other bare GLM names keep their existing ownership. Claude Kimi names follow the audited channel mapping below. Use `aiStatusHub.claudeLog.modelProviders` for exact bare-model assignments and `aiStatusHub.claudeLog.sessionProviders` for historical session exceptions (session IDs take priority). Logs without an endpoint cannot reliably distinguish identical GLM names; switching channels within one session requires additional evidence.
+
+See the [Chinese setup example](README.zh-CN.md#火山claude-插件日志). Verified Ark rates cover GLM Flash, Kimi K3.1 Pro and DeepSeek Flash Economy, including Beijing weekday peak/off-peak pricing per record. K2.8 Preview counts tokens only until its private `pricing.volcengine.models.k2_8Preview.*` rates are supplied; no public Ark API rate was verified. Estimates exclude cache storage, tools, plan credits and promotions. Provider-private pricing separates identical model names; `pricing.customModels` overrides all providers.
+
+### Kimi channel separation (0.6.25)
+
+In Claude logs, bare `kimi-k2-8-preview` / `kimi-k2.8-preview` and `kimi-k3.1-pro` / `kimi-k3-1-pro` belong to 火山. Official `k3.1-pro` and `kimi-for-coding` belong to Kimi. No Kimi timestamp cutoff is needed. Explicit sessions, ownership overrides and official namespaces take priority. Native Kimi sessions remain official even when normalization produces the same model spelling as an Ark alias. Each provider totals its own entries using its own pricing; K2.8 remains unpriced until configured.
+
+### Ark API Key entry (0.6.26)
+
+Click Sign in with 火山 selected to open a masked API Key input directly. The trimmed key is stored in VS Code SecretStorage and restored on restart; cancel or blank input preserves the previous key. Sign out removes only the Ark credential. This flow saves the key and refreshes local statistics; it does not validate the key or query plan quotas. Local token/cost estimates remain available without login.
+
+### Coding Plan quota queries (0.6.27)
+
+The model API Key is separate from account AccessKey ID / Secret Access Key quota credentials. With the model key saved, click 火山 Sign in, choose Connect Coding Plan quota, then enter AK and SK in the masked inputs. The extension verifies the read-only quota query before atomically saving the pair in SecretStorage. Get account keys at https://console.volcengine.com/iam/keymanage with permission to read Ark plan usage. Never paste them into chat or use the model key as AK.
+
+Personal Coding Plan 5-hour, weekly and subscription-month percentages/reset times are supported. No absolute request allowance is invented from the percentages. This does not invoke a model. Cancellation or failed verification preserves old credentials; network/permission errors keep local usage available. Automated tests use response fixtures; a live account query still needs credentials entered in VS Code.
+
+### TLS certificate checks (0.6.28)
+
+Ark quota requests explicitly require certificate verification, including when NODE_TLS_REJECT_UNAUTHORIZED=0 is inherited. Remove that variable from the launching shell and fully quit/restart VS Code. If an organization inspection proxy requires an extra CA, verify its issuer with the administrator, configure NODE_EXTRA_CA_CERTS to its PEM file before startup, and restart VS Code. Do not disable verification or automatically trust unknown certificates. A network timeout does not establish a certificate problem.
+
+### Kimi monthly usage (0.6.30)
+
+Refresh the Kimi dashboard to see the membership monthly pool and Kimi Code monthly pool when returned by the official usage endpoint. The status-bar tooltip also shows each pool's percentage and reported reset time. Existing login is reused. Missing pools are hidden rather than shown as zero. Legacy weekly/5-hour counts remain supported; new plans without a weekly cap hide that row. Monthly pools are independent and must not be added together or inferred from local spending, weekly quotas or booster-wallet budgets.
+
+### Kimi monthly numbers missing (0.6.31)
+
+After updating, fully close all VS Code windows and reopen, then refresh the Kimi dashboard. The membership monthly section remains visible: returned values show real percentages; missing values show a dash, an explanation and an official subscription link. Opening a dashboard with existing data also triggers refresh.
+
+The AI Status Hub output channel reports the running extension version and a Kimi quota fields line with boolean availability flags only. No key, usage values or response bodies are logged. A legacy cache alone does not prove what the current live API returns; unavailable monthly values are never invented from local usage.

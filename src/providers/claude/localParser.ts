@@ -7,7 +7,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { ILocalUsageProvider, UnifiedUsageEntry, RateLimits } from '../base/types';
 import { log } from '../../utils';
-import { claudeLogProvider } from '../../calc';
+import { ClaudeLogProviderId, resolveClaudeLogProvider } from '../../calc';
+import { ConfigService } from '../../config';
 
 const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
@@ -21,6 +22,7 @@ interface JsonlEntry {
   type: string;
   timestamp: string;
   requestId?: string;
+  sessionId?: string;
   message?: {
     id?: string;
     model?: string;
@@ -36,8 +38,13 @@ interface JsonlEntry {
 export class ClaudeLocalParser implements ILocalUsageProvider {
   private fileStates = new Map<string, FileState>();
 
+  private routingSignature = '';
+  private glmVolcengineCutover = NaN;
+  private sessionProviders: Record<string, unknown> = {};
+  private modelProviders: Record<string, unknown> = {};
+
   constructor(
-    private readonly providerId: 'claude' | 'kimi' | 'glm' = 'claude',
+    private readonly providerId: ClaudeLogProviderId = 'claude',
     private readonly projectsDir = PROJECTS_DIR,
   ) {}
 
@@ -47,7 +54,13 @@ export class ClaudeLocalParser implements ILocalUsageProvider {
     dataRetentionDays?: number;
     force?: boolean;
   }): Promise<UnifiedUsageEntry[]> {
-    if (opts?.force) this.invalidate();
+    const config = ConfigService.getInstance();
+    this.sessionProviders = config.claudeLogSessionProviders;
+    this.modelProviders = config.claudeLogModelProviders;
+    this.glmVolcengineCutover = Date.parse(config.claudeLogGlmVolcengineCutover);
+    const signature = JSON.stringify([this.sessionProviders, this.modelProviders, this.glmVolcengineCutover]);
+    if (opts?.force || signature !== this.routingSignature) this.invalidate();
+    this.routingSignature = signature;
     const files = await this.findAllJsonlFiles();
 
     // Remove stale fileStates for deleted files
@@ -135,7 +148,9 @@ export class ClaudeLocalParser implements ILocalUsageProvider {
         return null;
       }
 
-      if (claudeLogProvider(json.message.model) !== this.providerId) return null;
+      if (resolveClaudeLogProvider(json.message.model, json.sessionId,
+        this.sessionProviders, this.modelProviders, { timestamp: Date.parse(json.timestamp),
+          glmVolcengineCutover: this.glmVolcengineCutover }) !== this.providerId) return null;
 
       // Deduplicate by requestId or message.id (same request may have multiple content blocks)
       const dedupeKey = json.requestId || json.message.id || null;

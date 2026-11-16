@@ -7,7 +7,7 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
+import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, fmtReportedResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
   AppState, UsageEntry, DashboardMessage, KimiUsageData, DashboardAggregates,
@@ -260,7 +260,8 @@ export class DashboardPanel {
     const anchors = state.windowAnchors;
     if (anchors?.providerId === state.activeProvider) {
       return {
-        window5hStart: state.quota?.has5hLimit === false ? now - WINDOW_5H_MS : anchors.window5hStartMs,
+        window5hStart: state.activeProvider === 'glm' || state.quota?.has5hLimit === false
+          ? now - WINDOW_5H_MS : anchors.window5hStartMs,
         window7dStart: anchors.window7dStartMs,
       };
     }
@@ -269,7 +270,8 @@ export class DashboardPanel {
       const effectiveWindowReset = resolveResetTime(quota.windowResetAt, WINDOW_5H_MS, now).resetAt;
       const effectiveWeeklyReset = resolveResetTime(quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt;
       return {
-        window5hStart: quota.has5hLimit === false ? now - WINDOW_5H_MS : effectiveWindowReset - WINDOW_5H_MS,
+        window5hStart: state.activeProvider === 'glm' || quota.has5hLimit === false
+          ? now - WINDOW_5H_MS : effectiveWindowReset - WINDOW_5H_MS,
         window7dStart: effectiveWeeklyReset - WINDOW_7D_MS,
       };
     }
@@ -330,16 +332,25 @@ export class DashboardPanel {
       : undefined;
 
     return {
+      monthlyUnavailableText: state.activeProvider === 'kimi' && quota?.monthlyUsedPct == null
+        ? t('kimi.monthlyUnavailable') : undefined,
+      percentOnly: quota?.percentOnly,
+      hasMonthlyCodeLimit: quota?.monthlyCodeUsedPct != null,
+      utilizationCodeMonth: (quota?.monthlyCodeUsedPct ?? 0) / 100,
+      resetInCodeMonthText: t('tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyCodeResetAt, now),
+      hasMonthlyLimit: quota?.monthlyUsedPct != null,
+      utilizationMonth: (quota?.monthlyUsedPct ?? 0) / 100,
+      resetInMonthText: t('tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyResetAt, now),
       utilization5h: windowPct / 100,
       quotaAvailable: hasQuotaData(state),
       weeklyQuotaAvailable: hasQuotaData(state) && quota?.has7dLimit !== false,
-      quotaError: state.activeProvider === 'glm' ? state.error ?? undefined : undefined,
+      quotaError: ['glm', 'volcengine', 'kimi'].includes(state.activeProvider) ? state.error ?? undefined : undefined,
       utilization7d: weeklyPct / 100,
       utilizationFable7d: isClaude ? (fableWeeklyPct ?? 0) / 100 : undefined,
       resetIn5h: (quota || anchors) ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
       resetIn7d: (quota || anchors) ? Math.max(0, Math.floor((effectiveWeeklyReset - now) / 1000)) : 0,
-      resetIn5hText: t('tooltip.nextReset') + ' ' + fmtResetTime(effectiveWindowReset, WINDOW_5H_MS, now),
-      resetIn7dText: t('tooltip.nextReset') + ' ' + fmtResetTime(effectiveWeeklyReset, WINDOW_7D_MS, now),
+      resetIn5hText: t('tooltip.nextReset') + ' ' + (quota?.percentOnly ? fmtReportedResetTime(quota.windowResetAt, now) : fmtResetTime(effectiveWindowReset, WINDOW_5H_MS, now)),
+      resetIn7dText: t('tooltip.nextReset') + ' ' + (quota?.percentOnly ? fmtReportedResetTime(quota.weeklyResetAt, now) : fmtResetTime(effectiveWeeklyReset, WINDOW_7D_MS, now)),
       resetInFable7dText: quota?.fableWeeklyResetAt == null
         ? undefined
         : t('tooltip.nextReset') + ' ' + fmtResetTime(quota.fableWeeklyResetAt, WINDOW_7D_MS, now),
@@ -349,8 +360,10 @@ export class DashboardPanel {
       hasFable7dLimit: isClaude && hasQuotaData(state),
       providerType: state.activeProvider,
       cost5h: le?.cost5h ?? 0,
+      cost5hText: fmtCurrency(le?.cost5h ?? 0, config.currencyForProvider(state.activeProvider).symbol),
       costDay: le?.costToday ?? 0,
       cost7d: le?.cost7d ?? 0,
+      cost7dText: fmtCurrency(le?.cost7d ?? 0, config.currencyForProvider(state.activeProvider).symbol),
       tokensIn5h: le?.tokensIn5h ?? 0,
       tokensOut5h: le?.tokensOut5h ?? 0,
       tokensCacheRead5h: le?.tokensCacheRead5h ?? 0,
@@ -800,7 +813,7 @@ export class DashboardPanel {
   <div class="card">
     <div class="card-title">${i18n('dashboard.currentUsage')}</div>
     <div id="quota-warning" style="color:var(--vscode-errorForeground);">⚠ ${i18n('usage.quotaUnavailable')}</div>
-    <div style="color:var(--vscode-descriptionForeground);">${i18n(activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}</div>
+    <div style="color:var(--vscode-descriptionForeground);">${i18n(activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}</div>
     <div class="progress-row" id="row-5h" style="${this.store.getState().quota?.has5hLimit === false ? 'display:none' : ''}">
       <div class="progress-labels">
         <span>${i18n('dashboard.window5h')}<span id="badge-5h" class="estimate-badge"></span></span>
@@ -812,7 +825,7 @@ export class DashboardPanel {
         <span class="progress-cost" id="cost-5h"></span>
       </div>
     </div>
-    <div class="progress-row">
+    <div class="progress-row" id="row-7d">
       <div class="progress-labels">
         <span>${i18n('dashboard.window7d')}<span id="badge-7d" class="estimate-badge"></span></span>
         <span id="lbl-7d">—</span>
@@ -822,6 +835,17 @@ export class DashboardPanel {
         <span class="progress-meta" id="meta-7d"></span>
         <span class="progress-cost" id="cost-7d"></span>
       </div>
+    </div>
+    <div class="progress-row" id="row-plan-month" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">
+      <div class="progress-labels"><span>${i18n(activeProvider === 'kimi' ? 'dashboard.kimiMonthTotal' : 'dashboard.planMonth')}</span><span id="lbl-plan-month">—</span></div>
+      <div class="progress-track"><div class="progress-fill" id="fill-plan-month" style="width:0%"></div></div>
+      <div class="progress-meta-row"><span class="progress-meta" id="meta-plan-month">${activeProvider === 'kimi' ? i18n('kimi.monthlyUnavailable') : ''}</span></div>
+      <a id="month-unavailable-link" class="provider-link" href="https://www.kimi.com/settings/subscription?tab=quota" target="_blank" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">${i18n('kimi.viewMonthlyQuota')}</a>
+    </div>
+    <div class="progress-row" id="row-code-month" style="display:none;">
+      <div class="progress-labels"><span>${i18n('dashboard.kimiMonthCode')}</span><span id="lbl-code-month">—</span></div>
+      <div class="progress-track"><div class="progress-fill" id="fill-code-month" style="width:0%"></div></div>
+      <div class="progress-meta-row"><span class="progress-meta" id="meta-code-month"></span></div>
     </div>
     <div class="progress-row" id="row-fable-7d" style="${activeProvider === 'claude' ? '' : 'display:none;'}">
       <div class="progress-labels">
@@ -1334,27 +1358,27 @@ export class DashboardPanel {
       fill5h.style.width = w5h + '%';
       fill5h.className = 'progress-fill' + (w5h >= 75 ? ' warning' : '') + (w5h >= 90 ? ' error' : '');
       const lbl5h = document.getElementById('lbl-5h');
-      if (mode === 'absolute' && usage.has5hLimit) {
+      if (mode === 'absolute' && usage.has5hLimit && !usage.percentOnly) {
         lbl5h.textContent = usage.used5h + ' / ' + usage.limit5h;
       } else {
         lbl5h.textContent = w5h.toFixed(2) + '%';
       }
       document.getElementById('badge-5h').textContent = isEstimate ? labels.estimate : '';
       document.getElementById('meta-5h').textContent = usage.resetIn5hText || '';
-      document.getElementById('cost-5h').textContent = usage.cost5h > 0 ? labels.cost + CURRENCY_SYMBOL + usage.cost5h.toFixed(2) : '';
+      document.getElementById('cost-5h').textContent = labels.cost + usage.cost5hText;
 
       const fill7d = document.getElementById('fill-7d');
       fill7d.style.width = w7d + '%';
       fill7d.className = 'progress-fill' + (w7d >= 75 ? ' warning' : '') + (w7d >= 90 ? ' error' : '');
       const lbl7d = document.getElementById('lbl-7d');
-      if (mode === 'absolute' && usage.has7dLimit) {
+      if (mode === 'absolute' && usage.has7dLimit && !usage.percentOnly) {
         lbl7d.textContent = usage.used7d + ' / ' + usage.limit7d;
       } else {
         lbl7d.textContent = w7d.toFixed(2) + '%';
       }
       document.getElementById('badge-7d').textContent = isEstimate ? labels.estimate : '';
       document.getElementById('meta-7d').textContent = usage.resetIn7dText || '';
-      document.getElementById('cost-7d').textContent = usage.cost7d > 0 ? labels.cost + CURRENCY_SYMBOL + usage.cost7d.toFixed(2) : '';
+      document.getElementById('cost-7d').textContent = labels.cost + usage.cost7dText;
 
       const quotaWarning = document.getElementById('quota-warning');
       quotaWarning.style.display = usage.quotaAvailable && !usage.quotaError ? 'none' : '';
@@ -1370,6 +1394,31 @@ export class DashboardPanel {
           document.getElementById('badge-' + id).textContent = '';
         }
       }
+
+      const weeklyRow = document.getElementById('row-7d');
+      if (weeklyRow) weeklyRow.style.display = usage.weeklyQuotaAvailable === false ? 'none' : '';
+      for (const [id, available, utilization, resetText] of [
+        ['plan-month', usage.hasMonthlyLimit, usage.utilizationMonth, usage.resetInMonthText],
+        ['code-month', usage.hasMonthlyCodeLimit, usage.utilizationCodeMonth, usage.resetInCodeMonthText],
+      ]) {
+        const row = document.getElementById('row-' + id);
+        const showUnavailable = id === 'plan-month' && usage.providerType === 'kimi' && !available;
+        if (row) row.style.display = available || showUnavailable ? '' : 'none';
+        if (showUnavailable) {
+          document.getElementById('lbl-' + id).textContent = '\u2014';
+          document.getElementById('fill-' + id).style.width = '0%';
+          document.getElementById('meta-' + id).textContent = usage.monthlyUnavailableText || '';
+        }
+        if (available) {
+          const month = Math.max(0, Math.min(100, utilization * 100 || 0));
+          document.getElementById('fill-' + id).style.width = month + '%';
+          document.getElementById('lbl-' + id).textContent = month.toFixed(2) + '%';
+          document.getElementById('meta-' + id).textContent = resetText || '';
+        }
+      }
+
+      const monthLink = document.getElementById('month-unavailable-link');
+      if (monthLink) monthLink.style.display = usage.providerType === 'kimi' && !usage.hasMonthlyLimit ? '' : 'none';
 
       const fableRow = document.getElementById('row-fable-7d');
       if (fableRow) {

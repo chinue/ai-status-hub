@@ -25,6 +25,12 @@ export interface UnifiedQuota {
   weeklyUsed: number;
   weeklyUsedPct: number;
   weeklyResetAt: number;
+  /** Coding Plan reports normalized percentages, not absolute request counts. */
+  percentOnly?: boolean;
+  monthlyUsedPct?: number;
+  monthlyResetAt?: number;
+  monthlyCodeUsedPct?: number;
+  monthlyCodeResetAt?: number;
   /** Claude's optional, model-scoped Fable weekly quota. */
   fableWeeklyUsedPct?: number;
   fableWeeklyResetAt?: number;
@@ -56,6 +62,8 @@ export interface IAuthProvider {
   resolveToken(): Promise<string | undefined>;
   /** Start login flow if applicable */
   startLoginFlow?(): Promise<boolean>;
+  /** Delete provider-private credentials; false keeps the current UI state. */
+  signOut?(): Promise<boolean>;
   /** Invalidate cached token (called on sign out) */
   invalidate(): void;
   /** Initialize SecretStorage reference (for providers that store credentials in VS Code secrets) */
@@ -66,7 +74,7 @@ export interface IAuthProvider {
   getCredentialType?(): CredentialType;
 }
 
-export type CredentialType = 'oauth' | 'api-key' | 'unknown';
+export type CredentialType = 'oauth' | 'api-key' | 'access-key' | 'unknown';
 
 export interface FetchQuotaOptions {
   credentialType?: CredentialType;
@@ -120,7 +128,7 @@ export interface ILocalUsageProvider {
 export interface IPricingProvider {
   readonly currency: Currency;
   readonly defaultModelName: string;
-  getPricing(modelName: string): TokenPricing;
+  getPricing(modelName: string, timestamp?: number): TokenPricing;
   calculateCost(usage: TokenUsage, pricing: TokenPricing): number;
 }
 

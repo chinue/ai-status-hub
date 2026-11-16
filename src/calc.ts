@@ -4,7 +4,7 @@ import { QuotaData, TokenPricing, AppState, UsageEntry } from './types';
 
 /** Keep at least one supported provider visible as an entry to the dashboard. */
 export function normalizeStatusBarProviders(value: unknown): string[] {
-  const supported = ['codex', 'kimi', 'claude', 'glm', 'cursor'];
+  const supported = ['codex', 'kimi', 'claude', 'glm', 'volcengine', 'cursor'];
   const selected = Array.isArray(value)
     ? [...new Set(value.filter((id): id is string => typeof id === 'string' && supported.includes(id)))]
     : [];
@@ -162,9 +162,11 @@ export function parseCustomPricing(value: string): TokenPricing | null {
 /** 将模型名映射为定价配置键（须与 package.json 中 pricing.*.models.<key> 完全一致，区分大小写）。
  *  示例：pricingModelKey('claude-opus-5-5') → 'claudeOpus5_5'；pricingModelKey('gpt-6-sol') → 'gpt6Sol'
  */
-export function pricingModelKey(modelName: string): string {
-  const m = modelName.toLowerCase();
+export function pricingModelKey(modelName: string, providerId?: string): string {
+  const m = modelName.trim().toLowerCase().replace(/\[1m\]$/, '');
   // GLM namespace/display-name aliases; version boundaries keep 5.30 distinct from 5.3.
+  if (providerId === 'volcengine' && /deepseek[._-]v4[._-]1[._-]flash[._-]economy(?:$|[-_])/.test(m)) return 'deepseekV4_1FlashEconomy';
+  if (providerId === 'volcengine' && /kimi[._-]k2[._-]8[._-]preview(?:$|[-_])/.test(m)) return 'k2_8Preview';
   const glm53 = /glm[\s._-]*5[\s._-]+3(?!\d)(?:[\s._-]+(flashx|flash)(?=$|[^a-z0-9]))?/.exec(m);
   if (glm53) {
     if (glm53[1] === 'flashx') return 'glm5_3FlashX';
@@ -736,17 +738,20 @@ export function formatMemorySize(bytes: number): string {
 export function formatProviderStatus(state: AppState, icon: string, name: string, mode: 'percent' | 'absolute', now = Date.now(), refreshIntervalSeconds = 300, locale?: Locale, currencySymbol?: string): string {
   if (!hasQuotaData(state)) {
     const t = makeT(locale ?? (state.ui.language === 'zh-CN' ? 'zh-CN' : 'en'));
-    const currency = currencySymbol ?? (state.activeProvider === 'kimi' || state.activeProvider === 'glm' ? '¥' : '$');
+    const currency = currencySymbol ?? (state.activeProvider === 'kimi' || ['glm', 'volcengine'].includes(state.activeProvider) ? '¥' : '$');
     return `${icon} ${name}: ${t('usage.localSummary')} ${fmtTokens(state.localEstimate?.tokensToday ?? 0)} / ${fmtCost(state.localEstimate?.costToday ?? 0, currency)} $(warning)`;
   }
   const weekly = resolveWeeklyPct(state);
   const window = resolveWindowPct(state);
   const quota = state.quota;
-  const weeklyText = mode === 'absolute' && quota ? `${quota.weeklyUsed}/${quota.weeklyLimit}` : formatPercent(weekly, 2);
-  const windowText = mode === 'absolute' && quota ? `${quota.windowUsed}/${quota.windowLimit}` : formatPercent(window, 2);
+  const weeklyText = mode === 'absolute' && quota && !quota.percentOnly ? `${quota.weeklyUsed}/${quota.weeklyLimit}` : formatPercent(weekly, 2);
+  const windowText = mode === 'absolute' && quota && !quota.percentOnly ? `${quota.windowUsed}/${quota.windowLimit}` : formatPercent(window, 2);
   // A healthy scheduled poll must not become stale before the next poll is due.
   const staleThresholdMs = refreshIntervalSeconds * 1000 + 120_000;
   const indicators = buildIndicatorSuffix(state, now, staleThresholdMs, ['stale', 'source', 'auth']);
+  if (quota?.has5hLimit === false && quota.has7dLimit === false) {
+    return `${icon} ${name}: ${formatPercent(quota.monthlyUsedPct ?? quota.monthlyCodeUsedPct ?? 0, 2)}${indicators}`;
+  }
   if (quota?.has7dLimit === false) return `${icon} ${name}:5️⃣ ${windowText}${indicators}`;
   const shortCell = quota?.has5hLimit === false ? '' : ` | 5️⃣ ${windowText}`;
   return `${icon} ${name}:${weeklyText}${shortCell}${indicators}`;
@@ -813,12 +818,52 @@ export function parseCodexUsage(value: unknown, now: number): QuotaData | null {
 }
 
 /** Route explicit model names in Claude logs; opaque aliases retain legacy ownership. */
-export function claudeLogProvider(model: unknown): 'claude' | 'kimi' | 'glm' {
+export type ClaudeLogProviderId = 'claude' | 'kimi' | 'glm' | 'volcengine';
+
+export function claudeLogProvider(model: unknown): ClaudeLogProviderId {
   if (typeof model !== 'string') return 'claude';
   const parts = model.trim().toLowerCase().split('/');
-  if (parts.some(part => /^(kimi|moonshot)(?:[-_.]|$)/.test(part))) return 'kimi';
+  if (parts.some(part => /^(volcengine|ark|volcengine-coding-plan|volcengine-agent-plan)$/.test(part))) return 'volcengine';
+  if (/^deepseek[._-]v4[._-]1[._-]flash[._-]economy(?:$|[-_])/.test(parts[parts.length - 1])) return 'volcengine';
+  if (parts.some(part => /^(kimi|moonshot)(?:[-_.]|$)/.test(part) || part === 'moonshotai')) return 'kimi';
+  if (/^k3[._-]1[._-]pro(?:$|[-_.\[])/.test(parts[parts.length - 1])) return 'kimi';
   if (/^glm(?:[-_.]|$)/.test(parts[parts.length - 1])) return 'glm';
   return 'claude';
+}
+
+/** Overrides describe historical records; current credentials cannot identify old traffic. */
+export function resolveClaudeLogProvider(model: unknown, sessionId: unknown,
+  sessionProviders: Record<string, unknown>, modelProviders: Record<string, unknown>,
+  context?: { timestamp: number; glmVolcengineCutover: number }): ClaudeLogProviderId {
+  const valid = (id: unknown): id is ClaudeLogProviderId => typeof id === 'string'
+    && ['claude', 'kimi', 'glm', 'volcengine'].includes(id);
+  const session = typeof sessionId === 'string' ? sessionProviders[sessionId] : undefined;
+  if (valid(session)) return session;
+  const name = typeof model === 'string' ? model.trim().toLowerCase() : '';
+  if (name.includes('/')) return claudeLogProvider(name);
+  const override = Object.entries(modelProviders).find(([key]) => key.trim().toLowerCase() === name)?.[1];
+  if (valid(override)) return override;
+  // Audited official replies retain dots; Ark replies used glm-5-3-flash.
+  // A later switch back to the official channel must survive the old cutoff.
+  if (/^glm-5\.3-flash(?:\[1m\])?$/.test(name)) return 'glm';
+  if (/^glm[._-]5[._-]3(?:$|[._-])/.test(name) && context
+    && Number.isFinite(context.timestamp) && Number.isFinite(context.glmVolcengineCutover)) {
+    return context.timestamp >= context.glmVolcengineCutover ? 'volcengine' : 'glm';
+  }
+  // These bare aliases were audited in Claude logs against the user's channels.
+  // Keep this rule here: native Kimi also normalizes its own model to kimi-k3.1-pro.
+  if (/^kimi[._-](?:k2[._-]8[._-]preview|k3[._-]1[._-]pro)(?:-\d{6,8})?(?:\[1m\])?$/.test(name)) {
+    return 'volcengine';
+  }
+  return claudeLogProvider(model);
+}
+
+/** Official peak hours use a fixed UTC+8 clock, independent of the host timezone. */
+export function isVolcenginePeak(timestamp: number): boolean {
+  const date = new Date(timestamp + 8 * 3600_000);
+  const day = date.getUTCDay();
+  const hour = date.getUTCHours();
+  return day >= 1 && day <= 5 && ((hour >= 9 && hour < 12) || (hour >= 14 && hour < 18));
 }
 
 /** Total physical tokens from mutually exclusive input, output and cache categories. */
@@ -890,5 +935,105 @@ export function parseGlmQuota(value: unknown): QuotaData | null {
     weeklyResetAt: weekly?.reset ?? 0,
     windowLimit: short?.total ?? 0, windowUsed: short?.used ?? 0, windowUsedPct: short?.pct ?? 0,
     windowRemaining: short?.remaining ?? 0, windowResetAt: short?.reset ?? 0, parallelLimit: 0,
+  };
+}
+
+/** Official Coding Plan quota snapshot: Level, Percent, ResetTimestamp (seconds). */
+export function parseVolcengineCodingQuota(value: unknown): QuotaData | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, any>;
+  if (raw.ResponseMetadata?.Error) return null;
+  const rows = raw.Result?.QuotaUsage;
+  if (!Array.isArray(rows)) return null;
+  const number = (n: unknown): number | null => {
+    if (typeof n !== 'number' && (typeof n !== 'string' || !n.trim())) return null;
+    const parsed = Number(n);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  };
+  const window = (level: string) => {
+    const row = rows.find(item => item?.Level === level);
+    const percent = number(row?.Percent);
+    if (percent === null) return null;
+    const reset = number(row?.ResetTimestamp);
+    return { pct: Math.min(100, percent), reset: reset && reset > 0 ? reset * 1000 : 0 };
+  };
+  const short = window('session');
+  const weekly = window('weekly');
+  const monthly = window('monthly');
+  if (!short && !weekly) return null;
+  return {
+    percentOnly: true, has5hLimit: !!short, has7dLimit: !!weekly,
+    windowLimit: short ? 100 : 0, windowUsed: short?.pct ?? 0,
+    windowRemaining: short ? 100 - short.pct : 0, windowUsedPct: short?.pct ?? 0,
+    windowResetAt: short?.reset ?? 0, weeklyLimit: weekly ? 100 : 0,
+    weeklyUsed: weekly?.pct ?? 0, weeklyUsedPct: weekly?.pct ?? 0,
+    weeklyResetAt: weekly?.reset ?? 0, parallelLimit: 0,
+    monthlyUsedPct: monthly?.pct, monthlyResetAt: monthly?.reset,
+  };
+}
+
+/** Display only the provider-reported reset; subscription months are not fixed 30-day periods. */
+export function fmtReportedResetTime(resetAt: number | undefined, now = Date.now()): string {
+  if (!resetAt || !Number.isFinite(resetAt) || resetAt <= 0) return '—';
+  return `${fmtDateTime(resetAt)} (${fmtDuration(Math.max(0, Math.round((resetAt - now) / 1000)))})`;
+}
+
+/** Kimi Code's official usages fields: independent rate windows and monthly pools. */
+export function parseKimiQuota(value: unknown): QuotaData | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, any>;
+  const number = (v: unknown): number | null => {
+    if (typeof v !== 'number' && (typeof v !== 'string' || !v.trim())) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const reset = (v: unknown): number => {
+    if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? (v < 1e12 ? v * 1000 : v) : 0;
+    const date = typeof v === 'string' && v.trim() ? Date.parse(v) : NaN;
+    return Number.isFinite(date) && date > 0 ? date : 0;
+  };
+  const ratio = (entry: any) => {
+    const n = number(entry?.used_ratio);
+    if (n === null) return null;
+    const pct = Math.min(100, n * 100);
+    return { limit: 100, used: pct, remaining: 100 - pct, pct, reset: reset(entry.reset_time), normalized: true };
+  };
+  const legacy = (entry: any) => {
+    const limit = number(entry?.limit);
+    if (!limit) return null;
+    const remaining = number(entry?.remaining);
+    const explicit = number(entry?.used_pct);
+    const used = number(entry?.used) ?? (remaining !== null ? Math.max(0, limit - remaining)
+      : explicit !== null ? limit * explicit / 100 : null);
+    if (used === null) return null;
+    return { limit, used, remaining: remaining ?? Math.max(0, limit - used),
+      pct: Math.min(100, explicit ?? used / limit * 100), reset: reset(entry.resetTime), normalized: false };
+  };
+  const windows = Array.isArray(raw.limits) ? raw.limits : [];
+  const shortRow = windows.find((row: any) => {
+    const duration = number(row?.window?.duration);
+    const unit = row?.window?.timeUnit;
+    const factor = unit === 'TIME_UNIT_MINUTE' ? 60 : unit === 'TIME_UNIT_HOUR' ? 3600
+      : unit === 'TIME_UNIT_SECOND' ? 1 : 0;
+    return duration !== null && factor > 0 && duration * factor === 18000;
+  }) ?? (windows.length === 1 && windows[0]?.window == null ? windows[0] : undefined);
+  const usages = raw.usages;
+  const short = legacy(shortRow?.detail) ?? ratio(usages?.limit_5h);
+  // New plans have no weekly cap. Older count fields stay authoritative when both formats coexist.
+  const legacyWeekly = raw.goods_version !== 2 || usages?.limit_7d != null ? legacy(raw.usage) : null;
+  const weekly = legacyWeekly ?? ratio(usages?.limit_7d);
+  const monthly = ratio(usages?.limit_month_total);
+  const codeMonth = ratio(usages?.limit_month_code);
+  if (!short && !weekly && !monthly && !codeMonth) return null;
+  return {
+    percentOnly: !!(short?.normalized || weekly?.normalized || (!short && !weekly)),
+    has5hLimit: !!short, has7dLimit: !!weekly,
+    windowLimit: short?.limit ?? 0, windowUsed: short?.used ?? 0,
+    windowRemaining: short?.remaining ?? 0, windowUsedPct: short?.pct ?? 0,
+    windowResetAt: short?.reset ?? 0, weeklyLimit: weekly?.limit ?? 0,
+    weeklyUsed: weekly?.used ?? 0, weeklyUsedPct: weekly?.pct ?? 0,
+    weeklyResetAt: weekly?.reset ?? 0, parallelLimit: number(raw.parallel?.limit) ?? 0,
+    monthlyUsedPct: monthly?.pct, monthlyResetAt: monthly?.reset,
+    monthlyCodeUsedPct: codeMonth?.pct, monthlyCodeResetAt: codeMonth?.reset,
   };
 }

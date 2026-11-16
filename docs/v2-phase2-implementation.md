@@ -2679,3 +2679,39 @@ stop() 清除加载状态并递增 generation。长短 tick 在异步读取后�
 StatusBarPresenter 使用带显式 id 的 createStatusBarItem 重载，标识固定为 `provider.<providerId>`，优先使用注入 Provider 的 id，缺省时使用 Store.activeProvider；保留已有对齐和优先级 104。重新创建相同 Provider 时 id 不变，VS Code 可独立记忆各模型的可见性。
 
 旧实现未传 id，所有模型归入扩展级 `kayuii.ai-status-hub`。本机排查确认该标识位于 VS Code 的 workbench.statusbar.hidden 隐藏列表，即使扩展成功激活、配额持续刷新，状态栏也不可见；重装不会清除这一偏好。新模型标识独立于旧标识，首次使用新标识时恢复默认可见性，之后尊重用户对每个模型的隐藏选择。无需修改 VS Code 数据库或其他状态栏设置。
+
+## 0.6.23 火山配置与状态栏
+
+- `config.ts` 增加 Claude 日志会话/模型归属配置读取，火山默认模型为 glm-5.3-flash，自动货币为 CNY，定价链接指向方舟官方模型价格；`getPricing` 可由供应商指定私有配置键，用于峰谷价格。
+- 状态栏的可选供应商增加 `volcengine`，保留每供应商独立实例与稳定 ID；tooltip 通过双语文案提示火山费用估算范围、K2.8 单价缺项和同名模型配置限制。
+- `IPricingProvider.getPricing` 接受可选记录时间，不影响原供应商实现。
+
+0.6.23 补充：Scheduler 在重新分流后扫描为空且原 state 仍有 entries 时，长/短 tick 均发布零用量与空 entries，保留官方 quota 和百分比，防止 GLM 与火山界面同时残留旧统计。GLM 图标为 `Ζ`，火山为 `🌋`。
+
+0.6.24 配置补充：`claudeLog.glmVolcengineCutover` 默认 `2026-11-16T13:00:00+08:00`，用于用户确认的 GLM 官方→火山切换；空字符串禁用，读取原始 ISO 8601 字符串，由日志扫描器解析后交给 calc.ts 纯函数决定逐条归属。
+
+## 0.6.26 火山 API Key 登录
+
+extension.ts 的既有 signIn 命令现在通过 VolcengineAuthProvider 直接弹出密钥输入框，成功保存后清除本地解析缓存、标记凭据已配置并触发刷新。signOut 优先调用供应商可选的 signOut，失败不清空 UI；成功才执行原有本地状态重置。base/types.ts 同步可选接口，不影响现有供应商。密钥保存成功不等于服务端验证通过，未接入套餐配额。
+
+## 0.6.27 Coding Plan 查询链路
+
+VolcengineApiProvider 替换 local-only 占位接口。登录成功验证 AK/SK 后由现有扩展命令清理本地缓存、标记认证并强制刷新；Scheduler 调用同一个供应商 API，沿用旧快照及本地统计回退。QuotaData / UnifiedQuota 增加 percentOnly、monthlyUsedPct、monthlyResetAt，CredentialType 增加 access-key；不新增磁盘访问点。状态栏 percentOnly 模式保持百分比，tooltip 显示月额度与查询错误，未返回的重置时间不自行编造。
+
+0.6.27 图标补充：GLM 状态栏图标按最新用户要求改为 ⚡，火山仍为 🌋，自动化图标断言已同步。
+
+## 0.6.30 Kimi 月度显示
+
+types.ts 与 Provider UnifiedQuota 增加可选 monthlyCodeUsedPct / monthlyCodeResetAt，KimiUsageData 增加对应月度显示字段。既有 Store 的 API_SUCCESS 替换 quota，旧月字段不会在后续不含月数据的快照中残留；缓存仍沿用完整 quota 序列化，无新增磁盘访问。状态栏 tooltip 区分会员月共享与 Code 月额度，只有月窗口时主状态显示月百分比。其他供应商既有月度显示不变。
+
+## 0.6.31 仪表盘刷新与版本诊断
+
+extension.ts 在展示已有缓存/已请求过的供应商 Dashboard 时调用其 scheduler.force；新实例沿用 start 的立即 tick，加载中不追加刷新。激活日志包含 context.extension.packageJSON.version，便于识别多个窗口运行不同旧版本。KimiUsageData 新增 monthlyUnavailableText，描述没有获取到月度数据，不断言实时 API 一定未返回。真实月额度仍来自接口。
+
+## 0.6.32：窗口费用展示字段
+
+KimiUsageData 新增必填 cost5hText 与 cost7dText，由 Dashboard 使用共享 fmtCurrency 和 state.activeProvider 对应币种生成。数值 cost5h / cost7d 保留用于统计；零值与正值均明确展示，供应商隔离及窗口锚点逻辑不变。
+
+## 0.6.33：GLM 滚动五小时锚点
+
+Scheduler 的 GLM window5hStartMs 取查询/刷新时刻减五小时，长 tick、短 tick、状态锚点与磁盘回退均保持此规则；window5hResetAtMs 保留官方报告值用于配额恢复提示。周锚点继续取 weeklyResetAt−7d，与套餐下单周期一致。其他供应商的固定窗口不变。

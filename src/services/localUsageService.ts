@@ -191,7 +191,9 @@ export class LocalUsageService {
     const retentionStart = now - retentionDays * 24 * 3600 * 1000;
     const todayStart = new Date().setHours(0, 0, 0, 0);
     const day24hAgo = now - 24 * 3600 * 1000;
-    const window5hStart = opts?.windowResetAtMs ? opts.windowResetAtMs - 5 * 3600 * 1000 : day24hAgo;
+    // GLM credits recover per request after five hours, not as a fixed reset bucket.
+    const window5hStart = this.provider.id === 'glm' ? now - 5 * 3600 * 1000
+      : opts?.windowResetAtMs ? opts.windowResetAtMs - 5 * 3600 * 1000 : day24hAgo;
     const window7dStart = opts?.weeklyResetAtMs ? opts.weeklyResetAtMs - 7 * 24 * 3600 * 1000 : now - 7 * 24 * 3600 * 1000;
     const cycleStart = opts?.cycleStartMs ?? window7dStart;
 
@@ -210,7 +212,7 @@ export class LocalUsageService {
       if (entry.timestamp < retentionStart) continue;
 
       // Calculate cost using provider pricing
-      const pricing = this.provider.pricing.getPricing(entry.model ?? this.provider.pricing.defaultModelName);
+      const pricing = this.provider.pricing.getPricing(entry.model ?? this.provider.pricing.defaultModelName, entry.timestamp);
       const cost = this.provider.pricing.calculateCost({
         inputOther: entry.inputOther,
         output: entry.output,

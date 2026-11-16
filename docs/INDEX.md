@@ -94,3 +94,38 @@ git diff --name-only HEAD~1 | ForEach-Object {
     }
 }
 ```
+
+## 火山模块（0.6.23）
+
+| 代码文件 | 设计文档 | 说明 |
+|---|---|---|
+| `src/providers/volcengine/index.ts` | `v2-provider-abstraction.md#volcengine-provider` | 火山本地统计供应商 |
+| `src/providers/volcengine/pricing.ts` | `v2-provider-abstraction.md#volcengine-pricing` | 人民币单价、峰谷及未定价模型 |
+| `src/providers/registry.ts` | `v2-provider-abstraction.md#provider-registry` | 火山注册入口 |
+
+其余变更沿用上方映射：calc.ts / ClaudeLocalParser / LocalUsageService 同步本地估算设计；config.ts / statusBar.ts 同步 Phase 2；base/types.ts 同步 Provider 协议；dashboard.ts 同步 Dashboard；i18n.ts 同步编码规范。
+
+## 火山认证（0.6.26）
+
+| 代码文件 | 设计文档 | 说明 |
+|---|---|---|
+| src/providers/volcengine/auth.ts | v2-provider-abstraction.md#volcengine-auth | API Key 输入、SecretStorage 与私有退出 |
+
+extension.ts / base/types.ts 对应 Phase 2 和 Provider 协议；i18n.ts 对应编码规范，均同步登录与退出行为。
+
+## 火山 Coding Plan 查询（0.6.27）
+
+| 代码文件 | 设计文档 | 说明 |
+|---|---|---|
+| src/providers/volcengine/api.ts | v2-provider-abstraction.md#volcengine-api | 个人 Coding Plan 只读额度查询 |
+| src/providers/volcengine/signing.ts | v2-provider-abstraction.md#volcengine-api | 固定 OpenAPI V4 请求签名 |
+
+认证与 index.ts 同步 Provider 设计，calc.ts 同步本地估算，types.ts / base/types.ts / statusBar.ts 同步 Phase 2，dashboard.ts 同步 Dashboard，i18n.ts 同步编码规范。
+
+## Kimi 月度用量（0.6.30）
+
+| 代码文件 | 设计文档 | 说明 |
+|---|---|---|
+| src/providers/kimi/api.ts | v2-provider-abstraction.md#kimi-api | 官方新版月度/旧版限额查询 |
+
+calc.ts 同步本地估算设计，types.ts / base/types.ts 同步 Phase 2 和 Provider 协议，Dashboard / 状态栏 / i18n 分别同步各自设计文档。

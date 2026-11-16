@@ -6,7 +6,7 @@ import { ConfigService } from '../config';
 import { makeT } from '../i18n';
 import {
   computeUtilization, formatPercent, formatPercentPadded, formatProviderStatus, remainingQuotaColor,
-  fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime,
+  fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime, fmtReportedResetTime,
   buildMiniBar, drawBorderTable,
   resolveWeeklyPct, resolveWindowPct,
   resolveAuthDisplayMode, hasQuotaData,
@@ -145,7 +145,7 @@ export class StatusBarPresenter {
     md.supportHtml = true;
     md.isTrusted = true;
     const commandArgs = encodeURIComponent(JSON.stringify([this.provider?.id ?? state.activeProvider]));
-    const glmError = state.activeProvider === 'glm' ? state.error : undefined;
+    const glmError = ['glm', 'volcengine', 'kimi'].includes(state.activeProvider) ? state.error : undefined;
 
     if (state.authStatus === 'missing' && !state.localEstimate && !state.quota) {
       md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.notLoggedIn')}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
@@ -173,8 +173,8 @@ export class StatusBarPresenter {
     const weeklyUtil = weeklyPct / 100;
     const windowUtil = windowPct / 100;
 
-    const weeklyResetText = fmtResetTime(q?.weeklyResetAt, 7 * 24 * 3600 * 1000);
-    const windowResetText = fmtResetTime(q?.windowResetAt, 5 * 3600 * 1000);
+    const weeklyResetText = q?.percentOnly ? fmtReportedResetTime(q.weeklyResetAt) : fmtResetTime(q?.weeklyResetAt, 7 * 24 * 3600 * 1000);
+    const windowResetText = q?.percentOnly ? fmtReportedResetTime(q.windowResetAt) : fmtResetTime(q?.windowResetAt, 5 * 3600 * 1000);
 
     let sourceLabel = '';
     if (state.dataSource === 'stale') { sourceLabel = '&nbsp;*' + t('tooltip.stale') + '*'; }
@@ -185,7 +185,7 @@ export class StatusBarPresenter {
     if (!hasQuotaData(state) || state.authStatus === 'missing') {
       parts.push(`<span style="color:var(--vscode-errorForeground);">⚠ ${t('usage.quotaUnavailable')}</span> [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`, '');
     }
-    if (state.localEstimate) parts.push(t(state.activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated'), '');
+    if (state.localEstimate) parts.push(t(state.activeProvider === 'volcengine' ? 'volcengine.costExplanation' : state.activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated'), '');
     if (authMode === 'degraded') {
       parts.push(`> \uD83D\uDD10 ${t('tooltip.authDegraded')} [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
       parts.push('');
@@ -204,12 +204,20 @@ export class StatusBarPresenter {
         parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('tooltip.window7d')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(weeklyUtil)}</td><td style="padding:2px 6px;text-align:right;white-space:nowrap;"><strong>${formatPercent(weeklyPct, 2)}</strong></td></tr>`);
         parts.push(`<tr><td style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${t('tooltip.nextReset')}</td><td colspan="2" style="padding:2px 6px;color:var(--vscode-descriptionForeground);">${weeklyResetText}</td></tr>`);
       }
+      if (q?.monthlyUsedPct != null) {
+        parts.push(`<tr><td style="padding:2px 6px;"><strong>${t(state.activeProvider === 'kimi' ? 'dashboard.kimiMonthTotal' : 'dashboard.planMonth')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(q.monthlyUsedPct / 100)}</td><td style="padding:2px 6px;text-align:right;"><strong>${formatPercent(q.monthlyUsedPct, 2)}</strong></td></tr>`);
+        parts.push(`<tr><td style="padding:2px 6px;">${t('tooltip.nextReset')}</td><td colspan="2">${fmtReportedResetTime(q.monthlyResetAt)}</td></tr>`);
+      }
+      if (q?.monthlyCodeUsedPct != null) {
+        parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('dashboard.kimiMonthCode')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(q.monthlyCodeUsedPct / 100)}</td><td style="padding:2px 6px;text-align:right;"><strong>${formatPercent(q.monthlyCodeUsedPct, 2)}</strong></td></tr>`);
+        parts.push(`<tr><td style="padding:2px 6px;">${t('tooltip.nextReset')}</td><td colspan="2">${fmtReportedResetTime(q.monthlyCodeResetAt)}</td></tr>`);
+      }
       parts.push(`</table>`);
     }
     parts.push('');
 
     // Quota Summary — Markdown table
-    if (q) {
+    if (q && !q.percentOnly) {
       parts.push(`**${t('tooltip.table.quotaSummary')}**`);
       parts.push('');
       parts.push(this.preTable(

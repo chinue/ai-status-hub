@@ -104,7 +104,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (id !== undefined && (typeof id !== 'string' || !getProviderInfo(id))) return;
     if (typeof id === 'string') activeId = id;
     await reconcile();
-    if (!disposed) DashboardPanel.createOrShow(runtimes.get(activeId)!.store);
+    if (!disposed) {
+      const runtime = runtimes.get(activeId)!;
+      DashboardPanel.createOrShow(runtime.store);
+      // A new runtime already has an immediate initial tick scheduled.
+      const state = runtime.store.getState();
+      if (state.lastFetchAt !== null && !state.isLoading) runtime.scheduler.force();
+    }
   });
   const withRuntime = (id: unknown, work: (runtime: ProviderRuntime) => Promise<void> | void): Promise<void> => enqueue(async () => {
     const target = typeof id === 'string' ? id : activeId;
@@ -142,7 +148,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand('aiStatusHub.signOut', (id?: unknown) => withRuntime(id, async runtime => {
-      if (runtime.provider.id === 'kimi') {
+      if (runtime.provider.auth.signOut) {
+        if (!await runtime.provider.auth.signOut()) return;
+      } else if (runtime.provider.id === 'kimi') {
         await context.secrets.delete('aiStatusHub.apiKey');
         await context.secrets.delete('aiStatusHub.oauthCredentials');
       } else {
@@ -183,7 +191,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } },
   );
   await enqueue(reconcile);
-  log('AI Status Hub activated');
+  log(`AI Status Hub ${context.extension?.packageJSON?.version ?? 'unknown'} activated`);
 }
 
 export async function deactivate(): Promise<void> {

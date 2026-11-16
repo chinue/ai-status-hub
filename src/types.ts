@@ -5,6 +5,12 @@ export interface QuotaData {
   weeklyUsed: number;
   weeklyUsedPct: number;
   weeklyResetAt: number;
+  /** Coding Plan reports normalized percentages, not absolute request counts. */
+  percentOnly?: boolean;
+  monthlyUsedPct?: number;
+  monthlyResetAt?: number;
+  monthlyCodeUsedPct?: number;
+  monthlyCodeResetAt?: number;
   /** Claude's optional, model-scoped Fable weekly quota. */
   fableWeeklyUsedPct?: number;
   fableWeeklyResetAt?: number;
@@ -203,6 +209,14 @@ export interface DashboardMessage {
 }
 
 export interface KimiUsageData {
+  monthlyUnavailableText?: string;
+  hasMonthlyCodeLimit?: boolean;
+  utilizationCodeMonth?: number;
+  resetInCodeMonthText?: string;
+  percentOnly?: boolean;
+  utilizationMonth?: number;
+  hasMonthlyLimit?: boolean;
+  resetInMonthText?: string;
   quotaAvailable: boolean;
   weeklyQuotaAvailable?: boolean;
   quotaError?: string;
@@ -223,8 +237,10 @@ export interface KimiUsageData {
 
   // Local JSONL aggregate
   cost5h: number;
+  cost5hText: string;
   costDay: number;
   cost7d: number;
+  cost7dText: string;
   tokensIn5h: number;
   tokensOut5h: number;
   tokensCacheRead5h: number;

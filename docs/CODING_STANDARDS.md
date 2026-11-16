@@ -1,5 +1,7 @@
 # AI Status Hub 编码强制规范
 
+0.6.29 火山费用说明精简为“API estimate; excludes unpriced models.”（5 个英文单词，不超过 8 个），中文同步为“API 估算，不含未定价模型。”。Dashboard 和状态栏共用此提示，详细计费及分流规则保留在使用文档。
+
 0.6.21 GLM 费用说明精简为“API estimate only; Coding Plan uses weighted credits.”（8 个英文单词），中文为“仅 API 估算；套餐按加权积分计量。”，保持双语同步。
 
 0.6.20 GLM 费用标签使用简短的 Cost / 费用，中英文同时更新；API 等价费用的含义由独立说明文本表达，避免表头和金额前缀过长。
@@ -283,3 +285,25 @@ Dashboard 的 WebView 无法直接导入后端模块。当前方案：
 ### 0.6.6 Codex 用量错误提示
 
 新增 codex.usageHttpError、codex.usageMissing、codex.usageFailed，英文与简体中文同时维护；Codex API 通过 makeT 生成错误提示，不输出服务器正文或认证 token。
+
+### 0.6.23 火山 i18n
+
+新增 `provider.volcengine`、`volcengine.localOnly`、`volcengine.costExplanation`，中英文同时维护；“火山”为用户指定名称。状态栏及 Dashboard 共用费用限制说明，避免将未配置 K2.8 费率时的部分估算误解为完整账单。
+
+0.6.24 火山双语费用说明同步调整：裸名 GLM 5.3 按配置的渠道切换时间分流，Kimi 仍需指定模型或会话归属。
+
+0.6.25 同步火山双语说明：Kimi 按已核实的渠道名称自动分流，手动归属配置仅作覆盖，不再要求用户必须配置两个火山 Kimi 型号。
+
+0.6.26 火山登录新增双语键：volcengine.enterKey、keyPrompt、keySaved、keySaveFailed、signOutFailed。输入框使用密码模式，取消不修改凭据；成功文案只声明安全保存与本地刷新，明确未验证密钥或查询配额。失败文案不包含第三方异常或密钥。
+
+0.6.27 火山双语文案新增 Coding Plan 连接指引、AK/SK 输入提示、验证成功、无查询凭据、鉴权拒绝、HTTP/网络及缺少套餐提示、订阅月标签。模型 API Key 与账户 AK/SK 明确区分；失败不显示底层错误/响应原文。SecretStorage 仅在认证模块访问，签名固定发送到官方域名，任何密钥不写日志或 WebView。
+
+0.6.28 新增 volcengine.quotaTlsError 中英双语提示：排查证书链、域名和时间；组织代理仅通过核实来源的 CA 与 NODE_EXTRA_CA_CERTS 配置信任，不引导用户关闭证书校验。火山请求显式 rejectUnauthorized=true，避免进程环境关闭 TLS 验证。
+
+0.6.30 Kimi 新增双语标签 dashboard.kimiMonthTotal / kimiMonthCode 与用量查询认证、HTTP、无有效窗口和网络错误提示。共享月度额度与 Code 月度额度不能混称，也不能将加油包月预算标作套餐额度；保留火山费用说明的 5 词短文案。
+
+0.6.31 新增 kimi.monthlyUnavailable / viewMonthlyQuota 中英文文案：缺失月度数据时明确显示未获取与官方查看入口，不再完全隐藏共享月池。日志只记录标准字段可用性布尔值和扩展版本，不记录密钥、用户用量值或响应正文。
+
+## 0.6.34：退出错误文案
+
+新增 glm.signOutFailed 中英双语文案，由 makeT() 显示；不将 SecretStorage 底层错误或凭据写入界面。

@@ -9,6 +9,18 @@ import * as vscode from 'vscode';
 import { Script } from 'vm';
 
 describe('Dashboard Current Usage', () => {
+  it('uses rolling GLM local history without shifting official quota reset times', () => {
+    const now = Date.now();
+    const hour = 3600000;
+    const state = { ...defaultState(), activeProvider: 'glm', windowAnchors: {
+      providerId: 'glm', window5hStartMs: now - hour, window5hResetAtMs: now + 4 * hour,
+      window7dStartMs: now - 6 * 24 * hour, window7dResetAtMs: now + 24 * hour,
+      updatedAt: now, source: 'api' as const,
+    } };
+    const starts = (DashboardPanel.prototype as any).resolveDashboardWindowStarts.call({}, state, now);
+    expect(starts.window5hStart).to.equal(now - 5 * hour);
+    expect(starts.window7dStart).to.equal(state.windowAnchors.window7dStartMs);
+  });
   const quota: QuotaData = {
     weeklyLimit: 100,
     weeklyUsed: 34,
@@ -87,7 +99,7 @@ describe('Dashboard Current Usage', () => {
       );
       expect(html).not.to.include('id="provider-select"');
       expect(html).to.include('id="btn-signin"');
-      for (const id of ['codex', 'kimi', 'claude', 'glm', 'cursor']) {
+      for (const id of ['codex', 'kimi', 'claude', 'glm', 'volcengine', 'cursor']) {
         expect(html).to.include(`data-provider-check="${id}"`);
         expect(html).to.include(`data-provider-open="${id}"`);
       }

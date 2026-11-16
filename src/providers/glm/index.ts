@@ -11,7 +11,7 @@ import { GlmPricingProvider } from './pricing';
 const CNY: Currency = { code: 'CNY', symbol: '¥' };
 
 const glmUIProvider: IUIProvider = {
-  mainIcon: '🧠',
+  mainIcon: '⚡',
   statusBarName: 'GLM Code Usage',
   dashboardTitle: 'GLM Dashboard',
   displayName: 'GLM',
