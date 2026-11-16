@@ -15,6 +15,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { ClaudeLocalParser } from '../src/providers/claude/localParser';
 import { LocalUsageService } from '../src/services/localUsageService';
+import { Scheduler } from '../src/services/scheduler';
+import { CacheService } from '../src/services/cacheService';
 
 const balance = () => ({ is_available: true, balance_infos: [
   { currency: 'CNY', total_balance: '110.00', granted_balance: '10.00', topped_up_balance: '100.00' },
@@ -23,6 +25,47 @@ const balance = () => ({ is_available: true, balance_infos: [
 const parse = (raw: unknown, currency = 'CNY') => (calc as any).parseDeepseekBalance(raw, currency);
 describe('DeepSeek official', () => {
   afterEach(() => sinon.restore());
+  it('keeps local seven-day history when the account API returns balance without a weekly quota', async () => {
+    const now = Date.now(), day = 86400000;
+    const store = new Store();
+    store.dispatch({ type: 'SET_PROVIDER', payload: 'deepseek' });
+    const provider = getProvider('deepseek')!;
+    provider.localUsage = { scanSessions: async () => [1, 6, 8].map((age, index) => ({
+      timestamp: now - age * day, inputOther: 100, output: 20, inputCacheRead: 0,
+      inputCacheCreation: 0, cost: 0, model: 'deepseek-flash', messageId: String(index),
+    })), getRateLimits: async () => null, invalidate() {} };
+    const local = new LocalUsageService([]);
+    local.setProvider(provider);
+    const scheduler = new Scheduler(store, provider.auth, provider.api, new CacheService(), local);
+    await (scheduler as any).processQuotaData(parse(balance()), now, 'api', false);
+    expect(store.getState().localEstimate?.requests7d).to.equal(2);
+    expect(store.getState().localEstimate?.cost7d).to.be.greaterThan(0);
+    expect(store.getState().windowAnchors?.window7dStartMs).to.equal(now - 7 * day);
+    const later = (scheduler as any).stateWindowAnchors(now + day);
+    expect(later.window7dStartMs).to.equal(now - 6 * day);
+    expect(later.window7dResetAtMs).to.equal(now + day);
+    // Old state/cache anchors used refresh time as the start; the dashboard must repair that too.
+    for (const windowAnchors of [null, { providerId: 'deepseek', window5hStartMs: now,
+      window5hResetAtMs: now + 18000000, window7dStartMs: now, window7dResetAtMs: now + 7 * day,
+      updatedAt: now, source: 'disk' }]) {
+      const state = { ...store.getState(), windowAnchors };
+      const starts = (DashboardPanel.prototype as any).resolveDashboardWindowStarts.call({}, state, now);
+      expect(starts.window7dStart).to.equal(now - 7 * day);
+      const offline = (DashboardPanel.prototype as any).resolveDashboardWindowStarts.call({}, { ...state, quota: null }, now);
+      expect(offline.window7dStart).to.equal(now - 7 * day);
+    }
+    const old = { providerId: 'deepseek', window5hStartMs: now, window5hResetAtMs: now + 18000000,
+      window7dStartMs: now, window7dResetAtMs: now + 7 * day, updatedAt: now, source: 'disk' as const };
+    const restoredStore = new Store();
+    restoredStore.dispatch({ type: 'SET_PROVIDER', payload: 'deepseek' });
+    restoredStore.dispatch({ type: 'API_SUCCESS', payload: parse(balance()) });
+    const cache = new CacheService();
+    sinon.stub(cache, 'readWindowAnchors').resolves(old);
+    const restored = await (new Scheduler(restoredStore, provider.auth, provider.api, cache, local) as any)
+      .resolveWindowAnchorsFromFallbackChain(now);
+    expect(restored.window7dStartMs).to.equal(now - 7 * day);
+    expect(restored.window7dResetAtMs).to.equal(now);
+  });
   it('registers an independent provider, currency and status bar option', () => {
     expect(getProvider('deepseek')?.displayName).to.equal('DeepSeek');
     expect(calc.normalizeStatusBarProviders(['deepseek', 'volcengine'])).to.deep.equal(['deepseek', 'volcengine']);

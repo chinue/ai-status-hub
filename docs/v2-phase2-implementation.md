@@ -2719,3 +2719,9 @@ Scheduler 的 GLM window5hStartMs 取查询/刷新时刻减五小时，长 tick�
 ## 0.6.35：DeepSeek 余额状态
 
 ConfigService 增加官方 DeepSeek 默认模型、人民币默认币种、官方价格链接和额外空闲日期配置；Provider 列表与状态栏选项增加 deepseek。QuotaData / UnifiedQuota 通过 balance 保存官方账户余额，供应商缓存仍分开。formatProviderStatus 余额分支显示真实货币金额及刷新来源，余额不可用显示警告；Tooltip 展示余额、赠送、充值组成，不生成配额图表。首次查询失败时显示余额不可用而不是永久加载。DeepSeek 的私有 signOut 通过已有通用命令协议调用。
+
+## 0.6.36：无周配额时保留本地最近七天
+
+Scheduler 处理 has7dLimit=false 的 API 快照时，以当前时刻作为本地七天范围终点，起点为 now−7d；不再将缺失 weeklyResetAt 传给固定周期推算器后得到 now 起点。短 tick 和磁盘锚点回退都重建这个滚动边界，修复已持久化的错误锚点。官方有周限额的订阅仍按官方 resetAt−7d 统计。
+
+DeepSeek 仅提供余额，无论是否登录/取得余额，都保持本地五小时与七天的滚动范围，不依赖不存在的官方重置时间。此改动不制造套餐周配额，官方余额及其真实币种、赠送/充值组成保持独立。

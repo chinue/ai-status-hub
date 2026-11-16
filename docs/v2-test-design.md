@@ -868,3 +868,7 @@ localOnly.test.ts 使用真实 Store → Dashboard 数据 → WebView renderCurr
 ## DeepSeek official
 
 0.6.35 的 test/deepseek.test.ts 覆盖供应商/状态栏注册、官方与 Ark 命名空间及 Economy 分流、同一日志文件去重及互斥汇总、CNY/USD/零余额/非法响应、只读认证与 TLS/重定向选项、HTTP/网络错误脱敏、超时中止与计时器清理、密钥验证后存储、取消/失败保留旧密钥、退出隔离和存储异常、Flash/Pro 缓存峰谷单价、节假日/周末/精确边界、未知模型零估算、配置覆盖，以及真实 WebView 更新时余额显示/清除和隐藏虚构窗口。基础 10 项先失败再实现；首次网络错误永久加载另有先失败后通过回归。使用合成 fixture，不调用真实模型或账户。
+
+## 0.6.36：余额账户七天窗口回归
+
+DeepSeek 集成回归构造 1 天、6 天、8 天前的本地请求，通过 Scheduler.processQuotaData 处理实际余额结构，验证七天只包含前两条且费用非零；验证短 tick 随时间滚动、有/无旧锚点与无余额的 Dashboard 边界、磁盘旧锚点修复。原实现先失败（0 次而非 2 次），离线旧锚点也先失败，再修复通过。

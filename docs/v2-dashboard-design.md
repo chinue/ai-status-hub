@@ -941,3 +941,9 @@ GLM 的 Dashboard 本地五小时统计、热力图与成本曲线当前范围�
 DeepSeek Dashboard 的 Current Usage 增加账户余额行，显示官方返回币种的总余额、赠送余额、充值余额，查询缺失时显示双语缺失提示；隐藏不存在的五小时/周配额进度条。切换供应商/刷新缺失数据会清理旧余额文本。本地 Token、请求、费用和历史图表仍可查看，余额不是本地费用的倒推结果。余额查询错误沿用安全的供应商错误提示。
 
 Dashboard 价格展示从当前供应商 PricingProvider 读取默认模型价格，复用其峰谷/币种逻辑，避免绕过 DeepSeek 的定价规则。KimiUsageData 增加 isBalanceProvider / balanceText；显示格式统一由 calc.ts 处理。
+
+## 0.6.36：修复 DeepSeek 7d windows 全零
+
+Dashboard 在 DeepSeek 或明确无周配额的响应下，对本地七天汇总、热力图与成本曲线统一使用 now−7d。有旧状态/磁盘锚点、缺少锚点以及 DeepSeek 离线无余额时均执行该规则，避免当前刷新时刻被错误当作起点、排除所有历史请求。本地五小时及七天是查看范围，不是 DeepSeek 官方提供的限额窗口。
+
+Current Usage 中 Balance 是 API 返回的可用账户余额；Granted 为赠送余额，Top-up 为充值余额部分，均不是本地累计费用。模型请求 Token 保持日志实际报告值，不按用户问题文字长度缩减。

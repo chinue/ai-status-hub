@@ -71,16 +71,20 @@ export class Scheduler {
     const state = this.store.getState();
     const providerId = this.currentProviderId();
     if (state.windowAnchors?.providerId === providerId) {
-      if (providerId === 'glm') return { ...state.windowAnchors, window5hStartMs: now - WINDOW_5H_MS };
-      return state.quota?.has5hLimit === false
-        ? { ...state.windowAnchors, window5hStartMs: now - WINDOW_5H_MS, window5hResetAtMs: now }
-        : state.windowAnchors;
+      return {
+        ...state.windowAnchors,
+        ...(providerId === 'glm' ? { window5hStartMs: now - WINDOW_5H_MS } : {}),
+        ...(state.quota?.has5hLimit === false || providerId === 'deepseek'
+          ? { window5hStartMs: now - WINDOW_5H_MS, window5hResetAtMs: now } : {}),
+        ...(state.quota?.has7dLimit === false || providerId === 'deepseek'
+          ? { window7dStartMs: now - WINDOW_7D_MS, window7dResetAtMs: now } : {}),
+      };
     }
     if (state.quota) {
       return this.anchorsFromResets(
         providerId,
         state.quota.has5hLimit === false ? now : resolveResetTime(state.quota.windowResetAt, WINDOW_5H_MS, now).resetAt,
-        resolveResetTime(state.quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt,
+        state.quota.has7dLimit === false ? now : resolveResetTime(state.quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt,
         now,
         'fallback',
       );
@@ -96,9 +100,15 @@ export class Scheduler {
     }
 
     const diskAnchors = await this.cacheService.readWindowAnchors(providerId);
-    const anchors = diskAnchors && providerId === 'glm'
-      ? { ...diskAnchors, window5hStartMs: now - WINDOW_5H_MS }
-      : diskAnchors ?? this.fallbackWindowAnchors(providerId, now);
+    const quota = this.store.getState().quota;
+    const anchors = {
+      ...(diskAnchors ?? this.fallbackWindowAnchors(providerId, now)),
+      ...(providerId === 'glm' ? { window5hStartMs: now - WINDOW_5H_MS } : {}),
+      ...(quota?.has5hLimit === false || providerId === 'deepseek'
+        ? { window5hStartMs: now - WINDOW_5H_MS, window5hResetAtMs: now } : {}),
+      ...(quota?.has7dLimit === false || providerId === 'deepseek'
+        ? { window7dStartMs: now - WINDOW_7D_MS, window7dResetAtMs: now } : {}),
+    };
     if (generation === this.generation) this.store.dispatch({ type: 'WINDOW_ANCHORS_SET', payload: anchors });
     return anchors;
   }
@@ -560,7 +570,7 @@ export class Scheduler {
     const windowResetAt = quotaData.has5hLimit === false ? now : quotaData.windowResetAt > 0
       ? quotaData.windowResetAt
       : resolveResetTime(quotaData.windowResetAt, WINDOW_5H_MS, now).resetAt;
-    const weeklyResetAt = quotaData.weeklyResetAt > 0
+    const weeklyResetAt = quotaData.has7dLimit === false ? now : quotaData.weeklyResetAt > 0
       ? quotaData.weeklyResetAt
       : resolveResetTime(quotaData.weeklyResetAt, WINDOW_7D_MS, now).resetAt;
     const anchors = anchorOverride ?? this.anchorsFromResets(

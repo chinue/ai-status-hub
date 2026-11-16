@@ -262,9 +262,10 @@ export class DashboardPanel {
     const anchors = state.windowAnchors;
     if (anchors?.providerId === state.activeProvider) {
       return {
-        window5hStart: state.activeProvider === 'glm' || state.quota?.has5hLimit === false
+        window5hStart: ['glm', 'deepseek'].includes(state.activeProvider) || state.quota?.has5hLimit === false
           ? now - WINDOW_5H_MS : anchors.window5hStartMs,
-        window7dStart: anchors.window7dStartMs,
+        window7dStart: state.activeProvider === 'deepseek' || state.quota?.has7dLimit === false
+          ? now - WINDOW_7D_MS : anchors.window7dStartMs,
       };
     }
     const quota = state.quota;
@@ -272,9 +273,10 @@ export class DashboardPanel {
       const effectiveWindowReset = resolveResetTime(quota.windowResetAt, WINDOW_5H_MS, now).resetAt;
       const effectiveWeeklyReset = resolveResetTime(quota.weeklyResetAt, WINDOW_7D_MS, now).resetAt;
       return {
-        window5hStart: state.activeProvider === 'glm' || quota.has5hLimit === false
+        window5hStart: ['glm', 'deepseek'].includes(state.activeProvider) || quota.has5hLimit === false
           ? now - WINDOW_5H_MS : effectiveWindowReset - WINDOW_5H_MS,
-        window7dStart: effectiveWeeklyReset - WINDOW_7D_MS,
+        window7dStart: state.activeProvider === 'deepseek' || quota.has7dLimit === false
+          ? now - WINDOW_7D_MS : effectiveWeeklyReset - WINDOW_7D_MS,
       };
     }
     return {
