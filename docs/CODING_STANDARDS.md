@@ -307,3 +307,7 @@ Dashboard 的 WebView 无法直接导入后端模块。当前方案：
 ## 0.6.34：退出错误文案
 
 新增 glm.signOutFailed 中英双语文案，由 makeT() 显示；不将 SecretStorage 底层错误或凭据写入界面。
+
+## 0.6.35：DeepSeek 双语显示
+
+provider.deepseek 与 deepseek.* 提供中英双语登录、余额、错误和成功文案，通过 makeT 显示。余额文本在 calc.ts 的 formatAccountBalance 格式化，Dashboard 和状态栏共享；服务不直接拼接显示金额或记录凭据。

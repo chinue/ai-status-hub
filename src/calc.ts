@@ -4,7 +4,7 @@ import { QuotaData, TokenPricing, AppState, UsageEntry } from './types';
 
 /** Keep at least one supported provider visible as an entry to the dashboard. */
 export function normalizeStatusBarProviders(value: unknown): string[] {
-  const supported = ['codex', 'kimi', 'claude', 'glm', 'volcengine', 'cursor'];
+  const supported = ['codex', 'kimi', 'claude', 'glm', 'volcengine', 'deepseek', 'cursor'];
   const selected = Array.isArray(value)
     ? [...new Set(value.filter((id): id is string => typeof id === 'string' && supported.includes(id)))]
     : [];
@@ -164,6 +164,12 @@ export function parseCustomPricing(value: string): TokenPricing | null {
  */
 export function pricingModelKey(modelName: string, providerId?: string): string {
   const m = modelName.trim().toLowerCase().replace(/\[1m\]$/, '');
+  if (providerId === 'deepseek') {
+    const name = m.split('/').pop()!;
+    if (/^deepseek-(?:flash|v4-flash(?:-vision-exp)?|v4[._-]1[._-]flash)(?:-\d{4,8})?$/.test(name)) return 'deepseekFlash';
+    if (/^deepseek-v4-pro(?:-\d{4,8})?$/.test(name)) return 'deepseekPro';
+    return 'deepseekUnknown';
+  }
   // GLM namespace/display-name aliases; version boundaries keep 5.30 distinct from 5.3.
   if (providerId === 'volcengine' && /deepseek[._-]v4[._-]1[._-]flash[._-]economy(?:$|[-_])/.test(m)) return 'deepseekV4_1FlashEconomy';
   if (providerId === 'volcengine' && /kimi[._-]k2[._-]8[._-]preview(?:$|[-_])/.test(m)) return 'k2_8Preview';
@@ -738,7 +744,7 @@ export function formatMemorySize(bytes: number): string {
 export function formatProviderStatus(state: AppState, icon: string, name: string, mode: 'percent' | 'absolute', now = Date.now(), refreshIntervalSeconds = 300, locale?: Locale, currencySymbol?: string): string {
   if (!hasQuotaData(state)) {
     const t = makeT(locale ?? (state.ui.language === 'zh-CN' ? 'zh-CN' : 'en'));
-    const currency = currencySymbol ?? (state.activeProvider === 'kimi' || ['glm', 'volcengine'].includes(state.activeProvider) ? '¥' : '$');
+    const currency = currencySymbol ?? (['kimi', 'glm', 'volcengine', 'deepseek'].includes(state.activeProvider) ? '¥' : '$');
     return `${icon} ${name}: ${t('usage.localSummary')} ${fmtTokens(state.localEstimate?.tokensToday ?? 0)} / ${fmtCost(state.localEstimate?.costToday ?? 0, currency)} $(warning)`;
   }
   const weekly = resolveWeeklyPct(state);
@@ -749,6 +755,10 @@ export function formatProviderStatus(state: AppState, icon: string, name: string
   // A healthy scheduled poll must not become stale before the next poll is due.
   const staleThresholdMs = refreshIntervalSeconds * 1000 + 120_000;
   const indicators = buildIndicatorSuffix(state, now, staleThresholdMs, ['stale', 'source', 'auth']);
+  if (quota?.balance) {
+    const t = makeT(locale ?? (state.ui.language === 'zh-CN' ? 'zh-CN' : 'en'));
+    return `${icon} ${name}: ${t('deepseek.balance')} ${fmtCurrency(quota.balance.total, quota.balance.currency === 'USD' ? '$' : '¥')}${quota.balance.isAvailable ? '' : ' $(warning)'}${indicators}`;
+  }
   if (quota?.has5hLimit === false && quota.has7dLimit === false) {
     return `${icon} ${name}: ${formatPercent(quota.monthlyUsedPct ?? quota.monthlyCodeUsedPct ?? 0, 2)}${indicators}`;
   }
@@ -818,13 +828,14 @@ export function parseCodexUsage(value: unknown, now: number): QuotaData | null {
 }
 
 /** Route explicit model names in Claude logs; opaque aliases retain legacy ownership. */
-export type ClaudeLogProviderId = 'claude' | 'kimi' | 'glm' | 'volcengine';
+export type ClaudeLogProviderId = 'claude' | 'kimi' | 'glm' | 'volcengine' | 'deepseek';
 
 export function claudeLogProvider(model: unknown): ClaudeLogProviderId {
   if (typeof model !== 'string') return 'claude';
   const parts = model.trim().toLowerCase().split('/');
   if (parts.some(part => /^(volcengine|ark|volcengine-coding-plan|volcengine-agent-plan)$/.test(part))) return 'volcengine';
   if (/^deepseek[._-]v4[._-]1[._-]flash[._-]economy(?:$|[-_])/.test(parts[parts.length - 1])) return 'volcengine';
+  if (parts.includes('deepseek') || /^deepseek(?:[-_.]|$)/.test(parts[parts.length - 1])) return 'deepseek';
   if (parts.some(part => /^(kimi|moonshot)(?:[-_.]|$)/.test(part) || part === 'moonshotai')) return 'kimi';
   if (/^k3[._-]1[._-]pro(?:$|[-_.\[])/.test(parts[parts.length - 1])) return 'kimi';
   if (/^glm(?:[-_.]|$)/.test(parts[parts.length - 1])) return 'glm';
@@ -836,7 +847,7 @@ export function resolveClaudeLogProvider(model: unknown, sessionId: unknown,
   sessionProviders: Record<string, unknown>, modelProviders: Record<string, unknown>,
   context?: { timestamp: number; glmVolcengineCutover: number }): ClaudeLogProviderId {
   const valid = (id: unknown): id is ClaudeLogProviderId => typeof id === 'string'
-    && ['claude', 'kimi', 'glm', 'volcengine'].includes(id);
+    && ['claude', 'kimi', 'glm', 'volcengine', 'deepseek'].includes(id);
   const session = typeof sessionId === 'string' ? sessionProviders[sessionId] : undefined;
   if (valid(session)) return session;
   const name = typeof model === 'string' ? model.trim().toLowerCase() : '';
@@ -864,6 +875,45 @@ export function isVolcenginePeak(timestamp: number): boolean {
   const day = date.getUTCDay();
   const hour = date.getUTCHours();
   return day >= 1 && day <= 5 && ((hour >= 9 && hour < 12) || (hour >= 14 && hour < 18));
+}
+
+/** DeepSeek excludes Chinese holidays. Built-in 2026 calendar; extra dates support future years. */
+export function isDeepseekPeak(timestamp: number, offPeakDates: readonly string[] = []): boolean {
+  if (!isVolcenginePeak(timestamp)) return false;
+  const date = new Date(timestamp + 8 * 3600_000).toISOString().slice(0, 10);
+  const holidays = [['2026-01-01', '2026-01-03'], ['2026-02-15', '2026-02-23'],
+    ['2026-04-04', '2026-04-06'], ['2026-05-01', '2026-05-05'], ['2026-06-19', '2026-06-21'],
+    ['2026-09-25', '2026-09-27'], ['2026-10-01', '2026-10-07']];
+  return !offPeakDates.includes(date) && !holidays.some(([start, end]) => date >= start && date <= end);
+}
+
+/** Read real account balances; no request allowance or rate window is inferred. */
+export function parseDeepseekBalance(value: unknown, preferredCurrency = 'CNY'): QuotaData | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, any>;
+  if (typeof raw.is_available !== 'boolean' || !Array.isArray(raw.balance_infos)) return null;
+  const number = (v: unknown): number | null => {
+    if (typeof v !== 'number' && (typeof v !== 'string' || !v.trim())) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const rows = raw.balance_infos.flatMap((row: any) => {
+    if (!['CNY', 'USD'].includes(row?.currency)) return [];
+    const total = number(row.total_balance), granted = number(row.granted_balance), toppedUp = number(row.topped_up_balance);
+    return total === null || granted === null || toppedUp === null ? []
+      : [{ currency: row.currency as 'CNY' | 'USD', total, granted, toppedUp, isAvailable: raw.is_available as boolean }];
+  });
+  const balance = rows.find((row: any) => row.currency === preferredCurrency) ?? rows[0];
+  if (!balance) return null;
+  return { balance, percentOnly: true, has5hLimit: false, has7dLimit: false,
+    weeklyLimit: 0, weeklyUsed: 0, weeklyUsedPct: 0, weeklyResetAt: 0,
+    windowLimit: 0, windowUsed: 0, windowRemaining: 0, windowUsedPct: 0, windowResetAt: 0, parallelLimit: 0 };
+}
+
+export function formatAccountBalance(balance: NonNullable<QuotaData['balance']>, locale: Locale): string {
+  const t = makeT(locale);
+  const symbol = balance.currency === 'USD' ? '$' : '¥';
+  return t('deepseek.balanceSummary', fmtCurrency(balance.total, symbol), fmtCurrency(balance.granted, symbol), fmtCurrency(balance.toppedUp, symbol));
 }
 
 /** Total physical tokens from mutually exclusive input, output and cache categories. */

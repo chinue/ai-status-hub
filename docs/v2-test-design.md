@@ -864,3 +864,7 @@ localOnly.test.ts 使用真实 Store → Dashboard 数据 → WebView renderCurr
 ## 0.6.34：提交前回归复核
 
 新增 GLM 私有退出成功与存储缺失/失败回归，验证只删除 GLM 密钥、保留 Kimi 和火山凭据，失败返回 false；新增断言先失败后实现通过。Kimi 月度缺失区域测试校验实际可访问的 settings/subscription?tab=quota 链接。
+
+## DeepSeek official
+
+0.6.35 的 test/deepseek.test.ts 覆盖供应商/状态栏注册、官方与 Ark 命名空间及 Economy 分流、同一日志文件去重及互斥汇总、CNY/USD/零余额/非法响应、只读认证与 TLS/重定向选项、HTTP/网络错误脱敏、超时中止与计时器清理、密钥验证后存储、取消/失败保留旧密钥、退出隔离和存储异常、Flash/Pro 缓存峰谷单价、节假日/周末/精确边界、未知模型零估算、配置覆盖，以及真实 WebView 更新时余额显示/清除和隐藏虚构窗口。基础 10 项先失败再实现；首次网络错误永久加载另有先失败后通过回归。使用合成 fixture，不调用真实模型或账户。

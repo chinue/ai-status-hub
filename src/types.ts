@@ -1,6 +1,7 @@
 // DESIGN: v2-phase2-implementation.md#typests
 // AGENTS: keep-minimal | no-logic
 export interface QuotaData {
+  balance?: { currency: 'CNY' | 'USD'; total: number; granted: number; toppedUp: number; isAvailable: boolean };
   weeklyLimit: number;
   weeklyUsed: number;
   weeklyUsedPct: number;
@@ -209,6 +210,8 @@ export interface DashboardMessage {
 }
 
 export interface KimiUsageData {
+  isBalanceProvider?: boolean;
+  balanceText?: string;
   monthlyUnavailableText?: string;
   hasMonthlyCodeLimit?: boolean;
   utilizationCodeMonth?: number;

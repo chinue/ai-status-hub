@@ -7,13 +7,14 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
+import { formatAccountBalance } from '../calc';
 import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, fmtReportedResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
   AppState, UsageEntry, DashboardMessage, KimiUsageData, DashboardAggregates,
   HeatmapData, CostCurveOptions, TokenPricing,
 } from '../types';
-import { listProviders, getProviderInfo } from '../providers/registry';
+import { listProviders, getProviderInfo, getProvider } from '../providers/registry';
 
 const WINDOW_5H_MS = 5 * 3600 * 1000;
 const WINDOW_7D_MS = 7 * 24 * 3600 * 1000;
@@ -229,13 +230,14 @@ export class DashboardPanel {
     }
 
     const usage = this.buildKimiUsageData(state);
+    const providerPricing = getProvider(state.activeProvider)?.pricing;
 
     return {
       usage,
       dashboard,
       heatmap,
       costCurveOptions,
-      pricing: ConfigService.getInstance().getPricing(config.defaultModelName),
+      pricing: providerPricing?.getPricing(providerPricing.defaultModelName) ?? config.getPricing(config.defaultModelName),
       modelPricing: {},
       settings: {
         provider: usage.providerType,
@@ -332,6 +334,8 @@ export class DashboardPanel {
       : undefined;
 
     return {
+      isBalanceProvider: state.activeProvider === 'deepseek',
+      balanceText: quota?.balance ? formatAccountBalance(quota.balance, locale) : t('deepseek.balanceUnavailable'),
       monthlyUnavailableText: state.activeProvider === 'kimi' && quota?.monthlyUsedPct == null
         ? t('kimi.monthlyUnavailable') : undefined,
       percentOnly: quota?.percentOnly,
@@ -343,8 +347,8 @@ export class DashboardPanel {
       resetInMonthText: t('tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyResetAt, now),
       utilization5h: windowPct / 100,
       quotaAvailable: hasQuotaData(state),
-      weeklyQuotaAvailable: hasQuotaData(state) && quota?.has7dLimit !== false,
-      quotaError: ['glm', 'volcengine', 'kimi'].includes(state.activeProvider) ? state.error ?? undefined : undefined,
+      weeklyQuotaAvailable: state.activeProvider !== 'deepseek' && hasQuotaData(state) && quota?.has7dLimit !== false,
+      quotaError: ['glm', 'volcengine', 'kimi', 'deepseek'].includes(state.activeProvider) ? state.error ?? undefined : undefined,
       utilization7d: weeklyPct / 100,
       utilizationFable7d: isClaude ? (fableWeeklyPct ?? 0) / 100 : undefined,
       resetIn5h: (quota || anchors) ? Math.max(0, Math.floor((effectiveWindowReset - now) / 1000)) : 0,
@@ -355,7 +359,7 @@ export class DashboardPanel {
         ? undefined
         : t('tooltip.nextReset') + ' ' + fmtResetTime(quota.fableWeeklyResetAt, WINDOW_7D_MS, now),
       limitStatus: 'allowed',
-      has5hLimit: quota?.has5hLimit !== false,
+      has5hLimit: state.activeProvider !== 'deepseek' && quota?.has5hLimit !== false,
       has7dLimit: !!quota && quota.weeklyLimit > 0,
       hasFable7dLimit: isClaude && hasQuotaData(state),
       providerType: state.activeProvider,
@@ -813,6 +817,7 @@ export class DashboardPanel {
   <div class="card">
     <div class="card-title">${i18n('dashboard.currentUsage')}</div>
     <div id="quota-warning" style="color:var(--vscode-errorForeground);">⚠ ${i18n('usage.quotaUnavailable')}</div>
+    <div class="progress-row" id="row-balance" style="${activeProvider === 'deepseek' ? '' : 'display:none;'}"><strong id="lbl-balance">${i18n('deepseek.balanceUnavailable')}</strong></div>
     <div style="color:var(--vscode-descriptionForeground);">${i18n(activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}</div>
     <div class="progress-row" id="row-5h" style="${this.store.getState().quota?.has5hLimit === false ? 'display:none' : ''}">
       <div class="progress-labels">
@@ -1349,6 +1354,10 @@ export class DashboardPanel {
     }
 
     function renderCurrentUsage(usage, mode) {
+      const balanceRow = document.getElementById('row-balance');
+      if (balanceRow) balanceRow.style.display = usage.isBalanceProvider ? '' : 'none';
+      const balanceLabel = document.getElementById('lbl-balance');
+      if (balanceLabel) balanceLabel.textContent = usage.balanceText || '';
       document.getElementById('row-5h').style.display = usage.has5hLimit === false ? 'none' : '';
       const w5h = Math.min(100, usage.utilization5h * 100 || 0);
       const w7d = Math.min(100, usage.utilization7d * 100 || 0);
@@ -1382,7 +1391,7 @@ export class DashboardPanel {
 
       const quotaWarning = document.getElementById('quota-warning');
       quotaWarning.style.display = usage.quotaAvailable && !usage.quotaError ? 'none' : '';
-      quotaWarning.textContent = '⚠ ' + (usage.quotaError || labels.quotaUnavailable);
+      quotaWarning.textContent = '⚠ ' + (usage.quotaError || (usage.isBalanceProvider ? usage.balanceText : labels.quotaUnavailable));
       for (const id of ['5h', '7d']) {
         document.getElementById('lbl-' + id).style.color = '';
         if (!usage.quotaAvailable || (id === '7d' && usage.weeklyQuotaAvailable === false)) {

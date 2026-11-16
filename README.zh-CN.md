@@ -205,3 +205,13 @@ Remove-Item Env:NODE_TLS_REJECT_UNAUTHORIZED -ErrorAction SilentlyContinue
 安装新版后，完全退出所有 VS Code 窗口再重新打开，避免旧窗口继续运行旧代码；在 Kimi Dashboard 中刷新。月度共享额度区域会保留：有数据则显示真实百分比，没有数据则显示“尚未获取月度额度”和官方查看入口，不会伪造为 0%。
 
 如仍没有数值，打开 VS Code“输出”→“AI Status Hub”，查看启动版本及 Kimi quota fields 行。month_total / month_code 表示接口是否提供有效月字段，均为布尔值，不含密钥或响应正文。当前不能仅凭旧缓存认定服务器一定没有月度数据；接口未提供时，可通过“查看会员额度”进入官方订阅页核对。
+
+## DeepSeek 官方（0.6.35）
+
+在 Dashboard 选择 DeepSeek，或设置 aiStatusHub.provider 为 deepseek；状态栏可单独勾选 🐋 DeepSeek。点击登录后输入从 https://platform.deepseek.com/api_keys 获取的官方 API Key，插件使用只读余额接口验证后保存到独立 SecretStorage；也可使用 DEEPSEEK_API_KEY 环境变量。退出仅删除本扩展保存的 DeepSeek Key，不修改其他渠道或环境变量。
+
+支持显示官方账户总余额、赠送与充值余额；余额按 API 返回的实际币种显示，不冒充五小时/周限额。本地 Claude 日志的 Token、请求与费用无需登录即可查看。内置 deepseek-flash、deepseek-v4-flash、deepseek-v4.1-flash 系列和 deepseek-v4-pro 的当前官方缓存/峰谷费率；auto 默认 CNY，也支持官方 USD 单价。2026 中国节假日按空闲价格，其他年份可补充 aiStatusHub.deepseek.offPeakDates（UTC+8 日期字符串数组）。费用为 API Token 估算，不含存储、工具和其他收费项；未知历史模型仅计 Token，需配置价格后才计费。
+
+火山 deepseek-v4.1-flash-economy / deepseek-v4-1-flash-economy 继续归火山。显式 ark/ 命名空间归火山，deepseek/ 归官方。v4-pro/v4-flash 等裸名可能跨渠道相同，缺少端点证据时默认官方；若通过火山调用这些同名模型，请用 aiStatusHub.claudeLog.sessionProviders 或 modelProviders 明确归属，避免混计。原始 Claude 日志不改写。
+
+价格和接口依据：[官方定价](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)、[余额接口](https://api-docs.deepseek.com/api/get-user-balance/)。实际账户余额需配置 Key 后查询。

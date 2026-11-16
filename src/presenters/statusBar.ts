@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
+import { formatAccountBalance } from '../calc';
 import {
   computeUtilization, formatPercent, formatPercentPadded, formatProviderStatus, remainingQuotaColor,
   fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime, fmtReportedResetTime,
@@ -78,8 +79,8 @@ export class StatusBarPresenter {
         this.itemWeekly.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
       } else if (!state.quota && !state.localEstimate) {
         this.stopUpdateAnimation();
-        if (state.activeProvider === 'glm' && state.error) {
-          this.itemWeekly.text = `$(warning) ${this.displayName}: ${t('usage.quotaUnavailable')}`;
+        if (['glm', 'volcengine', 'kimi', 'deepseek'].includes(state.activeProvider) && state.error) {
+          this.itemWeekly.text = `$(warning) ${this.displayName}: ${t(state.activeProvider === 'deepseek' ? 'deepseek.balanceUnavailableShort' : 'usage.quotaUnavailable')}`;
           this.itemWeekly.color = new vscode.ThemeColor('errorForeground');
         } else this.itemWeekly.text = `$(sync~spin) ${this.displayName}…`;
       } else {
@@ -95,7 +96,7 @@ export class StatusBarPresenter {
           this.config.statusBarUtilizationColorLt60, this.config.statusBarUtilizationColorLt80,
           this.config.statusBarUtilizationColorGte80,
         ]);
-        if (!hasQuotaData(state)) this.itemWeekly.color = new vscode.ThemeColor('errorForeground');
+        if (!hasQuotaData(state) || state.quota?.balance?.isAvailable === false) this.itemWeekly.color = new vscode.ThemeColor('errorForeground');
         if (changed && !first) this.triggerUpdateAnimation();
       }
       this.itemWeekly.show();
@@ -145,7 +146,7 @@ export class StatusBarPresenter {
     md.supportHtml = true;
     md.isTrusted = true;
     const commandArgs = encodeURIComponent(JSON.stringify([this.provider?.id ?? state.activeProvider]));
-    const glmError = ['glm', 'volcengine', 'kimi'].includes(state.activeProvider) ? state.error : undefined;
+    const glmError = ['glm', 'volcengine', 'kimi', 'deepseek'].includes(state.activeProvider) ? state.error : undefined;
 
     if (state.authStatus === 'missing' && !state.localEstimate && !state.quota) {
       md.appendMarkdown(`**${t('tooltip.title')}**\n\n${t('tooltip.notLoggedIn')}\n\n[$(key) ${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`);
@@ -181,6 +182,7 @@ export class StatusBarPresenter {
     else if (state.dataSource === 'local-only') { sourceLabel = '&nbsp;*' + t('dashboard.estimate') + '*'; }
 
     const parts: string[] = [];
+    if (q?.balance) parts.push(formatAccountBalance(q.balance, locale), '');
     if (glmError) parts.push(`⚠ ${glmError}`, '');
     if (!hasQuotaData(state) || state.authStatus === 'missing') {
       parts.push(`<span style="color:var(--vscode-errorForeground);">⚠ ${t('usage.quotaUnavailable')}</span> [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`, '');

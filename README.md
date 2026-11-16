@@ -159,3 +159,13 @@ Refresh the Kimi dashboard to see the membership monthly pool and Kimi Code mont
 After updating, fully close all VS Code windows and reopen, then refresh the Kimi dashboard. The membership monthly section remains visible: returned values show real percentages; missing values show a dash, an explanation and an official subscription link. Opening a dashboard with existing data also triggers refresh.
 
 The AI Status Hub output channel reports the running extension version and a Kimi quota fields line with boolean availability flags only. No key, usage values or response bodies are logged. A legacy cache alone does not prove what the current live API returns; unavailable monthly values are never invented from local usage.
+
+## Official DeepSeek (0.6.35)
+
+Select deepseek in the Dashboard/provider setting and enable its independent 🐋 status bar. Sign in with an official API Key from https://platform.deepseek.com/api_keys. A read-only balance request validates the key before storing it in the provider's private SecretStorage; DEEPSEEK_API_KEY is also supported. Sign out removes only the stored DeepSeek key.
+
+The Dashboard and status bar show the actual account balance and its granted/top-up components in the returned currency, without invented 5-hour or weekly quotas. Local Claude token/request/cost history works without login. Current Flash aliases and v4 Pro have separate official CNY/USD cache and peak/off-peak prices. Chinese 2026 holidays are built in; add other holiday dates to aiStatusHub.deepseek.offPeakDates (UTC+8, YYYY-MM-DD). Custom base/Peak rates live under pricing.deepseek.models.* and use the configured currency. Unknown historical models retain tokens with zero estimated cost until prices are configured. Estimates exclude storage duration, tools and other charges.
+
+Ark Economy aliases remain exclusively Volcengine. Explicit ark/ and deepseek/ namespaces take priority. Shared bare names such as v4-pro/v4-flash default to official ownership; where a channel cannot be established from the log, configure claudeLog.sessionProviders or modelProviders. Current credentials never retroactively identify old traffic.
+
+Sources: [official pricing](https://api-docs.deepseek.com/quick_start/pricing/), [balance API](https://api-docs.deepseek.com/api/get-user-balance/).

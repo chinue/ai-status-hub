@@ -776,3 +776,11 @@ ClaudeLocalParser 现在支持 `volcengine`。按以下顺序确定归属，每�
 现场日志证据：同一 Claude 会话内，火山返回 message.model=glm-5-3-flash，17:22 后切回官方返回 glm-5.3-flash；两者 requestedModel 均为 glm-5.3-flash[1m]，不能用于渠道判断。旧的 13:00 时间规则误将后续官方请求划入火山。修正 resolveClaudeLogProvider：会话覆盖 → 命名空间 → 模型覆盖 → 已核对的官方点号 Flash 回复名 → 剩余 GLM 5.3 时间规则 → 其他已核对名称。时间配置仍可禁用，显式归属仍可覆盖。
 
 官方文档 https://docs.bigmodel.cn/cn/coding-plan/overview 说明五小时积分按每次消耗五小时后动态恢复，周积分从套餐下单时起按七天刷新。GLM LocalUsageService 的五小时费用、Token 与请求数统一按 now−5h 汇总，不用 nextResetTime−5h 划桶；周窗口继续采用官方 weeklyResetAt−7d，不把积分百分比换算为金额。其他供应商沿用原边界策略。归属修复会重新读原日志，不修改原记录，火山不再包含这批 GLM 官方请求。
+
+## 0.6.35：DeepSeek 官方本地估算
+
+ClaudeLogProviderId 增加 deepseek；先识别显式 Ark 命名空间及 Economy 模型为火山，再识别 DeepSeek 命名空间和裸 DeepSeek 模型为官方。显式会话/模型覆盖仍优先。deepseek-flash、deepseek-v4-flash（含 vision-exp）、deepseek-v4.1-flash（含版本后缀）共用官方 Flash 费率，deepseek-v4-pro 使用官方 Pro 费率；Economy 不套官方费率。
+
+不同渠道可能返回相同裸模型名（尤其 v4-pro、v4-flash）；日志未记录端点时无法可靠自动识别来源，需显式会话/模型归属。当前凭据不能用来推断历史请求。官方 Claude 日志独立扫描、去重与保留，不纳入火山 Economy 请求。原始日志不改写。
+
+calc.ts 新增 parseDeepseekBalance（严格校验响应币种、数值及布尔可用状态，真实零/负余额有效，优先显示配置币种，无该币种则显示实际可用币种），formatAccountBalance（统一双语余额/赠送/充值文本），isDeepseekPeak（UTC+8 时段及假期排除）。余额不用于本地额度校准、分母或虚构请求总数。

@@ -129,3 +129,14 @@ extension.ts / base/types.ts 对应 Phase 2 和 Provider 协议；i18n.ts 对应
 | src/providers/kimi/api.ts | v2-provider-abstraction.md#kimi-api | 官方新版月度/旧版限额查询 |
 
 calc.ts 同步本地估算设计，types.ts / base/types.ts 同步 Phase 2 和 Provider 协议，Dashboard / 状态栏 / i18n 分别同步各自设计文档。
+
+## DeepSeek 官方（0.6.35）
+
+| 代码文件 | 设计文档 | 说明 |
+|---|---|---|
+| src/providers/deepseek/index.ts | v2-provider-abstraction.md#deepseek-provider | 独立官方供应商 |
+| src/providers/deepseek/api.ts | v2-provider-abstraction.md#deepseek-provider | 官方只读余额 API |
+| src/providers/deepseek/auth.ts | v2-provider-abstraction.md#deepseek-provider | API Key 验证、私有存储和退出 |
+| src/providers/deepseek/pricing.ts | v2-provider-abstraction.md#deepseek-provider | Flash/Pro、CNY/USD、峰谷价格 |
+
+calc.ts 同步本地估算；config.ts、types.ts、statusBar.ts 同步 Phase 2；base/types.ts、registry.ts 同步 Provider；dashboard.ts 同步 Dashboard；i18n.ts 同步编码规范；test/deepseek.test.ts 同步测试设计。

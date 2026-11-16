@@ -565,3 +565,13 @@ KimiApiProvider 成功解析后输出固定字段可用性：Kimi quota fields: 
 ## 0.6.34：GLM 退出凭据隔离
 
 GlmAuthProvider 实现可选 signOut()，只删除 aiStatusHub.glm.apiKey。extension.ts 复用已有供应商私有退出协议，避免 GLM 落入通用分支删除 Kimi 的 aiStatusHub.apiKey / aiStatusHub.oauthCredentials 或其他凭据。未初始化存储、删除失败均返回 false，显示双语固定错误，不执行 SIGN_OUT 状态切换、不回显底层异常。环境变量凭据仍由启动环境管理，插件不会修改。
+
+## DeepSeek provider
+
+0.6.35 增加独立供应商 deepseek（🐋）：index.ts 注册官方 API 供应商；auth.ts 使用密码输入框，先通过只读余额接口验证，再将密钥保存到 aiStatusHub.deepseek.apiKey，支持 DEEPSEEK_API_KEY 环境变量回退。退出只删除自身 SecretStorage，失败返回 false。api.ts 仅 GET https://api.deepseek.com/user/balance，Bearer 认证、15 秒超时、显式证书校验、禁止重定向，错误不回显凭据或响应正文。
+
+UnifiedQuota / QuotaData 新增可选 balance，保存实际 currency、total、granted、toppedUp、isAvailable；没有余额字段时不制造余额。DeepSeek 不提供本扩展所用的 5h/7d 套餐配额，窗口标记均为 false，不将账户余额换算为百分比。缓存沿用按供应商隔离的已有结构。
+
+pricing.ts 按官方当前 Flash / Pro 分别提供 CNY 与 USD 单价，使用请求日志时间确定高峰/空闲；高峰是北京时间周一至周五 9–12、14–18，排除内置 2026 年中国节假日。额外年份假期通过 deepseek.offPeakDates 配置。基础与 Peak 独立配置，可在 pricing.deepseek.models.deepseekFlash/deepseekFlashPeak/deepseekPro/deepseekProPeak 下覆盖；无默认配置值，确保自动币种与时段规则不被配置注册默认值覆盖。未知历史模型仅计 Token，费用默认 0，可自定义费率。费用不含缓存存储时长、联网工具、语音或图像额外收费。
+
+官方依据（2026-11-16）：https://api-docs.deepseek.com/api/get-user-balance/ 、https://api-docs.deepseek.com/zh-cn/quick_start/pricing/ 、https://api-docs.deepseek.com/guides/anthropic_api/ 。2026 假期依据 https://www.gov.cn/gongbao/2025/issue_12406/202511/content_7048922.html （国务院办公厅 2026 年节假日安排）。实际账号仍需在 VS Code 内输入自己的 Key 后核验。

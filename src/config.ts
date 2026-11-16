@@ -47,6 +47,10 @@ export class ConfigService {
     return this.cfg.get<Record<string, unknown>>('claudeLog.modelProviders', {}) ?? {};
   }
 
+  get deepseekOffPeakDates(): string[] {
+    return this.cfg.get<string[]>('deepseek.offPeakDates', []) ?? [];
+  }
+
   get displayMode(): DisplayMode {
     return this.cfg.get<DisplayMode>('displayMode', 'percent');
   }
@@ -90,6 +94,7 @@ export class ConfigService {
       case 'claude': return 'claude-sonnet-4';
       case 'glm': return 'glm-5.3';
       case 'volcengine': return 'glm-5.3-flash';
+      case 'deepseek': return 'deepseek-flash';
       case 'cursor': return 'cursor-fast';
       case 'codex':
       default: return 'gpt-5';
@@ -109,6 +114,7 @@ export class ConfigService {
       case 'kimi':
       case 'glm':
       case 'volcengine':
+      case 'deepseek':
         return { code: 'CNY', symbol: '¥' };
       case 'codex':
       case 'claude':
@@ -255,6 +261,7 @@ export class ConfigService {
       case 'claude': return 'https://platform.claude.com/docs/en/about-claude/pricing';
       case 'glm': return 'https://docs.bigmodel.cn/cn/guide/start/pricing';
       case 'volcengine': return 'https://ark.volcengine.com/region:cn-beijing/docs/model-pricing';
+      case 'deepseek': return 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/';
       case 'cursor': return 'https://cursor.com/pricing';
       case 'codex':
       default: return 'https://developers.openai.com/api/docs/pricing';

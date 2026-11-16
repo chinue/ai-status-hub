@@ -2715,3 +2715,7 @@ KimiUsageData 新增必填 cost5hText 与 cost7dText，由 Dashboard 使用共�
 ## 0.6.33：GLM 滚动五小时锚点
 
 Scheduler 的 GLM window5hStartMs 取查询/刷新时刻减五小时，长 tick、短 tick、状态锚点与磁盘回退均保持此规则；window5hResetAtMs 保留官方报告值用于配额恢复提示。周锚点继续取 weeklyResetAt−7d，与套餐下单周期一致。其他供应商的固定窗口不变。
+
+## 0.6.35：DeepSeek 余额状态
+
+ConfigService 增加官方 DeepSeek 默认模型、人民币默认币种、官方价格链接和额外空闲日期配置；Provider 列表与状态栏选项增加 deepseek。QuotaData / UnifiedQuota 通过 balance 保存官方账户余额，供应商缓存仍分开。formatProviderStatus 余额分支显示真实货币金额及刷新来源，余额不可用显示警告；Tooltip 展示余额、赠送、充值组成，不生成配额图表。首次查询失败时显示余额不可用而不是永久加载。DeepSeek 的私有 signOut 通过已有通用命令协议调用。

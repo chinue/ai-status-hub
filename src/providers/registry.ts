@@ -10,6 +10,7 @@ import { createKimiProvider } from './kimi';
 import { createClaudeProvider } from './claude';
 import { createVolcengineProvider } from './volcengine';
 import { createGlmProvider } from './glm';
+import { createDeepseekProvider } from './deepseek';
 import { createCursorProvider } from './cursor';
 
 export interface ProviderInfo {
@@ -25,6 +26,7 @@ const PROVIDERS: ProviderInfo[] = [
   { id: 'claude', displayName: 'Claude', displayNameZh: 'Claude', create: createClaudeProvider },
   { id: 'glm', displayName: 'GLM', displayNameZh: '智谱', create: createGlmProvider },
   { id: 'volcengine', displayName: '火山', displayNameZh: '火山', create: createVolcengineProvider },
+  { id: 'deepseek', displayName: 'DeepSeek', displayNameZh: 'DeepSeek', create: createDeepseekProvider },
   { id: 'cursor', displayName: 'Cursor', displayNameZh: 'Cursor', create: createCursorProvider },
 ];
 

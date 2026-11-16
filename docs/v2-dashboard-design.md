@@ -935,3 +935,9 @@ GLM 的 Dashboard 本地五小时统计、热力图与成本曲线当前范围�
 ## 0.6.34：Kimi 会员额度入口
 
 月度字段缺失时的官方会员额度链接改为 https://www.kimi.com/settings/subscription?tab=quota，与用户确认可访问的额度页面一致。保留月度占位及已有数据显示行为。
+
+## 0.6.35：DeepSeek 官方账户余额
+
+DeepSeek Dashboard 的 Current Usage 增加账户余额行，显示官方返回币种的总余额、赠送余额、充值余额，查询缺失时显示双语缺失提示；隐藏不存在的五小时/周配额进度条。切换供应商/刷新缺失数据会清理旧余额文本。本地 Token、请求、费用和历史图表仍可查看，余额不是本地费用的倒推结果。余额查询错误沿用安全的供应商错误提示。
+
+Dashboard 价格展示从当前供应商 PricingProvider 读取默认模型价格，复用其峰谷/币种逻辑，避免绕过 DeepSeek 的定价规则。KimiUsageData 增加 isBalanceProvider / balanceText；显示格式统一由 calc.ts 处理。

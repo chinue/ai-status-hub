@@ -21,6 +21,7 @@ export interface TokenUsage {
 }
 
 export interface UnifiedQuota {
+  balance?: { currency: 'CNY' | 'USD'; total: number; granted: number; toppedUp: number; isAvailable: boolean };
   weeklyLimit: number;
   weeklyUsed: number;
   weeklyUsedPct: number;
