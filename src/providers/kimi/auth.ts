@@ -10,6 +10,7 @@ import { log } from '../../utils';
 import { CacheService } from '../../services/cacheService';
 import { ConfigService } from '../../config';
 import { makeT } from '../../i18n';
+import { KimiMembershipApi } from './membershipApi';
 
 const CLIENT_ID = '17e5f671-d194-4dfb-9706-5516cb48c098';
 const OAUTH_HOST = 'https://auth.kimi.com';
@@ -20,6 +21,7 @@ const HTTP_TIMEOUT_MS = 15_000;
 
 const SECRET_API_KEY = 'aiStatusHub.apiKey';
 const SECRET_OAUTH = 'aiStatusHub.oauthCredentials';
+export const KIMI_MEMBERSHIP_SECRET_KEY = 'aiStatusHub.kimi.membershipWebToken';
 
 interface KimiOAuthCredentials {
   accessToken: string;
@@ -188,6 +190,31 @@ export class KimiAuthProvider implements IAuthProvider {
 
   initSecrets(secrets: vscode.SecretStorage): void {
     this.secrets = secrets;
+  }
+
+  async resolveWebToken(): Promise<string | undefined> {
+    try { return (await this.secrets?.get(KIMI_MEMBERSHIP_SECRET_KEY))?.trim() || undefined; }
+    catch { return undefined; }
+  }
+
+  async startMembershipLoginFlow(): Promise<boolean> {
+    const t = makeT(ConfigService.getInstance().effectiveLanguage);
+    try {
+      const open = t('kimi.openSubscription');
+      const action = await vscode.window.showInformationMessage(t('kimi.webLoginGuide'),
+        { modal: true }, open, t('kimi.enterWebToken'));
+      if (!action) return false;
+      if (action === open) await vscode.env.openExternal(vscode.Uri.parse('https://www.kimi.com/settings/subscription?tab=quota'));
+      const token = (await vscode.window.showInputBox({ title: t('kimi.connectMembership'),
+        prompt: t('kimi.webTokenPrompt'), password: true, ignoreFocusOut: true }))?.trim().replace(/^Bearer\s+/i, '');
+      if (!token) return false;
+      if (!this.secrets) { await vscode.window.showErrorMessage(t('kimi.webStorageFailed')); return false; }
+      const result = await new KimiMembershipApi(this.fetcher).fetchMonthly(token);
+      if (!result.ok || !result.data) { await vscode.window.showErrorMessage(result.error ?? t('kimi.webQueryFailed')); return false; }
+      await this.secrets.store(KIMI_MEMBERSHIP_SECRET_KEY, token);
+      await vscode.window.showInformationMessage(t('kimi.webConnected'));
+      return true;
+    } catch { await vscode.window.showErrorMessage(t('kimi.webStorageFailed')); return false; }
   }
 
   async resolveToken(): Promise<string | undefined> {

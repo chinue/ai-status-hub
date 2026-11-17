@@ -581,3 +581,15 @@ pricing.ts 按官方当前 Flash / Pro 分别提供 CNY 与 USD 单价，使用�
 CodexLocalParser 的 updateFileState 改用 LocalUsageService.readJsonl 流式解析；元数据不变时以增量 MD5 验证内容，保留同大小/mtime 重写检测。累计 token delta 的 previousTotals / lastTotals 按文件顺序保留，usage 条目仍是精简结构。getRateLimits 强制流式解析但不积累 usage entries，仅提取原有模型/额度状态，避免整文件文本和输出数组占用。
 
 原私有 parseText / parseLines 保留供纯解析测试使用，不再用于磁盘路径。聚合文件条目改用迭代 push，避免超多条目展开为函数参数。其他模型归属和官方配额优先级不变。
+
+## Kimi web membership
+
+0.6.38 在 Coding API 缺少 monthlyUsedPct 时补充查询官方会员网页接口：POST https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats，固定 JSON body 为 {"mute_notice":false}。只读会员统计；15 秒超时、显式 TLS 校验、禁止重定向、finally 关闭 Agent，不回显响应正文、令牌和底层异常。已存在 Coding 月度字段则不额外查询，不以网页覆盖现有有效值。网页失败不导致 Coding 认证失效，也不清零有效五小时/周配额。
+
+依据来自 2026-11-17 获取的官方公开网页资源：HTML data-entry 指向 cd8a2c06b64e8-Dr6oS1R5.js，其会员 balance store 调用 getSubscriptionStats({muteNotice:false})；总比例来自 subscriptionBalance.amountUsedRatio，Code 来自 kimiCodeUsedRatio，页面计算其他 Kimi 占比为 total−code。c41287b0f9bc1-C6A1DTyS.js 内嵌 protobuf FileDescriptor 定义 kimi.gateway.membership.v2.MembershipService.GetSubscriptionStats 以及 subscription_balance、amount_used_ratio、kimi_code_used_ratio、expire_time。传输默认基址 /apiv2，网页拦截器从自身 access_token 提供 Bearer。匿名实测请求返回 401/REASON_INVALID_AUTH_TOKEN。以上是公开静态代码和匿名网络证据，不是登录账户的运行结果。
+
+KimiMembershipApi 独立于 Coding API。先尝试独立网页令牌，没有配置时尝试当前 Kimi 授权；尚未证明每种 Coding 授权均能访问网页接口。若不兼容，用户通过 Dashboard 或 aiStatusHub.kimiConnectMembership 连接同账号网页会员额度：引导登录订阅页并在浏览器开发者工具 Application > Local Storage > https://www.kimi.com 获取 access_token，密码框输入后先验证，再保存到独立 SecretStorage 键 aiStatusHub.kimi.membershipWebToken。令牌不发往 Coding API，不读取浏览器 Cookie/数据库，不保存网页登录刷新令牌，不改写原生客户端凭据；失效后需重新连接。用户须确认网页与 Coding 为同一账号，扩展尚未自动比对两个令牌的账号身份。
+
+Kimi 退出登录同时删除本扩展保存的网页令牌；网页连接取消、验证失败或存储失败不替换旧令牌。取得网页数据后保留字段来源标记，Code 比率属于会员池的组成部分，不是独立 Code 限额。expire_time 显示为额度到期，避免误称为下次刷新；网页某些套餐会结合额外订阅规则调整展示，本实现不推算该规则。
+
+REA 引擎未运行：本机 Node 25.2.1 不在当前 REA 支持版本内，doctor 已明确报告不兼容；未安装其他 Node 或修改工具配置，改用公开资源静态检查及 protobuf 描述符解码。原始公共资产只在 .tmp 下诊断使用，不提交、不打入 VSIX。

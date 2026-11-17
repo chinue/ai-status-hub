@@ -219,3 +219,13 @@ Remove-Item Env:NODE_TLS_REJECT_UNAUTHORIZED -ErrorAction SilentlyContinue
 ### 大日志内存防护（0.6.37）
 
 Claude、Kimi、Codex 原生 JSONL 日志改为有界流式读取，避免多个供应商同时将大文件全文载入扩展宿主。原始日志不会被修改。单条超过 8 MiB 的记录会跳过并在 AI Status Hub 输出中记录数量；若该记录包含使用量，统计可能缺少该条。修复已通过本机大日志并行扫描验证，其他扩展引起的宿主内存问题仍需单独排查。
+
+### Kimi 网页“总使用量”（0.6.38）
+
+已连接 Kimi Code 后，先刷新仪表盘。若 Coding API 不返回月度字段，插件会尝试订阅页使用的官方会员接口读取“总使用量”。如果现有授权不能访问，在月度区域点击“连接网页会员额度”（或运行 AI Status Hub: Connect Kimi Web Membership 命令）。
+
+1. 在 https://www.kimi.com/settings/subscription 登录与 Kimi Code 相同的账号。
+2. 浏览器按 F12，打开 Application（应用）→ Local Storage（本地存储）→ https://www.kimi.com，复制 access_token 的值。
+3. 仅粘贴到扩展的密码输入框，不要发到聊天或写进 settings.json。插件验证成功后保存到独立 SecretStorage。它是敏感账号令牌，过期后需重新连接；Kimi 退出登录会删除本扩展保存的网页令牌。
+
+总使用率与 Kimi Code 占比直接使用网页接口返回值，不相加；Code 标为占会员月池比例。到期时间不自动推算成下次重置。网页接口失败时原有五小时/周额度继续可用。此路径依赖官网内部会员接口，后续可能变化；实际账号数据需连接后核验，未通过本地测试伪造月度值。

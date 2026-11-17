@@ -794,3 +794,9 @@ LocalUsageService.readJsonl 集中管理流式磁盘访问：64 KiB 字节块、
 ClaudeLocalParser、KimiLocalParser 只保留精简用量条目，不再整文件读取/拆分。跨文件去重、模型归属和保留期不变。Codex 原生扫描也复用此服务，详见 Provider 设计。
 
 独立进程以 --max-old-space-size=128 启动，七个扫描器并行读取现场日志成功；采样 JS heap 峰值约 39 MiB、进程 maxRSS 约 155 MiB。Node 报告的总 heap limit 为约 320 MiB，该命令仅限制 old space，不能称为总内存上限。未重启或修改用户正在运行的 VS Code。
+
+## 0.6.38：Kimi 网页会员比例解析
+
+calc.ts 新增 parseKimiMembershipUsage，解析实际 protobuf JSON 的 subscription_balance.amount_used_ratio / kimi_code_used_ratio，兼容对应 camelCase。必须存在有限非负的总比率才算有效；真实零值有效、显示封顶 100%，缺失字段不当 0。比率乘 100 成为现有月度显示字段；Code 是总月池的一部分，不能与总比例相加。expiry 只采用响应 expire_time，不猜测自然月重置。
+
+monthlyFromMembership 和 monthlyCodeIsShared 标记网页来源与 Code 占比口径；只补充缺失的 Coding 月总量。该路径不变更本地日志归属、费用和 token 汇总，不把账户余额或会员池量转换为金额。

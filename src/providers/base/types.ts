@@ -21,6 +21,8 @@ export interface TokenUsage {
 }
 
 export interface UnifiedQuota {
+  monthlyFromMembership?: boolean;
+  monthlyCodeIsShared?: boolean;
   balance?: { currency: 'CNY' | 'USD'; total: number; granted: number; toppedUp: number; isAvailable: boolean };
   weeklyLimit: number;
   weeklyUsed: number;

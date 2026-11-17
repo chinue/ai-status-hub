@@ -208,11 +208,11 @@ export class StatusBarPresenter {
       }
       if (q?.monthlyUsedPct != null) {
         parts.push(`<tr><td style="padding:2px 6px;"><strong>${t(state.activeProvider === 'kimi' ? 'dashboard.kimiMonthTotal' : 'dashboard.planMonth')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(q.monthlyUsedPct / 100)}</td><td style="padding:2px 6px;text-align:right;"><strong>${formatPercent(q.monthlyUsedPct, 2)}</strong></td></tr>`);
-        parts.push(`<tr><td style="padding:2px 6px;">${t('tooltip.nextReset')}</td><td colspan="2">${fmtReportedResetTime(q.monthlyResetAt)}</td></tr>`);
+        parts.push(`<tr><td style="padding:2px 6px;">${t(q.monthlyFromMembership ? 'kimi.monthlyExpiry' : 'tooltip.nextReset')}</td><td colspan="2">${fmtReportedResetTime(q.monthlyResetAt)}</td></tr>`);
       }
       if (q?.monthlyCodeUsedPct != null) {
-        parts.push(`<tr><td style="padding:2px 6px;"><strong>${t('dashboard.kimiMonthCode')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(q.monthlyCodeUsedPct / 100)}</td><td style="padding:2px 6px;text-align:right;"><strong>${formatPercent(q.monthlyCodeUsedPct, 2)}</strong></td></tr>`);
-        parts.push(`<tr><td style="padding:2px 6px;">${t('tooltip.nextReset')}</td><td colspan="2">${fmtReportedResetTime(q.monthlyCodeResetAt)}</td></tr>`);
+        parts.push(`<tr><td style="padding:2px 6px;"><strong>${t(q.monthlyCodeIsShared ? 'dashboard.kimiMonthCodeShare' : 'dashboard.kimiMonthCode')}</strong></td><td style="padding:2px 6px;">${this.createSvgBar(q.monthlyCodeUsedPct / 100)}</td><td style="padding:2px 6px;text-align:right;"><strong>${formatPercent(q.monthlyCodeUsedPct, 2)}</strong></td></tr>`);
+        parts.push(`<tr><td style="padding:2px 6px;">${t(q.monthlyCodeIsShared ? 'kimi.monthlyExpiry' : 'tooltip.nextReset')}</td><td colspan="2">${fmtReportedResetTime(q.monthlyCodeResetAt)}</td></tr>`);
       }
       parts.push(`</table>`);
     }

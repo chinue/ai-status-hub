@@ -173,3 +173,11 @@ Sources: [official pricing](https://api-docs.deepseek.com/quick_start/pricing/),
 ### Large-log memory protection (0.6.37)
 
 Native Claude, Kimi and Codex JSONL paths now use bounded streaming reads instead of loading entire transcripts into the extension host. Original logs remain intact. Records larger than 8 MiB are skipped with a count warning in the AI Status Hub output; usage inside a skipped record cannot be counted. Concurrent scanning of the local large-log dataset passed in a separate memory-constrained process. This does not rule out memory problems in other extensions sharing the host.
+
+### Kimi website membership totals (0.6.38)
+
+With Kimi Code connected, refresh the Dashboard first. If the Coding endpoint omits monthly totals, the extension tries the membership website's GetSubscriptionStats RPC. If the current authorization is not accepted, click Connect web membership usage in the monthly section (or use the corresponding command).
+
+Sign in to https://www.kimi.com/settings/subscription using the same account as Kimi Code. In browser developer tools, open Application > Local Storage > https://www.kimi.com and copy access_token. Paste it only into the extension's password input, never into chat or settings.json. It is a sensitive account credential. The read-only request validates it before saving it in separate SecretStorage; expiry requires reconnection and Kimi sign-out removes the stored web token. The extension does not read browser cookies/databases, store a web refresh token, or send the web token to the Coding endpoint. Account identity matching is currently the user's responsibility.
+
+The website total and Code share use the returned ratios and are not added together. The Code figure is labeled as a share of the membership pool; pool expiry is not assumed to be the next reset. Website failures preserve Coding quota data. This is an internal website endpoint that may change, and a real account still needs verification after connection.

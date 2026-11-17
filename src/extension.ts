@@ -10,6 +10,7 @@ import { CacheService } from './services/cacheService';
 import { LocalUsageService } from './services/localUsageService';
 import { ApiHistoryService } from './services/apiHistoryService';
 import { Scheduler } from './services/scheduler';
+import { KimiAuthProvider, KIMI_MEMBERSHIP_SECRET_KEY } from './providers/kimi/auth';
 import { StatusBarPresenter } from './presenters/statusBar';
 import { DashboardPanel } from './presenters/dashboard';
 import { log, writeApiKey, deleteApiKey, deleteOAuth } from './utils';
@@ -122,6 +123,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('aiStatusHub.showDashboard', showDashboard),
     vscode.commands.registerCommand('aiStatusHub.syncStatusBars', () => enqueue(reconcile)),
     vscode.commands.registerCommand('aiStatusHub.refresh', (id?: unknown) => withRuntime(id, runtime => runtime.scheduler.force())),
+    vscode.commands.registerCommand('aiStatusHub.kimiConnectMembership', async () => {
+      let auth: KimiAuthProvider | undefined;
+      await withRuntime('kimi', runtime => { auth = runtime.provider.auth as KimiAuthProvider; });
+      if (auth && await auth.startMembershipLoginFlow()) {
+        await withRuntime('kimi', runtime => runtime.scheduler.force());
+      }
+    }),
     vscode.commands.registerCommand('aiStatusHub.signIn', async (id?: unknown) => {
       let target: ProviderRuntime | undefined;
       await withRuntime(id, runtime => { target = runtime; });
@@ -153,6 +161,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } else if (runtime.provider.id === 'kimi') {
         await context.secrets.delete('aiStatusHub.apiKey');
         await context.secrets.delete('aiStatusHub.oauthCredentials');
+        await context.secrets.delete(KIMI_MEMBERSHIP_SECRET_KEY);
       } else {
         await deleteApiKey(context.secrets);
         await deleteOAuth(context.secrets);

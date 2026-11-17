@@ -9,12 +9,13 @@ import { KimiPricingProvider } from './pricing';
 import { kimiUIProvider } from './ui';
 
 export function createKimiProvider(): IProvider {
+  const auth = new KimiAuthProvider();
   return {
     id: 'kimi',
     displayName: 'Kimi',
     currency: { code: 'CNY', symbol: '¥' },
-    auth: new KimiAuthProvider(),
-    api: new KimiApiProvider(),
+    auth,
+    api: new KimiApiProvider(undefined, () => auth.resolveWebToken()),
     localUsage: new KimiLocalParser(),
     pricing: new KimiPricingProvider(),
     ui: kimiUIProvider,

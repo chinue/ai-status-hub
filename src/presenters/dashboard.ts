@@ -90,6 +90,9 @@ export class DashboardPanel {
       case 'signIn':
         void vscode.commands.executeCommand('aiStatusHub.signIn', this.store.getState().activeProvider);
         break;
+      case 'connectKimiMembership':
+        if (this.store.getState().activeProvider === 'kimi') void vscode.commands.executeCommand('aiStatusHub.kimiConnectMembership');
+        break;
       case 'refresh':
         vscode.commands.executeCommand('aiStatusHub.refresh', this.store.getState().activeProvider);
         break;
@@ -342,11 +345,12 @@ export class DashboardPanel {
         ? t('kimi.monthlyUnavailable') : undefined,
       percentOnly: quota?.percentOnly,
       hasMonthlyCodeLimit: quota?.monthlyCodeUsedPct != null,
+      monthlyCodeLabel: t(quota?.monthlyCodeIsShared ? 'dashboard.kimiMonthCodeShare' : 'dashboard.kimiMonthCode'),
       utilizationCodeMonth: (quota?.monthlyCodeUsedPct ?? 0) / 100,
-      resetInCodeMonthText: t('tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyCodeResetAt, now),
+      resetInCodeMonthText: t(quota?.monthlyCodeIsShared ? 'kimi.monthlyExpiry' : 'tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyCodeResetAt, now),
       hasMonthlyLimit: quota?.monthlyUsedPct != null,
       utilizationMonth: (quota?.monthlyUsedPct ?? 0) / 100,
-      resetInMonthText: t('tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyResetAt, now),
+      resetInMonthText: t(quota?.monthlyFromMembership ? 'kimi.monthlyExpiry' : 'tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyResetAt, now),
       utilization5h: windowPct / 100,
       quotaAvailable: hasQuotaData(state),
       weeklyQuotaAvailable: state.activeProvider !== 'deepseek' && hasQuotaData(state) && quota?.has7dLimit !== false,
@@ -848,9 +852,10 @@ export class DashboardPanel {
       <div class="progress-track"><div class="progress-fill" id="fill-plan-month" style="width:0%"></div></div>
       <div class="progress-meta-row"><span class="progress-meta" id="meta-plan-month">${activeProvider === 'kimi' ? i18n('kimi.monthlyUnavailable') : ''}</span></div>
       <a id="month-unavailable-link" class="provider-link" href="https://www.kimi.com/settings/subscription?tab=quota" target="_blank" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">${i18n('kimi.viewMonthlyQuota')}</a>
+      <button id="btn-kimi-membership" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">${i18n('kimi.connectMembership')}</button>
     </div>
     <div class="progress-row" id="row-code-month" style="display:none;">
-      <div class="progress-labels"><span>${i18n('dashboard.kimiMonthCode')}</span><span id="lbl-code-month">—</span></div>
+      <div class="progress-labels"><span id="label-code-month">${i18n('dashboard.kimiMonthCode')}</span><span id="lbl-code-month">—</span></div>
       <div class="progress-track"><div class="progress-fill" id="fill-code-month" style="width:0%"></div></div>
       <div class="progress-meta-row"><span class="progress-meta" id="meta-code-month"></span></div>
     </div>
@@ -1356,6 +1361,13 @@ export class DashboardPanel {
     }
 
     function renderCurrentUsage(usage, mode) {
+      const memberButton = document.getElementById('btn-kimi-membership');
+      if (memberButton) {
+        memberButton.style.display = usage.providerType === 'kimi' && !usage.hasMonthlyLimit ? '' : 'none';
+        memberButton.onclick = () => vscode.postMessage({ type: 'connectKimiMembership' });
+      }
+      const codeMonthLabel = document.getElementById('label-code-month');
+      if (codeMonthLabel) codeMonthLabel.textContent = usage.monthlyCodeLabel || '';
       const balanceRow = document.getElementById('row-balance');
       if (balanceRow) balanceRow.style.display = usage.isBalanceProvider ? '' : 'none';
       const balanceLabel = document.getElementById('lbl-balance');

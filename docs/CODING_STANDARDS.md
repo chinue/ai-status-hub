@@ -311,3 +311,7 @@ Dashboard 的 WebView 无法直接导入后端模块。当前方案：
 ## 0.6.35：DeepSeek 双语显示
 
 provider.deepseek 与 deepseek.* 提供中英双语登录、余额、错误和成功文案，通过 makeT 显示。余额文本在 calc.ts 的 formatAccountBalance 格式化，Dashboard 和状态栏共享；服务不直接拼接显示金额或记录凭据。
+
+## 0.6.38：Kimi 网页会员双语与凭据
+
+新增 kimi.web*、连接/打开/令牌输入、月池到期和 dashboard.kimiMonthCodeShare 中英双语文案。登录指引明确凭据敏感、仅输入密码框、使用与 Coding 相同账号，不要求发送到聊天。网络、JSON、SecretStorage 失败只显示固定翻译，不输出异常正文。

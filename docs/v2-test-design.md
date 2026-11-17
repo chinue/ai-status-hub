@@ -878,3 +878,7 @@ DeepSeek 集成回归构造 1 天、6 天、8 天前的本地请求，通过 Sch
 0.6.37 的 jsonlStreaming.test.ts 先禁止 fs/promises.readFile 复现原解析器返回空记录，再以 LocalUsageService.readJsonl 流式实现通过。覆盖跨 64 KiB 边界的 UTF-8 字符、CRLF、EOF 非换行记录、超长记录丢弃和后继正常记录、末尾超长记录、纯指纹一致性、缺失文件/回调异常、安全保留旧缓存、Claude/Kimi/Codex 三种原生格式、Codex 累计差分、精确相同 mtime/size 的重写和 rate_limits 提取。
 
 额外独立低内存进程扫描实际日志，五个 Claude 渠道解析器与原生 Codex、Kimi 并行完成；记录峰值内存，不把它当作整个 VS Code 宿主的内存数值或其他扩展无问题的证明。
+
+## Kimi web membership
+
+0.6.38 的 kimiMembership.test.ts 覆盖官网原始 snake_case / camelCase 比例、83.17% 总量与 50.53% Code 占比、真实零值及缺失拒绝；固定 RPC/只读 body/TLS/禁止重定向；独立网页令牌与现有授权补充路径；网页拒绝认证保留 Coding 数据；完整 Coding 月数据不重复查询；验证后私有保存、取消/失败保留旧令牌；网络/JSON/存储异常脱敏及超时计时器释放；真实 WebView 按钮消息与共享池标签；连接命令触发 Kimi 刷新、退出清除网页令牌且保留火山密钥。核心功能测试先失败后实现，测试使用合成响应，没有使用真实用户会话。

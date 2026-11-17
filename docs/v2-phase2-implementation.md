@@ -2725,3 +2725,9 @@ ConfigService 增加官方 DeepSeek 默认模型、人民币默认币种、官�
 Scheduler 处理 has7dLimit=false 的 API 快照时，以当前时刻作为本地七天范围终点，起点为 now−7d；不再将缺失 weeklyResetAt 传给固定周期推算器后得到 now 起点。短 tick 和磁盘锚点回退都重建这个滚动边界，修复已持久化的错误锚点。官方有周限额的订阅仍按官方 resetAt−7d 统计。
 
 DeepSeek 仅提供余额，无论是否登录/取得余额，都保持本地五小时与七天的滚动范围，不依赖不存在的官方重置时间。此改动不制造套餐周配额，官方余额及其真实币种、赠送/充值组成保持独立。
+
+## 0.6.38：会员月度来源和连接命令
+
+QuotaData / UnifiedQuota 增加可选 monthlyFromMembership / monthlyCodeIsShared，缓存沿用可选字段兼容；KimiUsageData 增加已翻译 monthlyCodeLabel。状态栏 Tooltip 使用来源标签和到期文本，避免将网页 Code 比率显示为独立上限。
+
+extension.ts 注册 aiStatusHub.kimiConnectMembership：绑定 Kimi runtime，在选择队列之外等待密码框流程，成功后只刷新 Kimi。Kimi signOut 删除独立网页 SecretStorage key，其他供应商密钥保持隔离。auth/getter 与 api 构造器回调连接，不把网页令牌发送给 Coding API；不记录令牌或账户响应原文。

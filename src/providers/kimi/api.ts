@@ -7,11 +7,13 @@ import { parseKimiQuota } from '../../calc';
 import { ConfigService } from '../../config';
 import { makeT } from '../../i18n';
 import { log } from '../../utils';
+import { KimiMembershipApi } from './membershipApi';
 
 const API_URL = 'https://api.kimi.com/coding/v1/usages';
 
 export class KimiApiProvider implements IQuotaApiProvider {
-  constructor(private readonly fetcher: typeof fetch = fetch) {}
+  constructor(private readonly fetcher: typeof fetch = fetch,
+    private readonly webToken?: () => Promise<string | undefined>) {}
 
   async fetchQuota(token: string): Promise<ApiResult> {
     const t = makeT(ConfigService.getInstance().effectiveLanguage);
@@ -33,6 +35,14 @@ export class KimiApiProvider implements IQuotaApiProvider {
           networkError: response.status >= 500 || response.status === 429 };
       }
       const data = parseKimiQuota(await response.json());
+      if (data && data.monthlyUsedPct === undefined) {
+        try {
+          const tokenForWeb = await this.webToken?.() || token;
+          const monthly = await new KimiMembershipApi(this.fetcher).fetchMonthly(tokenForWeb);
+          if (monthly.ok && monthly.data) Object.assign(data, monthly.data);
+          log(`Kimi membership monthly fields available=${monthly.ok}`);
+        } catch { log('Kimi membership monthly query unavailable.'); }
+      }
       if (data) {
         log(`Kimi quota fields: 5h=${data.has5hLimit === true}, 7d=${data.has7dLimit === true}, month_total=${data.monthlyUsedPct !== undefined}, month_code=${data.monthlyCodeUsedPct !== undefined}`);
       }

@@ -1,6 +1,8 @@
 // DESIGN: v2-phase2-implementation.md#typests
 // AGENTS: keep-minimal | no-logic
 export interface QuotaData {
+  monthlyFromMembership?: boolean;
+  monthlyCodeIsShared?: boolean;
   balance?: { currency: 'CNY' | 'USD'; total: number; granted: number; toppedUp: number; isAvailable: boolean };
   weeklyLimit: number;
   weeklyUsed: number;
@@ -210,6 +212,7 @@ export interface DashboardMessage {
 }
 
 export interface KimiUsageData {
+  monthlyCodeLabel?: string;
   isBalanceProvider?: boolean;
   balanceText?: string;
   monthlyUnavailableText?: string;

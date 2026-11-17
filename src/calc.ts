@@ -1028,6 +1028,25 @@ export function fmtReportedResetTime(resetAt: number | undefined, now = Date.now
   return `${fmtDateTime(resetAt)} (${fmtDuration(Math.max(0, Math.round((resetAt - now) / 1000)))})`;
 }
 
+/** Website subscription pool ratios; Code is a share of the same pool, not another allowance. */
+export function parseKimiMembershipUsage(value: unknown): Partial<QuotaData> | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, any>;
+  const balance = raw.subscription_balance ?? raw.subscriptionBalance;
+  const percentage = (v: unknown): number | undefined => {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return undefined;
+    return Math.min(100, v * 100);
+  };
+  const total = percentage(balance?.amount_used_ratio ?? balance?.amountUsedRatio);
+  if (total === undefined) return null;
+  const code = percentage(balance?.kimi_code_used_ratio ?? balance?.kimiCodeUsedRatio);
+  const date = balance?.expire_time ?? balance?.expireTime;
+  const expiry = typeof date === 'string' ? Date.parse(date) : NaN;
+  const reset = Number.isFinite(expiry) && expiry > 0 ? expiry : 0;
+  return { monthlyUsedPct: total, monthlyResetAt: reset, monthlyFromMembership: true,
+    ...(code === undefined ? {} : { monthlyCodeUsedPct: code, monthlyCodeResetAt: reset, monthlyCodeIsShared: true }) };
+}
+
 /** Kimi Code's official usages fields: independent rate windows and monthly pools. */
 export function parseKimiQuota(value: unknown): QuotaData | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
