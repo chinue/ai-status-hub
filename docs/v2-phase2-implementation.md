@@ -2739,3 +2739,9 @@ KimiUsageData 新增可选 monthlyBreakdown，包含 kimiPct、codePct 以及由
 ## 0.6.40：图例视图字段
 
 KimiUsageData.monthlyBreakdown 新增 kimiLegend/codeLegend 已格式化字符串，WebView 按独立文本节点显示，避免替换图例内的色块元素。
+
+## 0.6.41：可选价格覆盖的空值语义
+
+ConfigService.getPricing 按 provider 私有值 → 全局同模型值 → Provider 计算费率 → 通用缺省顺序，使用 nullish coalescing 回退。undefined/null 均表示未覆盖；明确数值 0 仍是有效覆盖，不能使用逻辑或代替。DeepSeek 16 个可选价格配置项声明 number|null 并显式 default:null，避免 VS Code 为未声明默认值的 number 自动补 0，覆盖 Provider 的动态 CNY/USD 峰谷费率。
+
+根因依据：VS Code configurationRegistry.ts 的 updatePropertyDefaultValue/getDefaultValue 对 number 缺省返回 0：https://github.com/microsoft/vscode/blob/main/src/vs/platform/configuration/common/configurationRegistry.ts#L1068 。此前单元测试仅在缺失配置时返回调用方 fallback，未模拟平台补默认值，导致扫描结果正常但真实宿主费用为零的差异。

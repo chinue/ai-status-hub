@@ -607,3 +607,7 @@ REA 引擎未运行：本机 Node 25.2.1 不在当前 REA 支持版本内，doct
 0.6.39 对 AuthService 的主机推断错误：将 POST /api/account.gateway.v1.AuthService/RefreshToken 发往 www.kimi.com，匿名实测返回 404 Cannot POST。官方公开网页配置 c363267e626c9-D9-XOhCP.js 的 gn 导出默认 AUTH_API_HOST=https://auth.kimi.com，ca0791fedb2db-BIins8us.js 使用该配置拼接 /api。0.6.40 修正为 https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken；用固定无效样例令牌匿名实测得到 401/REASON_INVALID_AUTH_TOKEN，确认请求已到认证接口。这不是实际账户续期成功的证据。
 
 原网页用量请求仍发往 www.kimi.com/apiv2，只有续期请求发往 auth.kimi.com；刷新凭据不发送到统计或 Coding 接口。沿用 SecretStorage 保存数据，无需强制重填；刷新令牌仍有效时可在下次查询自动恢复。失败仅记录固定消息或 HTTP 状态，不记录凭据/响应正文。原文 0.6.39 的路径说明未区分主机，以上说明予以纠正。
+
+## 0.6.41：DeepSeek 自动定价配置修复
+
+DeepSeek Flash/Pro 及峰时共 16 个价格覆盖字段改为显式 null 默认值，null 表示采用 Provider 的自动费率；ConfigService 读取时跳过 null 并逐级回退。保留用户明确填写的 0、其他自定义费率、币种和峰谷逻辑。无需修改渠道判断或原始会话。升级后重载扩展宿主以重新加载配置 schema，再刷新即可从日志重新计算历史费用；不把官方余额当成消耗。

@@ -890,3 +890,7 @@ kimiMembership.test.ts 新增六项：401 续期及令牌轮换/域名/TLS/隔�
 ## 0.6.40：续期主机与图例回归
 
 先将续期集成测试期望改为实测确认的 auth.kimi.com，再运行确认旧实现请求 www.kimi.com 导致失败；修正实现后通过，仍覆盖新令牌重查月度额度、轮换存储与 Coding 隔离。分段函数及实际 WebView renderer 测试先增加图例数值断言并失败，再实现通过；验证直接显示 Kimi 32.64%、Code 50.53%，悬停继续保留详情。
+
+## 0.6.41：平台配置默认值与零费用回归
+
+deepseek.test.ts 新增两项先失败后通过的回归：测试从真实 package.json 配置贡献读取显式默认值，并模拟 VS Code 对无默认值 number 补 0；原实现复现输入/输出/缓存价格全零。修复后验证 Flash/Pro 峰谷自动价、USD、明确 0 覆盖、null 回退至全局或内置费率。第二项通过 LocalUsageService 将合成三类各一百万 Token 汇总为 5.02 元，并经过 HistoryService 验证每日总费用、费用曲线终值及费用热力图总和均非零；不是仅校验 Token 扫描。

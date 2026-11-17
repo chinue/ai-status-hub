@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, DeepSeek, Volcengine, and Cursor",
-  "version": "0.6.40",
+  "version": "0.6.41",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -1200,82 +1200,98 @@
           "description": "额外按空闲价计费的日期（YYYY-MM-DD，北京时间）；已内置 2026 年中国节假日。Additional off-peak dates; 2026 Chinese holidays are built in."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlash.inputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlash 的 inputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlash.outputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlash 的 outputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlash.cacheReadPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlash 的 cacheReadPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlash.cacheCreatePerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlash 的 cacheCreatePerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlashPeak.inputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlashPeak 的 inputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlashPeak.outputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlashPeak 的 outputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlashPeak.cacheReadPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlashPeak 的 cacheReadPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekFlashPeak.cacheCreatePerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekFlashPeak 的 cacheCreatePerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekPro.inputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekPro 的 inputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekPro.outputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekPro 的 outputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekPro.cacheReadPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekPro 的 cacheReadPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekPro.cacheCreatePerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekPro 的 cacheCreatePerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekProPeak.inputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekProPeak 的 inputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekProPeak.outputPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekProPeak 的 outputPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekProPeak.cacheReadPerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekProPeak 的 cacheReadPerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         },
         "aiStatusHub.pricing.deepseek.models.deepseekProPeak.cacheCreatePerMillion": {
-          "type": "number",
+          "type": ["number", "null"],
+          "default": null,
           "minimum": 0,
           "description": "DeepSeek 官方 deepseekProPeak 的 cacheCreatePerMillion（每百万 Token，使用配置币种）；留空采用官方 CNY/USD 峰谷费率。Official DeepSeek estimate override; leave unset for automatic rates."
         }

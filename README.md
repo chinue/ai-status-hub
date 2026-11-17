@@ -195,3 +195,7 @@ The shared monthly bar shows Kimi first (blue) and Code second (orange), with ma
 ### Kimi legend values and renewal fix (0.6.40)
 
 Monthly color legends now show each channel's percentage of the entire quota directly (for example Kimi 32.64%, Code 50.53%). The missing-data message is shorter. Renewal now uses auth.kimi.com rather than the incorrect www.kimi.com host, which returned 404. Existing saved credentials are reused: update and refresh usage first; reconnect only if the refresh token is no longer valid. The route was checked anonymously; real-account renewal still requires verification.
+
+### DeepSeek zero-cost fix (0.6.41)
+
+Optional DeepSeek pricing overrides now default to null (automatic rates). Previously VS Code supplied zero for number settings without explicit defaults, overriding automatic prices and leaving cost curves, day totals and cost heatmaps at zero while token counts remained available. Explicit zero overrides are still honored. After installing, reload the VS Code window and refresh usage to recalculate costs from local logs.

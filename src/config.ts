@@ -292,14 +292,15 @@ export class ConfigService {
     const providerPrefix = `pricing.${providerId}.models.${key}`;
     const globalPrefix = `pricing.models.${key}`;
 
-    const input = this.cfg.get<number>(`${providerPrefix}.inputPerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.inputPerMillion`, defaults?.inputPerMillion ?? 2.00));
-    const output = this.cfg.get<number>(`${providerPrefix}.outputPerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.outputPerMillion`, defaults?.outputPerMillion ?? 10.00));
-    const cacheRead = this.cfg.get<number>(`${providerPrefix}.cacheReadPerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.cacheReadPerMillion`, defaults?.cacheReadPerMillion ?? 0.50));
-    const cacheCreate = this.cfg.get<number>(`${providerPrefix}.cacheCreatePerMillion`,
-      this.cfg.get<number>(`${globalPrefix}.cacheCreatePerMillion`, defaults?.cacheCreatePerMillion ?? 2.00));
+    // A null override means automatic pricing; explicit numeric zero remains valid.
+    const input = this.cfg.get<number | null>(`${providerPrefix}.inputPerMillion`)
+      ?? this.cfg.get<number | null>(`${globalPrefix}.inputPerMillion`) ?? defaults?.inputPerMillion ?? 2.00;
+    const output = this.cfg.get<number | null>(`${providerPrefix}.outputPerMillion`)
+      ?? this.cfg.get<number | null>(`${globalPrefix}.outputPerMillion`) ?? defaults?.outputPerMillion ?? 10.00;
+    const cacheRead = this.cfg.get<number | null>(`${providerPrefix}.cacheReadPerMillion`)
+      ?? this.cfg.get<number | null>(`${globalPrefix}.cacheReadPerMillion`) ?? defaults?.cacheReadPerMillion ?? 0.50;
+    const cacheCreate = this.cfg.get<number | null>(`${providerPrefix}.cacheCreatePerMillion`)
+      ?? this.cfg.get<number | null>(`${globalPrefix}.cacheCreatePerMillion`) ?? defaults?.cacheCreatePerMillion ?? 2.00;
 
     return { inputPerMillion: input, outputPerMillion: output, cacheReadPerMillion: cacheRead, cacheCreatePerMillion: cacheCreate };
   }

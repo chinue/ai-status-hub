@@ -17,6 +17,7 @@ import { ClaudeLocalParser } from '../src/providers/claude/localParser';
 import { LocalUsageService } from '../src/services/localUsageService';
 import { Scheduler } from '../src/services/scheduler';
 import { CacheService } from '../src/services/cacheService';
+import { HistoryService } from '../src/services/historyService';
 
 const balance = () => ({ is_available: true, balance_infos: [
   { currency: 'CNY', total_balance: '110.00', granted_balance: '10.00', topped_up_balance: '100.00' },
@@ -205,6 +206,58 @@ describe('DeepSeek official', () => {
     sinon.stub(vscode.workspace, 'getConfiguration').returns({ get: (key: string, fallback: unknown) =>
       key === 'pricing.deepseek.models.deepseekFlash.inputPerMillion' ? 7 : fallback } as any);
     expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(7);
+  });
+  it('uses automatic DeepSeek rates with VS Code registered defaults while honoring explicit zero and null overrides', () => {
+    const properties = require('../package.json').contributes.configuration.properties;
+    const overrides: Record<string, unknown> = {};
+    sinon.stub(vscode.workspace, 'getConfiguration').returns({ get: (key: string, fallback: unknown) => {
+      if (Object.prototype.hasOwnProperty.call(overrides, key)) return overrides[key];
+      const property = properties['aiStatusHub.' + key];
+      if (!property) return fallback;
+      if (Object.prototype.hasOwnProperty.call(property, 'default')) return property.default;
+      return property.type === 'number' ? 0 : fallback;
+    } } as any);
+    const p = getProvider('deepseek')!.pricing;
+    const idle = Date.parse('2026-11-17T12:00:00Z');
+    const peak = Date.parse('2026-11-17T02:00:00Z');
+    expect(p.getPricing('deepseek-flash', idle)).to.include({ inputPerMillion: 1, outputPerMillion: 4, cacheReadPerMillion: 0.02 });
+    expect(p.getPricing('deepseek-v4-pro', peak).outputPerMillion).to.equal(27);
+    overrides['pricing.deepseek.models.deepseekFlash.inputPerMillion'] = 0;
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(0);
+    overrides['pricing.deepseek.models.deepseekFlash.inputPerMillion'] = null;
+    overrides['pricing.models.deepseekFlash.inputPerMillion'] = 7;
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(7);
+    overrides['pricing.models.deepseekFlash.inputPerMillion'] = null;
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(1);
+    overrides.currency = 'USD';
+    expect(p.getPricing('deepseek-flash', idle).outputPerMillion).to.equal(0.6);
+  });
+  it('feeds nonzero DeepSeek costs to day totals, cost curves and heatmaps under registered setting defaults', async () => {
+    const properties = require('../package.json').contributes.configuration.properties;
+    sinon.stub(vscode.workspace, 'getConfiguration').returns({ get: (key: string, fallback: unknown) => {
+      const property = properties['aiStatusHub.' + key];
+      if (!property) return fallback;
+      return Object.prototype.hasOwnProperty.call(property, 'default') ? property.default : property.type === 'number' ? 0 : fallback;
+    } } as any);
+    const now = Date.parse('2026-11-17T12:00:00Z');
+    const clock = sinon.useFakeTimers(now);
+    try {
+      const provider = getProvider('deepseek')!;
+      sinon.stub(provider.localUsage, 'scanSessions').resolves([{ timestamp: now - 60000, inputOther: 1000000,
+        output: 1000000, inputCacheRead: 1000000, inputCacheCreation: 0,
+        cost: 0, model: 'deepseek-flash', messageId: 'deepseek-pricing-regression' }]);
+      const service = new LocalUsageService([]); service.setProvider(provider);
+      const usage = await service.getLocalUsage({ windowResetAtMs: now, weeklyResetAtMs: now });
+      expect(usage.cost5h).to.be.closeTo(5.02, 1e-9);
+      const history = HistoryService.getInstance();
+      const dashboard = history.buildDashboardAggregates(usage.entries, { todayStartMs: now - 3600000,
+        monthStartMs: now - 86400000, window5hStartMs: now - 18000000,
+        window7dStartMs: now - 604800000, window30dStartMs: now - 2592000000 });
+      expect(dashboard.today?.totalCost).to.be.closeTo(5.02, 1e-9);
+      expect(history.buildHeatmapData(usage.entries).daily.reduce((sum, day) => sum + day.cost, 0)).to.be.closeTo(5.02, 1e-9);
+      const curve = history.buildCostCurve(usage.entries, '5h', now - 18000000, now);
+      expect(Math.max(...curve.map(point => point.cumulativeRmb ?? 0))).to.be.closeTo(5.02, 1e-9);
+    } finally { clock.restore(); }
   });
   it('honors holidays, weekends, exact peak boundaries and USD rates', () => {
     const p = getProvider('deepseek')!.pricing;
