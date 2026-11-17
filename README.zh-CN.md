@@ -235,3 +235,7 @@ Claude、Kimi、Codex 原生 JSONL 日志改为有界流式读取，避免多个
 月度总条按蓝色 Kimi、橙色 Code 分段，下方有同色图例；悬停显示占月额度和占已用额度的比例。Kimi＝总量－Code，剩余空白为未用额度。只有确认属于同一月池且字段完整时才分段，独立 Code 月额度保留单独显示。
 
 连接时按 F12 打开 DevTools，进入 Application > Storage > Local Storage > https://www.kimi.com，复制 Key 为 access_token 那一行的完整 Value 到第一个密码框。若需自动续期，再复制 Key 为 refresh_token 那一行的完整 Value 到第二个密码框；留空可跳过，Esc 取消。不要发送凭据到聊天。令牌保存在 VS Code SecretStorage，认证过期时最多续期并重试一次；刷新令牌失效仍需重新登录网页。尚未核实固定有效期。
+
+### Kimi 图例用量与续期修复（0.6.40）
+
+月度色块旁直接显示各自占月额度的百分比，例如 Kimi 32.64%、Code 50.53%。缺失提示同步简化。自动续期请求改用 auth.kimi.com，修复此前 www.kimi.com 返回 404 的错误。更新后先刷新用量，继续使用已保存的凭据；刷新令牌失效时再重新连接。已验证匿名请求可到达认证接口，真实账号续期仍需安装后验证。

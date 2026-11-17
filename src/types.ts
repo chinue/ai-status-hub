@@ -212,7 +212,7 @@ export interface DashboardMessage {
 }
 
 export interface KimiUsageData {
-  monthlyBreakdown?: { kimiPct: number; codePct: number; kimiText: string; codeText: string };
+  monthlyBreakdown?: { kimiPct: number; codePct: number; kimiText: string; codeText: string; kimiLegend: string; codeLegend: string };
   monthlyCodeLabel?: string;
   isBalanceProvider?: boolean;
   balanceText?: string;

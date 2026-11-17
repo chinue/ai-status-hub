@@ -105,7 +105,7 @@ describe('Kimi web membership', () => {
     expect(result.data?.monthlyUsedPct).to.be.closeTo(83.17, 1e-6);
     expect(fetcher.callCount).to.equal(4);
     expect(fetcher.getCall(1).args[1].headers.Authorization).to.equal('Bearer old-web');
-    expect(fetcher.getCall(2).args[0]).to.equal('https://www.kimi.com/api/account.gateway.v1.AuthService/RefreshToken');
+    expect(fetcher.getCall(2).args[0]).to.equal('https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken');
     expect(JSON.parse(fetcher.getCall(2).args[1].body)).to.deep.equal({ refresh_token: 'old-refresh' });
     expect(fetcher.getCall(2).args[1].redirect).to.equal('error');
     expect(fetcher.getCall(2).args[1].agent.options.rejectUnauthorized).to.equal(true);
@@ -185,6 +185,8 @@ describe('Kimi web membership', () => {
     expect(result.kimiText).to.include('32.64%');
     expect(result.codeText).to.include('50.53%');
     expect(result.codeText).to.include('60.76%');
+    expect(result.kimiLegend).to.equal('Kimi 32.64%');
+    expect(result.codeLegend).to.equal('Code 50.53%');
     expect(split({ ...quota, monthlyUsedPct: 0, monthlyCodeUsedPct: 0 }, 'zh-CN').codePct).to.equal(0);
     for (const invalid of [undefined, { ...quota, monthlyCodeIsShared: false },
       { ...quota, monthlyCodeUsedPct: undefined }, { ...quota, monthlyCodeUsedPct: 90 },
@@ -214,6 +216,8 @@ describe('Kimi web membership', () => {
     expect(nodes.get('fill-month-kimi').style.width).to.equal('32.64%');
     expect(nodes.get('fill-month-code').style.width).to.equal('50.53%');
     expect(nodes.get('fill-month-code').title).to.include('50.53%');
+    expect(nodes.get('legend-month-kimi-text').textContent).to.equal('Kimi 32.64%');
+    expect(nodes.get('legend-month-code-text').textContent).to.equal('Code 50.53%');
     expect(nodes.get('month-legend').style.display).to.equal('');
     expect(nodes.get('row-code-month').style.display).to.equal('none');
     const independent = { ...usage, monthlyBreakdown: undefined };

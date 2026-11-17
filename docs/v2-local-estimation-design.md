@@ -804,3 +804,7 @@ monthlyFromMembership 和 monthlyCodeIsShared 标记网页来源与 Code 占比�
 ## 0.6.39：Kimi 月度组成
 
 formatKimiMonthlyBreakdown 仅对 monthlyCodeIsShared=true 且总量/Code 均为有限合法百分比、Code 不大于总量的快照生成分段。Kimi=总量−Code，Code 保持原值；宽度按完整月池百分比计算（不是占已用比例），空白仍代表剩余额度。返回两段宽度与中英文详情，分别说明占月额度、占已用额度。零值有效，不将独立 Code 月额度相减，不为缺失/矛盾数据推算分类。
+
+## 0.6.40：月度图例格式化
+
+formatKimiMonthlyBreakdown 新增 kimiLegend/codeLegend，通过双语 dashboard.kimiMonthLegend 与 formatPercent(..., 2) 生成标签和占月池百分比，供 Dashboard 直接绑定文本；保留原详细悬停说明和共享池校验。

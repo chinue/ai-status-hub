@@ -1117,6 +1117,8 @@ export function formatKimiMonthlyBreakdown(quota: QuotaData | null | undefined, 
   const t = makeT(locale);
   return {
     kimiPct: Number(kimi.toFixed(6)), codePct: Number(code.toFixed(6)),
+    kimiLegend: t('dashboard.kimiMonthLegend', t('dashboard.kimiMonthKimi'), formatPercent(kimi, 2)),
+    codeLegend: t('dashboard.kimiMonthLegend', t('dashboard.kimiMonthCodeLegend'), formatPercent(code, 2)),
     kimiText: t('dashboard.kimiMonthSegment', t('dashboard.kimiMonthKimi'), formatPercent(kimi, 2), formatPercent(total > 0 ? kimi / total * 100 : 0, 2)),
     codeText: t('dashboard.kimiMonthSegment', t('dashboard.kimiMonthCodeLegend'), formatPercent(code, 2), formatPercent(total > 0 ? code / total * 100 : 0, 2)),
   };

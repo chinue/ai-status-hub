@@ -191,3 +191,7 @@ The shared monthly bar shows Kimi first (blue) and Code second (orange), with ma
 月度总条按蓝色 Kimi、橙色 Code 分段，下方有同色图例；悬停显示占月额度和占已用额度的比例。Kimi＝总量－Code，剩余空白为未用额度。只有确认属于同一月池且字段完整时才分段，独立 Code 月额度保留单独显示。
 
 连接时按 F12 打开 DevTools，依次进入 Application > Storage > Local Storage > https://www.kimi.com，复制 Key 为 access_token 那一行的完整 Value 到第一个密码框。若需自动续期，再复制 Key 为 refresh_token 那一行的完整 Value 到第二个密码框；留空可跳过，Esc 取消。不要把凭据发到聊天中。令牌保存在 VS Code SecretStorage，认证过期时最多续期并重试一次；刷新令牌失效仍需重新登录网页。尚未核实固定有效期。
+
+### Kimi legend values and renewal fix (0.6.40)
+
+Monthly color legends now show each channel's percentage of the entire quota directly (for example Kimi 32.64%, Code 50.53%). The missing-data message is shorter. Renewal now uses auth.kimi.com rather than the incorrect www.kimi.com host, which returned 404. Existing saved credentials are reused: update and refresh usage first; reconnect only if the refresh token is no longer valid. The route was checked anonymously; real-account renewal still requires verification.

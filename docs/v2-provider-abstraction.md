@@ -601,3 +601,9 @@ REA 引擎未运行：本机 Node 25.2.1 不在当前 REA 支持版本内，doct
 会员查询返回 HTTP 401 时，且配置了网页凭据，最多自动续期一次并重试月度查询一次；403、网络故障、5xx 不触发续期。网页公开 ca0791fedb2db-BIins8us.js 的 AuthService 描述符与调用确认 POST /api/account.gateway.v1.AuthService/RefreshToken，JSON {refresh_token}，返回 access_token/refresh_token（兼容 camelCase）。不是 Coding OAuth 的刷新接口。请求固定域名、显式 TLS 校验、禁止重定向、15 秒超时、finally 销毁 Agent。两项均为有效字符串才整体更新；单飞去重、保存前确认凭据未退出/重连。失败保留凭据与有效 Coding 统计，不打印令牌或响应正文。
 
 固定有效期未从公开资源核实，不将 Coding OAuth 时长套用于网页令牌；刷新令牌失效仍需手动重连。没有真实账户令牌参与测试，实际账号自动续期仍需安装后验证。
+
+## 0.6.40：修正网页续期认证主机
+
+0.6.39 对 AuthService 的主机推断错误：将 POST /api/account.gateway.v1.AuthService/RefreshToken 发往 www.kimi.com，匿名实测返回 404 Cannot POST。官方公开网页配置 c363267e626c9-D9-XOhCP.js 的 gn 导出默认 AUTH_API_HOST=https://auth.kimi.com，ca0791fedb2db-BIins8us.js 使用该配置拼接 /api。0.6.40 修正为 https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken；用固定无效样例令牌匿名实测得到 401/REASON_INVALID_AUTH_TOKEN，确认请求已到认证接口。这不是实际账户续期成功的证据。
+
+原网页用量请求仍发往 www.kimi.com/apiv2，只有续期请求发往 auth.kimi.com；刷新凭据不发送到统计或 Coding 接口。沿用 SecretStorage 保存数据，无需强制重填；刷新令牌仍有效时可在下次查询自动恢复。失败仅记录固定消息或 HTTP 状态，不记录凭据/响应正文。原文 0.6.39 的路径说明未区分主机，以上说明予以纠正。

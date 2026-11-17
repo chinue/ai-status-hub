@@ -864,8 +864,8 @@ export class DashboardPanel {
         <span class="monthly-segment month-code" id="fill-month-code" tabindex="0" style="width:0%"></span>
       </div>
       <div class="month-legend" id="month-legend" style="display:none;">
-        <span class="month-legend-item" id="legend-month-kimi" tabindex="0"><span class="month-swatch month-kimi" aria-hidden="true"></span>${i18n('dashboard.kimiMonthKimi')}</span>
-        <span class="month-legend-item" id="legend-month-code" tabindex="0"><span class="month-swatch month-code" aria-hidden="true"></span>${i18n('dashboard.kimiMonthCodeLegend')}</span>
+        <span class="month-legend-item" id="legend-month-kimi" tabindex="0"><span class="month-swatch month-kimi" aria-hidden="true"></span><span id="legend-month-kimi-text">${i18n('dashboard.kimiMonthKimi')}</span></span>
+        <span class="month-legend-item" id="legend-month-code" tabindex="0"><span class="month-swatch month-code" aria-hidden="true"></span><span id="legend-month-code-text">${i18n('dashboard.kimiMonthCodeLegend')}</span></span>
       </div>
       <div class="progress-meta-row"><span class="progress-meta" id="meta-plan-month">${activeProvider === 'kimi' ? i18n('kimi.monthlyUnavailable') : ''}</span></div>
       <a id="month-unavailable-link" class="provider-link" href="https://www.kimi.com/settings/subscription?tab=quota" target="_blank" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">${i18n('kimi.viewMonthlyQuota')}</a>
@@ -1469,6 +1469,7 @@ export class DashboardPanel {
         segment.title = details;
         segment.ariaLabel = details;
         segment.tabIndex = breakdown && breakdown[kind + 'Pct'] > 0 ? 0 : -1;
+        document.getElementById('legend-month-' + kind + '-text').textContent = breakdown ? breakdown[kind + 'Legend'] : '';
         legend.title = details;
         legend.ariaLabel = details;
       }

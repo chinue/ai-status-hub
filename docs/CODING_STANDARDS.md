@@ -319,3 +319,7 @@ provider.deepseek 与 deepseek.* 提供中英双语登录、余额、错误和�
 ## 0.6.39：登录指引与月度分段显示
 
 kimi.webLoginSteps / webRefreshPrompt 中英双语说明 F12 和 Key 对应 Value，以及可选刷新凭据；不要求用户分享凭据。dashboard.kimiMonthKimi / kimiMonthCodeLegend / kimiMonthSegment 提供图例和悬停详情，百分比及份额说明由 calc.ts 的 formatKimiMonthlyBreakdown 格式化；Presenter 仅传递数据，WebView 仅绑定已格式化文本。
+
+## 0.6.40：简短月度提示与图例
+
+kimi.monthlyUnavailable 中英文同步简化，英文 Monthly usage unavailable. Refresh or reconnect. 共 6 个单词。dashboard.kimiMonthLegend 双语模板接收产品标签和已格式化百分比；格式化继续位于 calc.ts。

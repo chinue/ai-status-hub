@@ -2735,3 +2735,7 @@ extension.ts 注册 aiStatusHub.kimiConnectMembership：绑定 Kimi runtime，�
 ## 0.6.39：月度组成视图数据
 
 KimiUsageData 新增可选 monthlyBreakdown，包含 kimiPct、codePct 以及由 calc.ts 生成的 kimiText、codeText。仅 Kimi 共享池有合法组成时传给 WebView；原始 QuotaData 口径和本地费用汇总保持不变。
+
+## 0.6.40：图例视图字段
+
+KimiUsageData.monthlyBreakdown 新增 kimiLegend/codeLegend 已格式化字符串，WebView 按独立文本节点显示，避免替换图例内的色块元素。

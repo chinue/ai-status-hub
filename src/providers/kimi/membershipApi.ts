@@ -5,6 +5,7 @@ import { QuotaData } from '../../types';
 import { parseKimiMembershipUsage } from '../../calc';
 import { ConfigService } from '../../config';
 import { makeT } from '../../i18n';
+import { log } from '../../utils';
 
 export class KimiMembershipApi {
   constructor(private readonly fetcher: typeof fetch = fetch) {}
@@ -14,19 +15,22 @@ export class KimiMembershipApi {
     let agent: Agent | undefined;
     try {
       agent = new Agent({ rejectUnauthorized: true });
-      const response = await this.fetcher('https://www.kimi.com/api/account.gateway.v1.AuthService/RefreshToken', {
+      const response = await this.fetcher('https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken', {
         method: 'POST', body: JSON.stringify({ refresh_token: token }),
         headers: { 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1',
           'x-msh-platform': 'web', Accept: 'application/json' },
         agent, redirect: 'error', signal: controller.signal,
       });
-      if (!response.ok) return undefined;
+      if (!response.ok) {
+        log(`Kimi membership renewal failed: HTTP ${response.status}`);
+        return undefined;
+      }
       const data = await response.json() as Record<string, unknown> | null;
       const access = data?.access_token ?? data?.accessToken;
       const refresh = data?.refresh_token ?? data?.refreshToken;
       if (typeof access !== 'string' || !access.trim() || typeof refresh !== 'string' || !refresh.trim()) return undefined;
       return { accessToken: access.trim(), refreshToken: refresh.trim() };
-    } catch { return undefined; }
+    } catch { log('Kimi membership renewal unavailable.'); return undefined; }
     finally { clearTimeout(timeout); agent?.destroy(); }
   }
   async fetchMonthly(token: string): Promise<{ ok: boolean; data?: Partial<QuotaData>; error?: string; authRejected?: boolean }> {
