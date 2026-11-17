@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, DeepSeek, Volcengine, and Cursor",
-  "version": "0.6.41",
+  "version": "0.6.42",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {

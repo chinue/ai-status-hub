@@ -232,13 +232,51 @@ describe('DeepSeek official', () => {
     overrides.currency = 'USD';
     expect(p.getPricing('deepseek-flash', idle).outputPerMillion).to.equal(0.6);
   });
+  it('ignores implicit zero defaults in the host registry but keeps explicitly scoped DeepSeek prices', () => {
+    const values: Record<string, any> = {};
+    sinon.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, fallback: unknown) => key.startsWith('pricing.') && key !== 'pricing.customModels' ? 0 : fallback,
+      inspect: (key: string) => ({ key, defaultValue: 0, ...(values[key] ?? {}) }),
+    } as any);
+    const p = getProvider('deepseek')!.pricing;
+    const idle = Date.parse('2026-11-17T12:00:00Z');
+    const key = 'pricing.deepseek.models.deepseekFlash.inputPerMillion';
+    expect(p.getPricing('deepseek-flash', idle)).to.include({ inputPerMillion: 1, outputPerMillion: 4, cacheReadPerMillion: 0.02 });
+    values[key] = { globalValue: 7 };
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(7);
+    values[key] = { globalValue: 7, workspaceValue: 0 };
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(0);
+    values[key] = { globalValue: 7, workspaceValue: 0, workspaceFolderValue: 3 };
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(3);
+    values[key].workspaceFolderLanguageValue = 9;
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(9);
+    values[key].workspaceFolderLanguageValue = null;
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(1);
+    values['pricing.models.deepseekFlash.inputPerMillion'] = { globalValue: 2.5 };
+    expect(p.getPricing('deepseek-flash', idle).inputPerMillion).to.equal(2.5);
+  });
+  it('falls back to automatic DeepSeek prices when inspection fails or configured values are invalid', () => {
+    const inspect = sinon.stub().throws(new Error('synthetic configuration failure'));
+    sinon.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (key: string, fallback: unknown) => key.startsWith('pricing.') && key !== 'pricing.customModels' ? 0 : fallback, inspect,
+    } as any);
+    const p = getProvider('deepseek')!.pricing;
+    const time = Date.parse('2026-11-17T12:00:00Z');
+    expect(p.getPricing('deepseek-flash', time).inputPerMillion).to.equal(1);
+    for (const value of [undefined, null, -1, NaN, Infinity, '0']) {
+      inspect.resetBehavior();
+      inspect.returns(value === undefined ? undefined : { globalValue: value });
+      expect(p.getPricing('deepseek-flash', time).inputPerMillion).to.equal(1);
+    }
+  });
   it('feeds nonzero DeepSeek costs to day totals, cost curves and heatmaps under registered setting defaults', async () => {
     const properties = require('../package.json').contributes.configuration.properties;
     sinon.stub(vscode.workspace, 'getConfiguration').returns({ get: (key: string, fallback: unknown) => {
+      if (key.startsWith('pricing.') && key !== 'pricing.customModels') return 0;
       const property = properties['aiStatusHub.' + key];
       if (!property) return fallback;
       return Object.prototype.hasOwnProperty.call(property, 'default') ? property.default : property.type === 'number' ? 0 : fallback;
-    } } as any);
+    }, inspect: (key: string) => ({ key, defaultValue: 0 }) } as any);
     const now = Date.parse('2026-11-17T12:00:00Z');
     const clock = sinon.useFakeTimers(now);
     try {

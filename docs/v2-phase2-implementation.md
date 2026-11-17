@@ -2745,3 +2745,9 @@ KimiUsageData.monthlyBreakdown 新增 kimiLegend/codeLegend 已格式化字符�
 ConfigService.getPricing 按 provider 私有值 → 全局同模型值 → Provider 计算费率 → 通用缺省顺序，使用 nullish coalescing 回退。undefined/null 均表示未覆盖；明确数值 0 仍是有效覆盖，不能使用逻辑或代替。DeepSeek 16 个可选价格配置项声明 number|null 并显式 default:null，避免 VS Code 为未声明默认值的 number 自动补 0，覆盖 Provider 的动态 CNY/USD 峰谷费率。
 
 根因依据：VS Code configurationRegistry.ts 的 updatePropertyDefaultValue/getDefaultValue 对 number 缺省返回 0：https://github.com/microsoft/vscode/blob/main/src/vs/platform/configuration/common/configurationRegistry.ts#L1068 。此前单元测试仅在缺失配置时返回调用方 fallback，未模拟平台补默认值，导致扫描结果正常但真实宿主费用为零的差异。
+
+## 0.6.42：DeepSeek 显式价格覆盖
+
+0.6.41 通过 null schema 默认值修复零价，但 get() 仍可能接受宿主注册中的隐式零默认值。ConfigService 新增 readPriceOverride；DeepSeek 动态费率使用 inspect() 的显式层级值，忽略 defaultValue/defaultLanguageValue。优先级依次为文件夹语言、工作区语言、用户语言、文件夹、工作区、用户；取最高已定义层级，null 表示该字段回退，明确 0 仍保留。随后按私有覆盖 → 全局同模型覆盖 → Provider 自动费率回退。缺失、非有限值、负数、非法类型或 inspect 异常均不替代自动费率。其他 Provider 仍使用注册的固定价格默认值。
+
+现场日志确认 0.6.41 已激活，用户确认 Pricing 四项仍为零；已检查用户配置及相关工作区配置，未发现显式价格覆盖。无法获取真实宿主 inspect 快照：隔离 Code 测试实例因 Crashpad 启动失败。因此宿主遗留默认值是待实际窗口确认的解释；回归测试覆盖该失败模式，不能冒称已观察到真实宿主配置内容。

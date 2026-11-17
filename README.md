@@ -199,3 +199,7 @@ Monthly color legends now show each channel's percentage of the entire quota dir
 ### DeepSeek zero-cost fix (0.6.41)
 
 Optional DeepSeek pricing overrides now default to null (automatic rates). Previously VS Code supplied zero for number settings without explicit defaults, overriding automatic prices and leaving cost curves, day totals and cost heatmaps at zero while token counts remained available. Explicit zero overrides are still honored. After installing, reload the VS Code window and refresh usage to recalculate costs from local logs.
+
+### DeepSeek host-default protection (0.6.42)
+
+Automatic DeepSeek pricing now distinguishes explicit user/workspace overrides from registered defaults with VS Code's inspect API. Implicit zero defaults are ignored; deliberately configured zero prices remain valid. Install, reload the window, refresh usage, and verify the Pricing panel before checking cost charts. A synthetic host-default regression passes; the affected live window still needs verification.

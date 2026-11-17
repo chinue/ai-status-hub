@@ -272,6 +272,24 @@ export class ConfigService {
     return this.cfg.get<string>('pricing.officialDate', '2026-10-25');
   }
 
+  private readPriceOverride(key: string, explicitOnly: boolean): number | undefined {
+    try {
+      const cfg = this.cfg;
+      let value: unknown;
+      if (explicitOnly && typeof cfg.inspect === 'function') {
+        const info = cfg.inspect<number | null>(key);
+        // Automatic DeepSeek prices must not be replaced by registered defaults,
+        // including zeros retained from an older configuration registration.
+        value = info && [info.workspaceFolderLanguageValue, info.workspaceLanguageValue,
+          info.globalLanguageValue, info.workspaceFolderValue, info.workspaceValue,
+          info.globalValue].find(candidate => candidate !== undefined);
+      } else {
+        value = cfg.get<unknown>(key);
+      }
+      return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+    } catch { return undefined; }
+  }
+
   getPricing(modelName: string, providerId = this.activeProviderId, defaults?: TokenPricing, modelKey?: string): TokenPricing {
     const m = modelName.toLowerCase();
 
@@ -292,15 +310,17 @@ export class ConfigService {
     const providerPrefix = `pricing.${providerId}.models.${key}`;
     const globalPrefix = `pricing.models.${key}`;
 
+    // Dynamic DeepSeek rates accept only explicit scoped settings, never schema defaults.
+    const explicitOnly = providerId === 'deepseek';
     // A null override means automatic pricing; explicit numeric zero remains valid.
-    const input = this.cfg.get<number | null>(`${providerPrefix}.inputPerMillion`)
-      ?? this.cfg.get<number | null>(`${globalPrefix}.inputPerMillion`) ?? defaults?.inputPerMillion ?? 2.00;
-    const output = this.cfg.get<number | null>(`${providerPrefix}.outputPerMillion`)
-      ?? this.cfg.get<number | null>(`${globalPrefix}.outputPerMillion`) ?? defaults?.outputPerMillion ?? 10.00;
-    const cacheRead = this.cfg.get<number | null>(`${providerPrefix}.cacheReadPerMillion`)
-      ?? this.cfg.get<number | null>(`${globalPrefix}.cacheReadPerMillion`) ?? defaults?.cacheReadPerMillion ?? 0.50;
-    const cacheCreate = this.cfg.get<number | null>(`${providerPrefix}.cacheCreatePerMillion`)
-      ?? this.cfg.get<number | null>(`${globalPrefix}.cacheCreatePerMillion`) ?? defaults?.cacheCreatePerMillion ?? 2.00;
+    const input = this.readPriceOverride(`${providerPrefix}.inputPerMillion`, explicitOnly)
+      ?? this.readPriceOverride(`${globalPrefix}.inputPerMillion`, explicitOnly) ?? defaults?.inputPerMillion ?? 2.00;
+    const output = this.readPriceOverride(`${providerPrefix}.outputPerMillion`, explicitOnly)
+      ?? this.readPriceOverride(`${globalPrefix}.outputPerMillion`, explicitOnly) ?? defaults?.outputPerMillion ?? 10.00;
+    const cacheRead = this.readPriceOverride(`${providerPrefix}.cacheReadPerMillion`, explicitOnly)
+      ?? this.readPriceOverride(`${globalPrefix}.cacheReadPerMillion`, explicitOnly) ?? defaults?.cacheReadPerMillion ?? 0.50;
+    const cacheCreate = this.readPriceOverride(`${providerPrefix}.cacheCreatePerMillion`, explicitOnly)
+      ?? this.readPriceOverride(`${globalPrefix}.cacheCreatePerMillion`, explicitOnly) ?? defaults?.cacheCreatePerMillion ?? 2.00;
 
     return { inputPerMillion: input, outputPerMillion: output, cacheReadPerMillion: cacheRead, cacheCreatePerMillion: cacheCreate };
   }
