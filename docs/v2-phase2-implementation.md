@@ -2751,3 +2751,9 @@ ConfigService.getPricing 按 provider 私有值 → 全局同模型值 → Provi
 0.6.41 通过 null schema 默认值修复零价，但 get() 仍可能接受宿主注册中的隐式零默认值。ConfigService 新增 readPriceOverride；DeepSeek 动态费率使用 inspect() 的显式层级值，忽略 defaultValue/defaultLanguageValue。优先级依次为文件夹语言、工作区语言、用户语言、文件夹、工作区、用户；取最高已定义层级，null 表示该字段回退，明确 0 仍保留。随后按私有覆盖 → 全局同模型覆盖 → Provider 自动费率回退。缺失、非有限值、负数、非法类型或 inspect 异常均不替代自动费率。其他 Provider 仍使用注册的固定价格默认值。
 
 现场日志确认 0.6.41 已激活，用户确认 Pricing 四项仍为零；已检查用户配置及相关工作区配置，未发现显式价格覆盖。无法获取真实宿主 inspect 快照：隔离 Code 测试实例因 Crashpad 启动失败。因此宿主遗留默认值是待实际窗口确认的解释；回归测试覆盖该失败模式，不能冒称已观察到真实宿主配置内容。
+
+## 0.6.43：DeepSeek 网页账号统计
+
+DeepseekBilling 仅包含 currency、spent、available 及可选 recharged/refunded 汇总；QuotaData/UnifiedQuota 添加 accountBilling/accountBillingError，Dashboard 视图添加已格式化账单信息。缓存只持久化汇总，不存令牌、完整订单或账单原文；原普通缓存已有余额，新增的汇总同样是本地明文财务信息，不能当成凭据存储。
+
+extension.ts 新增 aiStatusHub.deepseekConnectWeb：密码交互在调度队列外，成功后仅 force DeepSeek。Provider 创建时将网页令牌 getter 接入 DeepseekApiProvider，模型 Key 验证独立执行，不混入旧网页账号数据。statusBar.ts Tooltip 使用 calc.ts 格式化，状态文本保留余额并增加官网资金使用比例。

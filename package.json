@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, DeepSeek, Volcengine, and Cursor",
-  "version": "0.6.42",
+  "version": "0.6.43",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -22,6 +22,7 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      { "command": "aiStatusHub.deepseekConnectWeb", "title": "AI Status Hub: Connect DeepSeek Web Billing / 连接 DeepSeek 网页账单" },
       {
         "command": "aiStatusHub.refresh",
         "title": "AI Status Hub: Refresh",

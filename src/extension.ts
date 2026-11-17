@@ -11,6 +11,7 @@ import { LocalUsageService } from './services/localUsageService';
 import { ApiHistoryService } from './services/apiHistoryService';
 import { Scheduler } from './services/scheduler';
 import { KimiAuthProvider, KIMI_MEMBERSHIP_SECRET_KEY } from './providers/kimi/auth';
+import { DeepseekAuthProvider } from './providers/deepseek/auth';
 import { StatusBarPresenter } from './presenters/statusBar';
 import { DashboardPanel } from './presenters/dashboard';
 import { log, writeApiKey, deleteApiKey, deleteOAuth } from './utils';
@@ -123,6 +124,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('aiStatusHub.showDashboard', showDashboard),
     vscode.commands.registerCommand('aiStatusHub.syncStatusBars', () => enqueue(reconcile)),
     vscode.commands.registerCommand('aiStatusHub.refresh', (id?: unknown) => withRuntime(id, runtime => runtime.scheduler.force())),
+    vscode.commands.registerCommand('aiStatusHub.deepseekConnectWeb', async () => {
+      let auth: DeepseekAuthProvider | undefined;
+      await withRuntime('deepseek', runtime => { auth = runtime.provider.auth as DeepseekAuthProvider; });
+      if (auth && await auth.startWebLoginFlow()) await withRuntime('deepseek', runtime => runtime.scheduler.force());
+    }),
     vscode.commands.registerCommand('aiStatusHub.kimiConnectMembership', async () => {
       let auth: KimiAuthProvider | undefined;
       await withRuntime('kimi', runtime => { auth = runtime.provider.auth as KimiAuthProvider; });

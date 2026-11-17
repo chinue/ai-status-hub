@@ -4,10 +4,12 @@ import { Agent } from 'https';
 import { ApiResult, IQuotaApiProvider } from '../base/types';
 import { ConfigService } from '../../config';
 import { makeT } from '../../i18n';
+import { DeepseekWebApi } from './webApi';
 import { parseDeepseekBalance } from '../../calc';
 
 export class DeepseekApiProvider implements IQuotaApiProvider {
-  constructor(private readonly fetcher: typeof fetch = fetch) {}
+  constructor(private readonly fetcher: typeof fetch = fetch,
+    private readonly webToken?: () => Promise<string | undefined>) {}
   async fetchQuota(token: string): Promise<ApiResult> {
     const config = ConfigService.getInstance();
     const t = makeT(config.effectiveLanguage);
@@ -24,6 +26,16 @@ export class DeepseekApiProvider implements IQuotaApiProvider {
       if (!response.ok) return { ok: false, networkError: response.status >= 500 || response.status === 429,
         error: t('deepseek.httpError', response.status) };
       const data = parseDeepseekBalance(await response.json(), config.currencyForProvider('deepseek').code);
+      if (data && this.webToken) {
+        try {
+          const web = await this.webToken();
+          if (web) {
+            const result = await new DeepseekWebApi(this.fetcher).fetchBilling(web, data.balance!.currency);
+            if (result.data) data.accountBilling = result.data;
+            data.accountBillingError = result.error;
+          }
+        } catch { data.accountBillingError = t('deepseek.webQueryFailed'); }
+      }
       return data ? { ok: true, data } : { ok: false, error: t('deepseek.balanceMissing') };
     } catch {
       return { ok: false, networkError: true, error: t('deepseek.queryFailed') };

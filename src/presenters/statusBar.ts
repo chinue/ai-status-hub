@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatAccountBalance } from '../calc';
+import { formatAccountBalance, formatDeepseekBilling } from '../calc';
 import {
   computeUtilization, formatPercent, formatPercentPadded, formatProviderStatus, remainingQuotaColor,
   fmtHours, fmtTokens, fmtCost, fmtDateTime, fmtResetTime, fmtReportedResetTime,
@@ -183,6 +183,10 @@ export class StatusBarPresenter {
 
     const parts: string[] = [];
     if (q?.balance) parts.push(formatAccountBalance(q.balance, locale), '');
+    if (q?.accountBilling) {
+      const billing = formatDeepseekBilling(q.accountBilling, locale);
+      parts.push(billing.usedText, billing.summary, billing.details, '');
+    }
     if (glmError) parts.push(`⚠ ${glmError}`, '');
     if (!hasQuotaData(state) || state.authStatus === 'missing') {
       parts.push(`<span style="color:var(--vscode-errorForeground);">⚠ ${t('usage.quotaUnavailable')}</span> [${t('tooltip.signInAction')}](command:aiStatusHub.signIn?${commandArgs})`, '');

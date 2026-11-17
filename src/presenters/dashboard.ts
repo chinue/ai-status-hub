@@ -7,7 +7,7 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatAccountBalance, formatKimiMonthlyBreakdown } from '../calc';
+import { formatAccountBalance, formatKimiMonthlyBreakdown, formatDeepseekBilling } from '../calc';
 import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, fmtReportedResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
@@ -89,6 +89,9 @@ export class DashboardPanel {
         break;
       case 'signIn':
         void vscode.commands.executeCommand('aiStatusHub.signIn', this.store.getState().activeProvider);
+        break;
+      case 'connectDeepseekWeb':
+        if (this.store.getState().activeProvider === 'deepseek') void vscode.commands.executeCommand('aiStatusHub.deepseekConnectWeb');
         break;
       case 'connectKimiMembership':
         if (this.store.getState().activeProvider === 'kimi') void vscode.commands.executeCommand('aiStatusHub.kimiConnectMembership');
@@ -339,6 +342,8 @@ export class DashboardPanel {
       : undefined;
 
     return {
+      accountBilling: state.activeProvider === 'deepseek' && quota?.accountBilling ? formatDeepseekBilling(quota.accountBilling, locale) : undefined,
+      accountBillingError: quota?.accountBillingError ?? (quota?.accountBilling ? undefined : t('deepseek.webMissing')),
       isBalanceProvider: state.activeProvider === 'deepseek',
       balanceText: quota?.balance ? formatAccountBalance(quota.balance, locale) : t('deepseek.balanceUnavailable'),
       monthlyUnavailableText: state.activeProvider === 'kimi' && quota?.monthlyUsedPct == null
@@ -834,6 +839,16 @@ export class DashboardPanel {
     <div id="quota-warning" style="color:var(--vscode-errorForeground);">⚠ ${i18n('usage.quotaUnavailable')}</div>
     <div class="progress-row" id="row-balance" style="${activeProvider === 'deepseek' ? '' : 'display:none;'}"><strong id="lbl-balance">${i18n('deepseek.balanceUnavailable')}</strong></div>
     <div style="color:var(--vscode-descriptionForeground);">${i18n(activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}</div>
+    <div class="progress-row" id="row-account-billing" style="display:none;">
+      <div class="progress-labels"><span>${i18n('deepseek.webUsageLabel')}</span><span id="lbl-account-billing">—</span></div>
+      <div class="progress-track"><div class="progress-fill" id="fill-account-billing" style="width:0%"></div></div>
+      <div class="progress-meta-row"><span id="meta-account-billing"></span></div>
+      <div class="progress-meta-row"><span id="detail-account-billing"></span></div>
+    </div>
+    <div id="deepseek-web-actions" style="display:none;">
+      <span class="progress-meta" id="deepseek-web-error"></span>
+      <button id="btn-deepseek-web">${i18n('deepseek.webConnect')}</button>
+    </div>
     <div class="progress-row" id="row-5h" style="${this.store.getState().quota?.has5hLimit === false ? 'display:none' : ''}">
       <div class="progress-labels">
         <span>${i18n('dashboard.window5h')}<span id="badge-5h" class="estimate-badge"></span></span>
@@ -1389,6 +1404,17 @@ export class DashboardPanel {
       if (balanceRow) balanceRow.style.display = usage.isBalanceProvider ? '' : 'none';
       const balanceLabel = document.getElementById('lbl-balance');
       if (balanceLabel) balanceLabel.textContent = usage.balanceText || '';
+      const account = usage.isBalanceProvider ? usage.accountBilling : null;
+      document.getElementById('row-account-billing').style.display = account ? '' : 'none';
+      document.getElementById('lbl-account-billing').textContent = account ? account.usedText : '';
+      document.getElementById('meta-account-billing').textContent = account ? account.summary : '';
+      document.getElementById('detail-account-billing').textContent = account ? account.details : '';
+      const accountFill = document.getElementById('fill-account-billing');
+      accountFill.style.width = (account ? Math.max(0, Math.min(100, account.usedPct || 0)) : 0) + '%';
+      accountFill.title = account ? account.details : '';
+      document.getElementById('deepseek-web-actions').style.display = usage.isBalanceProvider ? '' : 'none';
+      document.getElementById('deepseek-web-error').textContent = usage.isBalanceProvider && (!account || usage.accountBillingError) ? usage.accountBillingError || '' : '';
+      document.getElementById('btn-deepseek-web').onclick = () => vscode.postMessage({ type: 'connectDeepseekWeb' });
       document.getElementById('row-5h').style.display = usage.has5hLimit === false ? 'none' : '';
       const w5h = Math.min(100, usage.utilization5h * 100 || 0);
       const w7d = Math.min(100, usage.utilization7d * 100 || 0);

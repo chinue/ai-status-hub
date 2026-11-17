@@ -1,6 +1,13 @@
 // DESIGN: v2-phase2-implementation.md#typests
 // AGENTS: keep-minimal | no-logic
+export interface DeepseekBilling {
+  currency: 'CNY' | 'USD'; spent: number; available: number;
+  recharged?: number; refunded?: number;
+}
+
 export interface QuotaData {
+  accountBilling?: DeepseekBilling;
+  accountBillingError?: string;
   monthlyFromMembership?: boolean;
   monthlyCodeIsShared?: boolean;
   balance?: { currency: 'CNY' | 'USD'; total: number; granted: number; toppedUp: number; isAvailable: boolean };
@@ -212,6 +219,8 @@ export interface DashboardMessage {
 }
 
 export interface KimiUsageData {
+  accountBilling?: { usedPct?: number; usedText: string; summary: string; details: string };
+  accountBillingError?: string;
   monthlyBreakdown?: { kimiPct: number; codePct: number; kimiText: string; codeText: string; kimiLegend: string; codeLegend: string };
   monthlyCodeLabel?: string;
   isBalanceProvider?: boolean;

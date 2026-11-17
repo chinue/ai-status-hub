@@ -323,3 +323,7 @@ kimi.webLoginSteps / webRefreshPrompt 中英双语说明 F12 和 Key 对应 Valu
 ## 0.6.40：简短月度提示与图例
 
 kimi.monthlyUnavailable 中英文同步简化，英文 Monthly usage unavailable. Refresh or reconnect. 共 6 个单词。dashboard.kimiMonthLegend 双语模板接收产品标签和已格式化百分比；格式化继续位于 calc.ts。
+
+## 0.6.43：DeepSeek 网页账单双语与敏感信息
+
+deepseek.web* 中英双语覆盖连接、F12/Network/请求头 Value 步骤、密码输入、失效重连、数据延迟和比例口径。余额文案区分充值余额与累计充值。格式化集中在 calc.ts；账单错误不显示第三方原文，不把 Authorization、Cookie、订单标识写入日志或 WebView。新入口使用独立 SecretStorage，不在 settings.json 中存密钥。

@@ -615,3 +615,13 @@ DeepSeek Flash/Pro 及峰时共 16 个价格覆盖字段改为显式 null 默认
 ## 0.6.42：动态价格不采纳注册默认值
 
 DeepSeek 内置费率为动态计算，只有显式配置才可覆盖。ConfigService 使用 inspect() 区分用户/工作区设置与 schema 默认值，防止旧宿主注册的 0 再次覆盖自动价格；保留 customModels、显式 0 以及峰谷、币种和模型路由规则。无需重建会话数据或清除凭据。
+
+## DeepSeek web billing
+
+0.6.43 新增 DeepseekWebApi，使用独立网页登录 Bearer 凭据并行 GET https://platform.deepseek.com/api/v0/users/get_user_summary 与 https://platform.deepseek.com/auth-api/v0/users/get_all_invoice。两请求均只读，不调用充值、支付 capture、退款申请、发票申请或模型消息接口。固定主机/路径、严格 TLS、禁止重定向、共享 15 秒超时，finally 关闭 Agent。HTTP、JSON、业务错误只返回固定翻译，不打印令牌、订单、响应正文或异常原文。
+
+证据来自 2026-11-18 获取的官方公开页面入口 main.ac8a6243ff.js 与 378.2152c25fe2.js（https://fe-static.deepseek.com/platform/static/378.2152c25fe2.js）：用量组件将 biz_data.total_costs 映射为累计消费金额，normal_wallets 与 bonus_wallets 为可用余额；账单页读取 invoices.payment_orders，含 payment_order_id、amount、currency、payment_order_status。状态为 CREATED/SUCCESS/FAILED/REFUNDED/PENDING/CHARGEBACK。匿名概览请求曾返回 429，未重试，尚未用真实账户验证这些响应；以上是静态接口/字段证据，不是账号读取成功的证明。
+
+DeepseekApiProvider 在余额查询成功且配置了网页凭据时补充 accountBilling；不发送模型 API Key 到网页接口，也不发送网页登录令牌到模型 API。网页失败保留 API 余额及本地统计；部分充值数据无效时显示未获取，不作零值，仍保留成功获取的消费/可用余额。
+
+DeepseekAuthProvider.startWebLoginFlow 通过模态步骤引导同账号登录平台，F12 > Network > 刷新 > get_user_summary > Headers > Request Headers > Authorization，复制完整值至 password 输入框（兼容 Bearer 前缀）。验证后保存到 aiStatusHub.deepseek.webToken；不读 Cookie/浏览器数据库，不存网站密码，不支持自动续期；过期、设备验证或拒绝时重新连接。取消/验证失败不覆盖旧网页凭据；切换 API Key 清除旧网页登录，DeepSeek 退出清除自己的 API Key 和网页令牌，不清除其他 Provider。账号相同由用户确认，尚未自动比对账号身份。

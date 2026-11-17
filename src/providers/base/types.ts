@@ -1,6 +1,8 @@
 // DESIGN: v2-provider-abstraction.md#provider-interfaces
 // AGENTS: keep-minimal | no-logic
 
+import { DeepseekBilling } from '../../types';
+
 export interface Currency {
   code: string;      // 'USD' | 'CNY'
   symbol: string;    // '$' | '¥'
@@ -21,6 +23,8 @@ export interface TokenUsage {
 }
 
 export interface UnifiedQuota {
+  accountBilling?: DeepseekBilling;
+  accountBillingError?: string;
   monthlyFromMembership?: boolean;
   monthlyCodeIsShared?: boolean;
   balance?: { currency: 'CNY' | 'USD'; total: number; granted: number; toppedUp: number; isAvailable: boolean };

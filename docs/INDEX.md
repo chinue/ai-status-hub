@@ -162,3 +162,12 @@ kimi/api.ts、kimi/auth.ts、kimi/index.ts 同步 Provider；calc.ts 同步本�
 ## Kimi 网页续期及月度组成（0.6.39）
 
 kimi/auth.ts、kimi/api.ts、kimi/membershipApi.ts、kimi/index.ts 对应 v2-provider-abstraction.md#kimi-web-membership；calc.ts 对应 v2-local-estimation-design.md；dashboard.ts 对应 v2-dashboard-design.md；types.ts 对应 v2-phase2-implementation.md；i18n.ts 对应 CODING_STANDARDS.md；kimiMembership.test.ts 对应 v2-test-design.md。
+
+## DeepSeek 网页账单（0.6.43）
+
+| 文件 | 文档 | 说明 |
+|---|---|---|
+| src/providers/deepseek/webApi.ts | v2-provider-abstraction.md#deepseek-web-billing | 网页消费/充值只读接口 |
+| test/deepseekWeb.test.ts | v2-test-design.md#deepseek-web-billing | 账号账单、凭据隔离、比例及 UI 回归 |
+
+其余修改映射：deepseek/api.ts、auth.ts、index.ts、base/types.ts 对应 Provider；calc.ts 对应本地估算；dashboard.ts 对应 Dashboard；types.ts、extension.ts、statusBar.ts 对应 Phase 2；i18n.ts 对应编码规范。

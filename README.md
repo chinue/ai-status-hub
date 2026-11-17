@@ -203,3 +203,9 @@ Optional DeepSeek pricing overrides now default to null (automatic rates). Previ
 ### DeepSeek host-default protection (0.6.42)
 
 Automatic DeepSeek pricing now distinguishes explicit user/workspace overrides from registered defaults with VS Code's inspect API. Implicit zero defaults are ignored; deliberately configured zero prices remain valid. Install, reload the window, refresh usage, and verify the Pricing panel before checking cost charts. A synthetic host-default regression passes; the affected live window still needs verification.
+
+### DeepSeek official account billing (0.6.43)
+
+With the DeepSeek API balance connected, click Connect DeepSeek web billing in Current Usage (or run the corresponding command). Sign in to https://platform.deepseek.com/usage with the same account. Press F12, select Network, refresh, filter get_user_summary, then open Headers > Request Headers and copy the complete Authorization VALUE into the extension password box. Never share it in chat or settings.json. The credential is validated and stored separately in VS Code SecretStorage; sign-out removes it. Sessions may expire or require device verification; reconnect when needed. Automatic renewal and account identity matching are not implemented.
+
+The account bar uses total cost / (total cost + current available balance), as selected, and shows official cumulative consumption plus same-currency recharge totals. Recharges count paid order face values, including later refunded/chargeback orders, excluding grants. The separate refund figure is the original value of affected orders, not partial-refund accounting. Missing recharge data is shown as unavailable. Website data may lag by about five minutes; refreshes follow the existing scheduler. These are account statistics, separate from local token-cost estimates and fixed-window quotas. Actual-account responses still require validation after connecting.

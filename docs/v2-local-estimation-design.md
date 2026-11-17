@@ -808,3 +808,11 @@ formatKimiMonthlyBreakdown 仅对 monthlyCodeIsShared=true 且总量/Code 均为
 ## 0.6.40：月度图例格式化
 
 formatKimiMonthlyBreakdown 新增 kimiLegend/codeLegend，通过双语 dashboard.kimiMonthLegend 与 formatPercent(..., 2) 生成标签和占月池百分比，供 Dashboard 直接绑定文本；保留原详细悬停说明和共享池校验。
+
+## 0.6.43：DeepSeek 官网账单解析
+
+calc.ts 新增 parseDeepseekWebSummary、parseDeepseekRecharge、formatDeepseekBilling。只接受 code=0/data.biz_code=0 的网页业务数据，金额仅接受有限非负 number 或非空数字字符串。按 API 余额实际币种查询同币种统计，不换汇或混加货币。
+
+累计消费直接来自 total_costs；当前可用余额为同币种 normal_wallets 与 bonus_wallets 余额之和。累计充值为 SUCCESS、REFUNDED、CHARGEBACK 已支付订单原额合计（包含后续退款/拒付订单，不含赠金）；另列退款/拒付订单原额，不将其冒充部分退款明细。CREATED/FAILED/PENDING 不计入。按 payment_order_id 去重，同 ID 冲突或未知状态使充值汇总无效；缺失/非法数据不当零。空订单列表为真实零。
+
+按用户明确选择，百分比=累计消费÷（累计消费＋当前可用余额），不使用充值汇总作为分母。分母为零时显示破折号；已获取的真实零消费在有余额时显示 0%。这是从官网金额计算的账号资金比例，不是五小时、七天或固定套餐配额。格式化集中在 calc.ts，网页统计不覆盖本地日志 Token、定价或费用曲线。

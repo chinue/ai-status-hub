@@ -963,3 +963,9 @@ Kimi 月度共享池缺失时保留原入口，并显示“连接网页会员额
 ## 0.6.40：月度图例直接显示比例
 
 Kimi/Code 色块后紧邻标签增加各自占完整月额度的百分比，例如 Kimi 32.64%、Code 50.53%，两项之和为总用量。独立文本 span 更新，不覆盖色块结构；悬停仍显示占月额度、占已用额度的详情。缺失/切换时清理图例文本。月度未获取提示缩短为 Monthly usage unavailable. Refresh or reconnect.（6 个英文单词）。
+
+## 0.6.43：DeepSeek 官方账号统计
+
+Current Usage 在原 API 余额下新增账号资金使用比例进度条，显示官网累计消费、网页可用余额、累计充值（含退款订单）及退款/拒付订单原额，明确公式和官网可能有约 5 分钟延迟。充值未获取显示未获取，消费和余额仍可显示。重连按钮在 DeepSeek 页可用，消息 connectDeepseekWeb 调用 aiStatusHub.deepseekConnectWeb，成功后刷新 DeepSeek。
+
+网页数据缺失或切换 Provider 时隐藏进度条并清空文本/宽度，不遗留别的账号或 Provider 数据。网页统计与 Detailed Usage 的本地估算分开；数据不会用 API 剩余充值余额冒充累计充值。状态栏追加该比例，Tooltip 同步金额和口径。

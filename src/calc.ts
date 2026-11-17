@@ -1,6 +1,6 @@
 // DESIGN: v2-local-estimation-design.md#quota-percentage-resolution
 // AGENTS: pure-fn | fmt-here | no-side-effect
-import { QuotaData, TokenPricing, AppState, UsageEntry } from './types';
+import { DeepseekBilling, QuotaData, TokenPricing, AppState, UsageEntry } from './types';
 
 /** Keep at least one supported provider visible as an entry to the dashboard. */
 export function normalizeStatusBarProviders(value: unknown): string[] {
@@ -757,7 +757,9 @@ export function formatProviderStatus(state: AppState, icon: string, name: string
   const indicators = buildIndicatorSuffix(state, now, staleThresholdMs, ['stale', 'source', 'auth']);
   if (quota?.balance) {
     const t = makeT(locale ?? (state.ui.language === 'zh-CN' ? 'zh-CN' : 'en'));
-    return `${icon} ${name}: ${t('deepseek.balance')} ${fmtCurrency(quota.balance.total, quota.balance.currency === 'USD' ? '$' : '¥')}${quota.balance.isAvailable ? '' : ' $(warning)'}${indicators}`;
+    const billing = quota.accountBilling ? formatDeepseekBilling(quota.accountBilling, locale ?? 'en') : undefined;
+    const billingPct = billing?.usedPct !== undefined ? ` · ${billing.usedText}` : '';
+    return `${icon} ${name}: ${t('deepseek.balance')} ${fmtCurrency(quota.balance.total, quota.balance.currency === 'USD' ? '$' : '¥')}${quota.balance.isAvailable ? '' : ' $(warning)'}${billingPct}${indicators}`;
   }
   if (quota?.has5hLimit === false && quota.has7dLimit === false) {
     return `${icon} ${name}: ${formatPercent(quota.monthlyUsedPct ?? quota.monthlyCodeUsedPct ?? 0, 2)}${indicators}`;
@@ -1122,4 +1124,62 @@ export function formatKimiMonthlyBreakdown(quota: QuotaData | null | undefined, 
     kimiText: t('dashboard.kimiMonthSegment', t('dashboard.kimiMonthKimi'), formatPercent(kimi, 2), formatPercent(total > 0 ? kimi / total * 100 : 0, 2)),
     codeText: t('dashboard.kimiMonthSegment', t('dashboard.kimiMonthCodeLegend'), formatPercent(code, 2), formatPercent(total > 0 ? code / total * 100 : 0, 2)),
   };
+}
+
+function deepseekWebData(value: unknown): Record<string, any> | null {
+  const raw = value as any;
+  return raw?.code === 0 && raw?.data?.biz_code === 0 && raw.data.biz_data && typeof raw.data.biz_data === 'object'
+    ? raw.data.biz_data : null;
+}
+function deepseekMoney(value: unknown): number | null {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+export function parseDeepseekWebSummary(value: unknown, currency: 'CNY' | 'USD'): DeepseekBilling | null {
+  const data = deepseekWebData(value);
+  if (!data || !Array.isArray(data.total_costs) || !Array.isArray(data.normal_wallets) || !Array.isArray(data.bonus_wallets)) return null;
+  const costs = data.total_costs.filter((r: any) => r?.currency === currency);
+  if (costs.length !== 1) return null;
+  const spent = deepseekMoney(costs[0].amount);
+  if (spent === null) return null;
+  let available = 0;
+  for (const wallet of [...data.normal_wallets, ...data.bonus_wallets]) {
+    if (wallet?.currency !== currency) continue;
+    const amount = deepseekMoney(wallet.balance);
+    if (amount === null) return null;
+    available += amount;
+  }
+  return Number.isFinite(available) ? { currency, spent, available } : null;
+}
+export function parseDeepseekRecharge(value: unknown, currency: 'CNY' | 'USD'): { recharged: number; refunded: number } | null {
+  const rows = deepseekWebData(value)?.invoices?.payment_orders;
+  if (!Array.isArray(rows)) return null;
+  const seen = new Map<string, string>();
+  let recharged = 0, refunded = 0;
+  for (const row of rows) {
+    if (row?.currency !== currency) continue;
+    if (['CREATED', 'FAILED', 'PENDING'].includes(row.payment_order_status)) continue;
+    if (!['SUCCESS', 'REFUNDED', 'CHARGEBACK'].includes(row.payment_order_status)) return null;
+    const amount = deepseekMoney(row.amount);
+    if (amount === null || typeof row.payment_order_id !== 'string' || !row.payment_order_id) return null;
+    const signature = JSON.stringify([amount, row.payment_order_status]);
+    if (seen.has(row.payment_order_id)) {
+      if (seen.get(row.payment_order_id) !== signature) return null;
+      continue;
+    }
+    seen.set(row.payment_order_id, signature);
+    recharged += amount;
+    if (row.payment_order_status !== 'SUCCESS') refunded += amount;
+  }
+  return Number.isFinite(recharged) && Number.isFinite(refunded) ? { recharged, refunded } : null;
+}
+export function formatDeepseekBilling(data: DeepseekBilling, locale: Locale) {
+  const t = makeT(locale), symbol = data.currency === 'USD' ? '$' : '¥';
+  const denominator = data.spent + data.available;
+  const usedPct = Number.isFinite(denominator) && denominator > 0 ? data.spent / denominator * 100 : undefined;
+  const money = (n: number | undefined) => n === undefined ? t('deepseek.webUnavailableShort') : fmtCurrency(n, symbol);
+  return { usedPct, usedText: usedPct === undefined ? '—' : formatPercent(usedPct, 2),
+    summary: t('deepseek.webTotals', money(data.spent), money(data.available), money(data.recharged), money(data.refunded)),
+    details: t('deepseek.webBasis') };
 }
