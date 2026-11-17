@@ -185,6 +185,7 @@ export class KimiAuthProvider implements IAuthProvider {
   private cachedToken: string | null = null;
   private cachedAt = 0;
   private loginPromise?: Promise<boolean>;
+  private webRefreshPromise?: Promise<string | undefined>;
 
   constructor(private fetcher: typeof fetch = fetch) {}
 
@@ -192,9 +193,36 @@ export class KimiAuthProvider implements IAuthProvider {
     this.secrets = secrets;
   }
 
-  async resolveWebToken(): Promise<string | undefined> {
-    try { return (await this.secrets?.get(KIMI_MEMBERSHIP_SECRET_KEY))?.trim() || undefined; }
-    catch { return undefined; }
+  async resolveWebToken(forceRefresh = false): Promise<string | undefined> {
+    if (forceRefresh) {
+      if (this.webRefreshPromise) return this.webRefreshPromise;
+      this.webRefreshPromise = this.refreshWebToken();
+      try { return await this.webRefreshPromise; }
+      finally { this.webRefreshPromise = undefined; }
+    }
+    try {
+      const raw = (await this.secrets?.get(KIMI_MEMBERSHIP_SECRET_KEY))?.trim();
+      if (!raw) return undefined;
+      if (!raw.startsWith('{')) return raw; // Legacy access-only storage.
+      const data = JSON.parse(raw);
+      return typeof data?.accessToken === 'string' ? data.accessToken.trim() || undefined : undefined;
+    } catch { return undefined; }
+  }
+
+  private async refreshWebToken(): Promise<string | undefined> {
+    try {
+      const storage = this.secrets;
+      const raw = await storage?.get(KIMI_MEMBERSHIP_SECRET_KEY);
+      if (!storage || !raw?.trim().startsWith('{')) return undefined;
+      const credentials = JSON.parse(raw);
+      if (typeof credentials?.refreshToken !== 'string' || !credentials.refreshToken.trim()) return undefined;
+      const updated = await new KimiMembershipApi(this.fetcher).refreshToken(credentials.refreshToken);
+      if (!updated) return undefined;
+      // Sign-out or reconnection during the request must not restore old credentials.
+      if (await storage.get(KIMI_MEMBERSHIP_SECRET_KEY) !== raw) return undefined;
+      await storage.store(KIMI_MEMBERSHIP_SECRET_KEY, JSON.stringify(updated));
+      return updated.accessToken;
+    } catch { return undefined; }
   }
 
   async startMembershipLoginFlow(): Promise<boolean> {
@@ -202,7 +230,7 @@ export class KimiAuthProvider implements IAuthProvider {
     try {
       const open = t('kimi.openSubscription');
       const action = await vscode.window.showInformationMessage(t('kimi.webLoginGuide'),
-        { modal: true }, open, t('kimi.enterWebToken'));
+        { modal: true, detail: t('kimi.webLoginSteps') }, open, t('kimi.enterWebToken'));
       if (!action) return false;
       if (action === open) await vscode.env.openExternal(vscode.Uri.parse('https://www.kimi.com/settings/subscription?tab=quota'));
       const token = (await vscode.window.showInputBox({ title: t('kimi.connectMembership'),
@@ -211,7 +239,12 @@ export class KimiAuthProvider implements IAuthProvider {
       if (!this.secrets) { await vscode.window.showErrorMessage(t('kimi.webStorageFailed')); return false; }
       const result = await new KimiMembershipApi(this.fetcher).fetchMonthly(token);
       if (!result.ok || !result.data) { await vscode.window.showErrorMessage(result.error ?? t('kimi.webQueryFailed')); return false; }
-      await this.secrets.store(KIMI_MEMBERSHIP_SECRET_KEY, token);
+      const refresh = await vscode.window.showInputBox({ title: t('kimi.connectMembership'),
+        prompt: t('kimi.webRefreshPrompt'), password: true, ignoreFocusOut: true });
+      if (refresh === undefined) return false;
+      const refreshToken = refresh.trim();
+      await this.secrets.store(KIMI_MEMBERSHIP_SECRET_KEY, refreshToken
+        ? JSON.stringify({ accessToken: token, refreshToken }) : token);
       await vscode.window.showInformationMessage(t('kimi.webConnected'));
       return true;
     } catch { await vscode.window.showErrorMessage(t('kimi.webStorageFailed')); return false; }

@@ -178,6 +178,16 @@ Native Claude, Kimi and Codex JSONL paths now use bounded streaming reads instea
 
 With Kimi Code connected, refresh the Dashboard first. If the Coding endpoint omits monthly totals, the extension tries the membership website's GetSubscriptionStats RPC. If the current authorization is not accepted, click Connect web membership usage in the monthly section (or use the corresponding command).
 
-Sign in to https://www.kimi.com/settings/subscription using the same account as Kimi Code. In browser developer tools, open Application > Local Storage > https://www.kimi.com and copy access_token. Paste it only into the extension's password input, never into chat or settings.json. It is a sensitive account credential. The read-only request validates it before saving it in separate SecretStorage; expiry requires reconnection and Kimi sign-out removes the stored web token. The extension does not read browser cookies/databases, store a web refresh token, or send the web token to the Coding endpoint. Account identity matching is currently the user's responsibility.
+Sign in to https://www.kimi.com/settings/subscription using the same account as Kimi Code. Press F12 (or Ctrl+Shift+I), select Application > Storage > Local Storage > https://www.kimi.com. Find Key = access_token and copy its complete Value into the first extension password input. Optionally copy the Value for Key = refresh_token into the second input to enable automatic renewal; leave it empty to skip or press Esc to cancel. Never share either value in chat or settings.json. The extension validates access before saving credentials in separate VS Code SecretStorage; Kimi sign-out removes them. A website 401 triggers at most one renewal and retry. Rotated credentials are saved together; failure preserves prior credentials and Coding quota. Both tokens may expire or be revoked; no fixed lifetime is promised. Reconnect if renewal fails. No browser cookies/databases are read and web credentials are never sent to the Coding endpoint. Account identity matching remains the user's responsibility.
 
 The website total and Code share use the returned ratios and are not added together. The Code figure is labeled as a share of the membership pool; pool expiry is not assumed to be the next reset. Website failures preserve Coding quota data. This is an internal website endpoint that may change, and a real account still needs verification after connection.
+
+### Kimi monthly breakdown (0.6.39)
+
+The shared monthly bar shows Kimi first (blue) and Code second (orange), with matching swatches below. Hover over a segment or legend to see its share of the whole quota and of used quota. Kimi equals total minus Code; the remainder of the track is unused quota. Missing breakdowns and independent Code limits retain separate bars.
+
+### Kimi 月度用量与自动续期（0.6.39）
+
+月度总条按蓝色 Kimi、橙色 Code 分段，下方有同色图例；悬停显示占月额度和占已用额度的比例。Kimi＝总量－Code，剩余空白为未用额度。只有确认属于同一月池且字段完整时才分段，独立 Code 月额度保留单独显示。
+
+连接时按 F12 打开 DevTools，依次进入 Application > Storage > Local Storage > https://www.kimi.com，复制 Key 为 access_token 那一行的完整 Value 到第一个密码框。若需自动续期，再复制 Key 为 refresh_token 那一行的完整 Value 到第二个密码框；留空可跳过，Esc 取消。不要把凭据发到聊天中。令牌保存在 VS Code SecretStorage，认证过期时最多续期并重试一次；刷新令牌失效仍需重新登录网页。尚未核实固定有效期。

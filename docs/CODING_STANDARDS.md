@@ -315,3 +315,7 @@ provider.deepseek 与 deepseek.* 提供中英双语登录、余额、错误和�
 ## 0.6.38：Kimi 网页会员双语与凭据
 
 新增 kimi.web*、连接/打开/令牌输入、月池到期和 dashboard.kimiMonthCodeShare 中英双语文案。登录指引明确凭据敏感、仅输入密码框、使用与 Coding 相同账号，不要求发送到聊天。网络、JSON、SecretStorage 失败只显示固定翻译，不输出异常正文。
+
+## 0.6.39：登录指引与月度分段显示
+
+kimi.webLoginSteps / webRefreshPrompt 中英双语说明 F12 和 Key 对应 Value，以及可选刷新凭据；不要求用户分享凭据。dashboard.kimiMonthKimi / kimiMonthCodeLegend / kimiMonthSegment 提供图例和悬停详情，百分比及份额说明由 calc.ts 的 formatKimiMonthlyBreakdown 格式化；Presenter 仅传递数据，WebView 仅绑定已格式化文本。

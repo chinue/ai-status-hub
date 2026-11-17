@@ -15,7 +15,7 @@ export function createKimiProvider(): IProvider {
     displayName: 'Kimi',
     currency: { code: 'CNY', symbol: '¥' },
     auth,
-    api: new KimiApiProvider(undefined, () => auth.resolveWebToken()),
+    api: new KimiApiProvider(undefined, (forceRefresh) => auth.resolveWebToken(forceRefresh)),
     localUsage: new KimiLocalParser(),
     pricing: new KimiPricingProvider(),
     ui: kimiUIProvider,

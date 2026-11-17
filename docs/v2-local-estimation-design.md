@@ -800,3 +800,7 @@ ClaudeLocalParser、KimiLocalParser 只保留精简用量条目，不再整文�
 calc.ts 新增 parseKimiMembershipUsage，解析实际 protobuf JSON 的 subscription_balance.amount_used_ratio / kimi_code_used_ratio，兼容对应 camelCase。必须存在有限非负的总比率才算有效；真实零值有效、显示封顶 100%，缺失字段不当 0。比率乘 100 成为现有月度显示字段；Code 是总月池的一部分，不能与总比例相加。expiry 只采用响应 expire_time，不猜测自然月重置。
 
 monthlyFromMembership 和 monthlyCodeIsShared 标记网页来源与 Code 占比口径；只补充缺失的 Coding 月总量。该路径不变更本地日志归属、费用和 token 汇总，不把账户余额或会员池量转换为金额。
+
+## 0.6.39：Kimi 月度组成
+
+formatKimiMonthlyBreakdown 仅对 monthlyCodeIsShared=true 且总量/Code 均为有限合法百分比、Code 不大于总量的快照生成分段。Kimi=总量−Code，Code 保持原值；宽度按完整月池百分比计算（不是占已用比例），空白仍代表剩余额度。返回两段宽度与中英文详情，分别说明占月额度、占已用额度。零值有效，不将独立 Code 月额度相减，不为缺失/矛盾数据推算分类。

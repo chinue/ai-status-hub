@@ -588,8 +588,16 @@ CodexLocalParser 的 updateFileState 改用 LocalUsageService.readJsonl 流式�
 
 依据来自 2026-11-17 获取的官方公开网页资源：HTML data-entry 指向 cd8a2c06b64e8-Dr6oS1R5.js，其会员 balance store 调用 getSubscriptionStats({muteNotice:false})；总比例来自 subscriptionBalance.amountUsedRatio，Code 来自 kimiCodeUsedRatio，页面计算其他 Kimi 占比为 total−code。c41287b0f9bc1-C6A1DTyS.js 内嵌 protobuf FileDescriptor 定义 kimi.gateway.membership.v2.MembershipService.GetSubscriptionStats 以及 subscription_balance、amount_used_ratio、kimi_code_used_ratio、expire_time。传输默认基址 /apiv2，网页拦截器从自身 access_token 提供 Bearer。匿名实测请求返回 401/REASON_INVALID_AUTH_TOKEN。以上是公开静态代码和匿名网络证据，不是登录账户的运行结果。
 
-KimiMembershipApi 独立于 Coding API。先尝试独立网页令牌，没有配置时尝试当前 Kimi 授权；尚未证明每种 Coding 授权均能访问网页接口。若不兼容，用户通过 Dashboard 或 aiStatusHub.kimiConnectMembership 连接同账号网页会员额度：引导登录订阅页并在浏览器开发者工具 Application > Local Storage > https://www.kimi.com 获取 access_token，密码框输入后先验证，再保存到独立 SecretStorage 键 aiStatusHub.kimi.membershipWebToken。令牌不发往 Coding API，不读取浏览器 Cookie/数据库，不保存网页登录刷新令牌，不改写原生客户端凭据；失效后需重新连接。用户须确认网页与 Coding 为同一账号，扩展尚未自动比对两个令牌的账号身份。
+KimiMembershipApi 独立于 Coding API。先尝试独立网页令牌，没有配置时尝试当前 Kimi 授权；尚未证明每种 Coding 授权均能访问网页接口。若不兼容，用户通过 Dashboard 或 aiStatusHub.kimiConnectMembership 连接同账号网页会员额度：引导登录订阅页并在浏览器开发者工具 Application > Local Storage > https://www.kimi.com 获取 access_token，密码框输入后先验证，再保存到独立 SecretStorage 键 aiStatusHub.kimi.membershipWebToken。令牌不发往 Coding API，不读取浏览器 Cookie/数据库，0.6.38 不保存网页登录刷新令牌（0.6.39 起可选保存以续期），不改写原生客户端凭据；失效后需重新连接。用户须确认网页与 Coding 为同一账号，扩展尚未自动比对两个令牌的账号身份。
 
 Kimi 退出登录同时删除本扩展保存的网页令牌；网页连接取消、验证失败或存储失败不替换旧令牌。取得网页数据后保留字段来源标记，Code 比率属于会员池的组成部分，不是独立 Code 限额。expire_time 显示为额度到期，避免误称为下次刷新；网页某些套餐会结合额外订阅规则调整展示，本实现不推算该规则。
 
 REA 引擎未运行：本机 Node 25.2.1 不在当前 REA 支持版本内，doctor 已明确报告不兼容；未安装其他 Node 或修改工具配置，改用公开资源静态检查及 protobuf 描述符解码。原始公共资产只在 .tmp 下诊断使用，不提交、不打入 VSIX。
+
+## 0.6.39：网页令牌续期与登录步骤
+
+登录模态框 detail 按六步说明 F12、Application、Local Storage、网站域名、access_token 对应的 Value。第一个密码框验证访问令牌后，第二个可选密码框接收 refresh_token 对应的 Value；空值禁用自动续期，Esc 取消整个连接并保留原凭据。两个值合并为一个 JSON 保存于原独立 SecretStorage 键，兼容旧版纯 access_token；退出 Kimi 删除同一键，不读取浏览器数据库，不修改 Coding 凭据。
+
+会员查询返回 HTTP 401 时，且配置了网页凭据，最多自动续期一次并重试月度查询一次；403、网络故障、5xx 不触发续期。网页公开 ca0791fedb2db-BIins8us.js 的 AuthService 描述符与调用确认 POST /api/account.gateway.v1.AuthService/RefreshToken，JSON {refresh_token}，返回 access_token/refresh_token（兼容 camelCase）。不是 Coding OAuth 的刷新接口。请求固定域名、显式 TLS 校验、禁止重定向、15 秒超时、finally 销毁 Agent。两项均为有效字符串才整体更新；单飞去重、保存前确认凭据未退出/重连。失败保留凭据与有效 Coding 统计，不打印令牌或响应正文。
+
+固定有效期未从公开资源核实，不将 Coding OAuth 时长套用于网页令牌；刷新令牌失效仍需手动重连。没有真实账户令牌参与测试，实际账号自动续期仍需安装后验证。

@@ -90,6 +90,108 @@ describe('Kimi web membership', () => {
     expect(await denied.startMembershipLoginFlow()).to.equal(false);
     expect(await auth.resolveWebToken()).to.equal('web-fixture');
   });
+  it('refreshes a rejected web token once and keeps refresh credentials off the Coding endpoint', async () => {
+    const fetcher = sinon.stub();
+    fetcher.onCall(0).resolves(response(legacy()));
+    fetcher.onCall(1).resolves({ status: 401 });
+    fetcher.onCall(2).resolves(response({ access_token: 'new-web', refresh_token: 'new-refresh' }));
+    fetcher.onCall(3).resolves(response(snapshot()));
+    const secrets = new MemorySecretStorage();
+    await secrets.store('aiStatusHub.kimi.membershipWebToken', JSON.stringify({ accessToken: 'old-web', refreshToken: 'old-refresh' }));
+    const auth = new KimiAuthProvider(fetcher as any);
+    auth.initSecrets(secrets);
+    const api = new KimiApiProvider(fetcher as any, (force?: boolean) => auth.resolveWebToken(force));
+    const result = await api.fetchQuota('coding-fixture');
+    expect(result.data?.monthlyUsedPct).to.be.closeTo(83.17, 1e-6);
+    expect(fetcher.callCount).to.equal(4);
+    expect(fetcher.getCall(1).args[1].headers.Authorization).to.equal('Bearer old-web');
+    expect(fetcher.getCall(2).args[0]).to.equal('https://www.kimi.com/api/account.gateway.v1.AuthService/RefreshToken');
+    expect(JSON.parse(fetcher.getCall(2).args[1].body)).to.deep.equal({ refresh_token: 'old-refresh' });
+    expect(fetcher.getCall(2).args[1].redirect).to.equal('error');
+    expect(fetcher.getCall(2).args[1].agent.options.rejectUnauthorized).to.equal(true);
+    expect(fetcher.getCall(3).args[1].headers.Authorization).to.equal('Bearer new-web');
+    expect(JSON.parse((await secrets.get('aiStatusHub.kimi.membershipWebToken'))!))
+      .to.deep.equal({ accessToken: 'new-web', refreshToken: 'new-refresh' });
+  });
+  it('deduplicates refresh and does not resurrect credentials removed during an in-flight refresh', async () => {
+    let complete!: (value: unknown) => void;
+    const fetcher = sinon.stub().returns(new Promise(resolve => { complete = resolve; }));
+    const auth = new KimiAuthProvider(fetcher as any);
+    const secrets = new MemorySecretStorage();
+    await secrets.store('aiStatusHub.kimi.membershipWebToken', JSON.stringify({ accessToken: 'old', refreshToken: 'refresh' }));
+    auth.initSecrets(secrets);
+    const a = auth.resolveWebToken(true), b = auth.resolveWebToken(true);
+    await new Promise(resolve => setImmediate(resolve));
+    expect(fetcher.calledOnce).to.equal(true);
+    await secrets.delete('aiStatusHub.kimi.membershipWebToken');
+    complete(response({ accessToken: 'new', refreshToken: 'rotated' }));
+    expect(await a).to.equal(undefined);
+    expect(await b).to.equal(undefined);
+    expect(await secrets.get('aiStatusHub.kimi.membershipWebToken')).to.equal(undefined);
+  });
+  it('preserves saved credentials on failed, malformed or transient refresh and supports access-only connections', async () => {
+    for (const reply of [{ status: 401 }, response({ access_token: 'new' }), response({}), response({ access_token: 42, refresh_token: 'x' })]) {
+      const fetcher = sinon.stub().resolves(reply);
+      const auth = new KimiAuthProvider(fetcher as any);
+      const secrets = new MemorySecretStorage();
+      const saved = JSON.stringify({ accessToken: 'old', refreshToken: 'refresh' });
+      await secrets.store('aiStatusHub.kimi.membershipWebToken', saved);
+      auth.initSecrets(secrets);
+      expect(await auth.resolveWebToken(true)).to.equal(undefined);
+      expect(await secrets.get('aiStatusHub.kimi.membershipWebToken')).to.equal(saved);
+      await secrets.store('aiStatusHub.kimi.membershipWebToken', 'legacy-access');
+      expect(await auth.resolveWebToken()).to.equal('legacy-access');
+      expect(await auth.resolveWebToken(true)).to.equal(undefined);
+      expect(fetcher.calledOnce).to.equal(true);
+    }
+  });
+  it('retries monthly usage at most once and never refreshes for website server errors', async () => {
+    for (const status of [401, 503]) {
+      const fetcher = sinon.stub().onFirstCall().resolves(response(legacy()));
+      fetcher.onSecondCall().resolves({ status });
+      fetcher.onThirdCall().resolves({ status: 401 });
+      const getter = sinon.stub().resolves('old').withArgs(true).resolves('new');
+      const result = await new KimiApiProvider(fetcher as any, getter).fetchQuota('coding');
+      expect(result.ok).to.equal(true);
+      expect(result.data?.monthlyUsedPct).to.equal(undefined);
+      expect(fetcher.callCount).to.equal(status === 401 ? 3 : 2);
+      expect(getter.callCount).to.equal(status === 401 ? 2 : 1);
+    }
+  });
+  it('offers an optional refresh password field without saving cancelled connection changes', async () => {
+    const auth = new KimiAuthProvider(sinon.stub().resolves(response(snapshot())) as any);
+    const secrets = new MemorySecretStorage(); auth.initSecrets(secrets);
+    sinon.stub(vscode.window, 'showInformationMessage').resolves('Enter web token' as any);
+    const input = sinon.stub(vscode.window, 'showInputBox');
+    input.onCall(0).resolves('access' as any); input.onCall(1).resolves('refresh' as any);
+    expect(await auth.startMembershipLoginFlow()).to.equal(true);
+    expect(input.secondCall.args[0]?.password).to.equal(true);
+    const saved = await secrets.get('aiStatusHub.kimi.membershipWebToken');
+    expect(JSON.parse(saved!)).to.deep.equal({ accessToken: 'access', refreshToken: 'refresh' });
+    input.onCall(2).resolves('replacement' as any); input.onCall(3).resolves(undefined);
+    expect(await auth.startMembershipLoginFlow()).to.equal(false);
+    expect(await secrets.get('aiStatusHub.kimi.membershipWebToken')).to.equal(saved);
+    input.onCall(4).resolves('access-only' as any); input.onCall(5).resolves('' as any);
+    expect(await auth.startMembershipLoginFlow()).to.equal(true);
+    expect(await auth.resolveWebToken()).to.equal('access-only');
+    expect(await auth.resolveWebToken(true)).to.equal(undefined);
+  });
+  it('splits only confirmed shared monthly pools and formats segment details', () => {
+    const split = (calc as any).formatKimiMonthlyBreakdown;
+    const quota = { monthlyUsedPct: 83.17, monthlyCodeUsedPct: 50.53, monthlyCodeIsShared: true };
+    const result = split(quota, 'en');
+    expect(result.kimiPct).to.be.closeTo(32.64, 1e-6);
+    expect(result.codePct).to.equal(50.53);
+    expect(result.kimiText).to.include('32.64%');
+    expect(result.codeText).to.include('50.53%');
+    expect(result.codeText).to.include('60.76%');
+    expect(split({ ...quota, monthlyUsedPct: 0, monthlyCodeUsedPct: 0 }, 'zh-CN').codePct).to.equal(0);
+    for (const invalid of [undefined, { ...quota, monthlyCodeIsShared: false },
+      { ...quota, monthlyCodeUsedPct: undefined }, { ...quota, monthlyCodeUsedPct: 90 },
+      { ...quota, monthlyUsedPct: NaN }, { ...quota, monthlyCodeUsedPct: -1 }]) {
+      expect(split(invalid, 'en')).to.equal(undefined);
+    }
+  });
   it('labels Code as a share of the member pool and shows a connection action when monthly data is absent', () => {
     const monthly = (calc as any).parseKimiMembershipUsage(snapshot());
     const quota = { ...calc.parseKimiQuota(legacy())!, ...monthly };
@@ -109,8 +211,21 @@ describe('Kimi web membership', () => {
     new Script(source + '\nglobalThis.render = renderCurrentUsage;').runInNewContext(sandbox);
     sandbox.render(usage, 'percent');
     expect(nodes.get('label-code-month').textContent).to.include('share');
+    expect(nodes.get('fill-month-kimi').style.width).to.equal('32.64%');
+    expect(nodes.get('fill-month-code').style.width).to.equal('50.53%');
+    expect(nodes.get('fill-month-code').title).to.include('50.53%');
+    expect(nodes.get('month-legend').style.display).to.equal('');
+    expect(nodes.get('row-code-month').style.display).to.equal('none');
+    const independent = { ...usage, monthlyBreakdown: undefined };
+    sandbox.render(independent, 'percent');
+    expect(nodes.get('row-code-month').style.display).to.equal('');
+    expect(nodes.get('month-legend').style.display).to.equal('none');
+    expect(nodes.get('fill-plan-month').style.display).to.equal('');
     const missing = (DashboardPanel.prototype as any).buildKimiUsageData.call({}, { ...state, quota: calc.parseKimiQuota(legacy()) });
     sandbox.render(missing, 'percent');
+    expect(nodes.get('month-legend').style.display).to.equal('none');
+    expect(nodes.get('fill-month-kimi').style.width).to.equal('0%');
+    expect(nodes.get('fill-month-code').title).to.equal('');
     expect(nodes.get('btn-kimi-membership').style.display).to.equal('');
     nodes.get('btn-kimi-membership').onclick();
     expect(messages[0].type).to.equal('connectKimiMembership');

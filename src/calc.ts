@@ -1106,3 +1106,18 @@ export function parseKimiQuota(value: unknown): QuotaData | null {
     monthlyCodeUsedPct: codeMonth?.pct, monthlyCodeResetAt: codeMonth?.reset,
   };
 }
+
+/** Split only a confirmed shared monthly pool; unrelated Code quotas cannot be subtracted. */
+export function formatKimiMonthlyBreakdown(quota: QuotaData | null | undefined, locale: Locale) {
+  const total = quota?.monthlyUsedPct;
+  const code = quota?.monthlyCodeUsedPct;
+  if (!quota?.monthlyCodeIsShared || typeof total !== 'number' || !Number.isFinite(total)
+    || typeof code !== 'number' || !Number.isFinite(code) || total < 0 || total > 100 || code < 0 || code > total) return undefined;
+  const kimi = total - code;
+  const t = makeT(locale);
+  return {
+    kimiPct: Number(kimi.toFixed(6)), codePct: Number(code.toFixed(6)),
+    kimiText: t('dashboard.kimiMonthSegment', t('dashboard.kimiMonthKimi'), formatPercent(kimi, 2), formatPercent(total > 0 ? kimi / total * 100 : 0, 2)),
+    codeText: t('dashboard.kimiMonthSegment', t('dashboard.kimiMonthCodeLegend'), formatPercent(code, 2), formatPercent(total > 0 ? code / total * 100 : 0, 2)),
+  };
+}

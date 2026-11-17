@@ -2731,3 +2731,7 @@ DeepSeek 仅提供余额，无论是否登录/取得余额，都保持本地五�
 QuotaData / UnifiedQuota 增加可选 monthlyFromMembership / monthlyCodeIsShared，缓存沿用可选字段兼容；KimiUsageData 增加已翻译 monthlyCodeLabel。状态栏 Tooltip 使用来源标签和到期文本，避免将网页 Code 比率显示为独立上限。
 
 extension.ts 注册 aiStatusHub.kimiConnectMembership：绑定 Kimi runtime，在选择队列之外等待密码框流程，成功后只刷新 Kimi。Kimi signOut 删除独立网页 SecretStorage key，其他供应商密钥保持隔离。auth/getter 与 api 构造器回调连接，不把网页令牌发送给 Coding API；不记录令牌或账户响应原文。
+
+## 0.6.39：月度组成视图数据
+
+KimiUsageData 新增可选 monthlyBreakdown，包含 kimiPct、codePct 以及由 calc.ts 生成的 kimiText、codeText。仅 Kimi 共享池有合法组成时传给 WebView；原始 QuotaData 口径和本地费用汇总保持不变。

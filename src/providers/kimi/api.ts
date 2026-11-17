@@ -13,7 +13,7 @@ const API_URL = 'https://api.kimi.com/coding/v1/usages';
 
 export class KimiApiProvider implements IQuotaApiProvider {
   constructor(private readonly fetcher: typeof fetch = fetch,
-    private readonly webToken?: () => Promise<string | undefined>) {}
+    private readonly webToken?: (forceRefresh?: boolean) => Promise<string | undefined>) {}
 
   async fetchQuota(token: string): Promise<ApiResult> {
     const t = makeT(ConfigService.getInstance().effectiveLanguage);
@@ -37,8 +37,14 @@ export class KimiApiProvider implements IQuotaApiProvider {
       const data = parseKimiQuota(await response.json());
       if (data && data.monthlyUsedPct === undefined) {
         try {
-          const tokenForWeb = await this.webToken?.() || token;
-          const monthly = await new KimiMembershipApi(this.fetcher).fetchMonthly(tokenForWeb);
+          const savedWebToken = await this.webToken?.();
+          const tokenForWeb = savedWebToken || token;
+          const membership = new KimiMembershipApi(this.fetcher);
+          let monthly = await membership.fetchMonthly(tokenForWeb);
+          if (monthly.authRejected && savedWebToken && this.webToken) {
+            const refreshed = await this.webToken(true);
+            if (refreshed) monthly = await membership.fetchMonthly(refreshed);
+          }
           if (monthly.ok && monthly.data) Object.assign(data, monthly.data);
           log(`Kimi membership monthly fields available=${monthly.ok}`);
         } catch { log('Kimi membership monthly query unavailable.'); }

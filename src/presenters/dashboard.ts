@@ -7,7 +7,7 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatAccountBalance } from '../calc';
+import { formatAccountBalance, formatKimiMonthlyBreakdown } from '../calc';
 import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, fmtReportedResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
@@ -345,6 +345,7 @@ export class DashboardPanel {
         ? t('kimi.monthlyUnavailable') : undefined,
       percentOnly: quota?.percentOnly,
       hasMonthlyCodeLimit: quota?.monthlyCodeUsedPct != null,
+      monthlyBreakdown: state.activeProvider === 'kimi' ? formatKimiMonthlyBreakdown(quota, locale) : undefined,
       monthlyCodeLabel: t(quota?.monthlyCodeIsShared ? 'dashboard.kimiMonthCodeShare' : 'dashboard.kimiMonthCode'),
       utilizationCodeMonth: (quota?.monthlyCodeUsedPct ?? 0) / 100,
       resetInCodeMonthText: t(quota?.monthlyCodeIsShared ? 'kimi.monthlyExpiry' : 'tooltip.nextReset') + ' ' + fmtReportedResetTime(quota?.monthlyCodeResetAt, now),
@@ -633,6 +634,14 @@ export class DashboardPanel {
     .progress-meta-row { display: flex; gap: 16px; color: var(--vscode-descriptionForeground); font-size: 0.85em; margin-top: 2px; }
     .progress-track { height: 8px; background: var(--vscode-scrollbarSlider-background); border-radius: 4px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 4px; background: var(--vscode-progressBar-background); transition: width 0.3s ease; }
+    .monthly-track { display: flex; }
+    .monthly-segment { height: 100%; flex-shrink: 0; }
+    .month-kimi { background: var(--vscode-charts-blue, #3794ff); }
+    .month-code { background: var(--vscode-charts-orange, #d18616); }
+    .month-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 6px; font-size: 0.85em; }
+    .month-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+    .month-swatch { width: 10px; height: 10px; border-radius: 2px; }
+    .monthly-segment:focus-visible, .month-legend-item:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
     .progress-fill.warning { background: var(--vscode-editorWarning-foreground); }
     .progress-fill.error { background: var(--vscode-editorError-foreground); }
     .footer { color: var(--vscode-descriptionForeground); font-size: 0.8em; margin-top: 8px; }
@@ -849,7 +858,15 @@ export class DashboardPanel {
     </div>
     <div class="progress-row" id="row-plan-month" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">
       <div class="progress-labels"><span>${i18n(activeProvider === 'kimi' ? 'dashboard.kimiMonthTotal' : 'dashboard.planMonth')}</span><span id="lbl-plan-month">—</span></div>
-      <div class="progress-track"><div class="progress-fill" id="fill-plan-month" style="width:0%"></div></div>
+      <div class="progress-track monthly-track">
+        <div class="progress-fill" id="fill-plan-month" style="width:0%"></div>
+        <span class="monthly-segment month-kimi" id="fill-month-kimi" tabindex="0" style="width:0%"></span>
+        <span class="monthly-segment month-code" id="fill-month-code" tabindex="0" style="width:0%"></span>
+      </div>
+      <div class="month-legend" id="month-legend" style="display:none;">
+        <span class="month-legend-item" id="legend-month-kimi" tabindex="0"><span class="month-swatch month-kimi" aria-hidden="true"></span>${i18n('dashboard.kimiMonthKimi')}</span>
+        <span class="month-legend-item" id="legend-month-code" tabindex="0"><span class="month-swatch month-code" aria-hidden="true"></span>${i18n('dashboard.kimiMonthCodeLegend')}</span>
+      </div>
       <div class="progress-meta-row"><span class="progress-meta" id="meta-plan-month">${activeProvider === 'kimi' ? i18n('kimi.monthlyUnavailable') : ''}</span></div>
       <a id="month-unavailable-link" class="provider-link" href="https://www.kimi.com/settings/subscription?tab=quota" target="_blank" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">${i18n('kimi.viewMonthlyQuota')}</a>
       <button id="btn-kimi-membership" style="${activeProvider === 'kimi' ? '' : 'display:none;'}">${i18n('kimi.connectMembership')}</button>
@@ -1438,6 +1455,22 @@ export class DashboardPanel {
           document.getElementById('lbl-' + id).textContent = month.toFixed(2) + '%';
           document.getElementById('meta-' + id).textContent = resetText || '';
         }
+      }
+
+      const breakdown = usage.hasMonthlyLimit ? usage.monthlyBreakdown : null;
+      document.getElementById('month-legend').style.display = breakdown ? '' : 'none';
+      document.getElementById('fill-plan-month').style.display = breakdown ? 'none' : '';
+      if (breakdown) document.getElementById('row-code-month').style.display = 'none';
+      for (const kind of ['kimi', 'code']) {
+        const segment = document.getElementById('fill-month-' + kind);
+        const legend = document.getElementById('legend-month-' + kind);
+        const details = breakdown ? breakdown[kind + 'Text'] : '';
+        segment.style.width = (breakdown ? breakdown[kind + 'Pct'] : 0) + '%';
+        segment.title = details;
+        segment.ariaLabel = details;
+        segment.tabIndex = breakdown && breakdown[kind + 'Pct'] > 0 ? 0 : -1;
+        legend.title = details;
+        legend.ariaLabel = details;
       }
 
       const monthLink = document.getElementById('month-unavailable-link');

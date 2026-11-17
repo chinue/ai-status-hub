@@ -158,3 +158,7 @@ calc.ts 同步本地估算；config.ts、types.ts、statusBar.ts 同步 Phase 2�
 | src/providers/kimi/membershipApi.ts | v2-provider-abstraction.md#kimi-web-membership | 订阅页实际会员统计接口 |
 
 kimi/api.ts、kimi/auth.ts、kimi/index.ts 同步 Provider；calc.ts 同步本地估算；types.ts、base/types.ts、extension.ts、statusBar.ts 同步 Phase 2 和 Provider；dashboard.ts 同步 Dashboard；i18n.ts 同步编码规范；kimiMembership.test.ts 同步测试设计。
+
+## Kimi 网页续期及月度组成（0.6.39）
+
+kimi/auth.ts、kimi/api.ts、kimi/membershipApi.ts、kimi/index.ts 对应 v2-provider-abstraction.md#kimi-web-membership；calc.ts 对应 v2-local-estimation-design.md；dashboard.ts 对应 v2-dashboard-design.md；types.ts 对应 v2-phase2-implementation.md；i18n.ts 对应 CODING_STANDARDS.md；kimiMembership.test.ts 对应 v2-test-design.md。
