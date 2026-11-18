@@ -975,3 +975,31 @@ Current Usage 在原 API 余额下新增账号资金使用比例进度条，显�
 DeepSeek 的 API 余额行改为“消费 ¥8.39 · 余额 ¥1.61 · 初始 ¥10.0”，校正按钮紧随金额摘要，不再单独占用大块说明行。账号进度条保留比例，公式、基础费用与校正规则通过 track/fill 的 title 气泡呈现，清除原常驻 meta/detail/web-error 段落；错误在必要的登录/校正弹窗显示，不隐藏模型 API 错误。切换 Provider 后清空进度条标题和宽度。
 
 Dashboard 构造时用实时余额和当前金额设置生成视图，不依赖旧网页缓存；Edit Setting 修改金额后刷新余额。跨模型共同整理：Current Usage 的费用估算口径、Detailed Usage 的本地日志范围、热力图色温/时区说明移到帮助图标气泡，保留必要的短标签、数值和错误。帮助图标可聚焦，说明通过 title/ariaLabel 提供；长操作步骤仍留在模态弹窗。
+
+## 0.6.48：模型标识、紧凑热力图与稳定宽度
+
+Current Usage、Detailed Usage 和热力图帮助标记统一使用当前 Provider 的 ui.mainIcon，经 calc.formatProviderLogo 转为可信内联标识。GLM/火山/DeepSeek/Kimi/Cursor 沿用状态栏 Emoji；Codex/Claude 使用内联 Codicons SVG，无字体或远程图片依赖。外层保留 title、键盘 tabindex 和已有 aria-label，装饰标识隐藏于辅助技术；切换 Provider 重建 HTML 时同步更新。
+
+热力图日格与列宽从 12px 改为 7.2px，间距从 2px 改为 1.2px，横纵几何尺寸为原来的 60%，Token 与费用图同步缩小，标题/说明字体保留。原日期、Token/费用悬停提示及点击行为不变。
+
+createOrShow 复用已打开的 Dashboard 时 reveal 当前 panel.viewColumn；仅首次创建用 Beside，避免每次切换模型重新要求旁侧分栏。页面根固定 100% 可用宽度，保留纵向滚动条占位，卡片最小宽度为 0、最大宽度 100%，Canvas 限制为容器宽度，长文本允许折行。保持用户现有分栏，仍可随用户手动调整窗口尺寸自适应。
+
+## 0.6.49：图标金额与始终并排的自适应热力图
+
+DeepSeek 金额行采用三个独立可聚焦 span，显示花朵＋花费、钱袋＋余额、房屋＋总额，各自 title/aria-label 按界面语言显示含义。金额及本地化标签由 calc 生成，WebView 仅通过 textContent/title 更新，不插入账单 HTML。无余额/切换 Provider 时隐藏或清理旧金额。校正按钮只显示 🎯，保留本地化 Calibrate / 校正 title 和 aria-label，仍发送原 connectDeepseekWeb 消息。
+
+取消 0.6.48 的固定 60% 尺寸及换行布局，两张日历使用两列 CSS Grid 始终并排。calculateHeatmapLayout 根据实际周列数和父容器宽度，优先使用原 12px 格子 / 2px 格间距；双图间距由 28px 收窄至 4px，随后才同比缩小日格/格间距。首次数据渲染、ResizeObserver 观察到内容区变化或窗口 resize 时，将纯函数结果写入共享 CSS 变量；拉宽后自动恢复原始尺寸。Token 和费用图共享同一列数与缩放，不缩小标题/说明文字，不改数据聚合或悬停提示。
+
+## 0.6.50：费用曲线标题显示周期累计金额
+
+5h/7d 曲线标题增加独立节点 costcurve-title-5h / costcurve-title-7d，收到所选周期曲线后显示本地化标题＋括号内累计费用，例如 5h curve (¥1.71)。金额来自最后一个有效 cumulativeRmb 采样，跳过未来时间段 null，不将累计点相加；使用当前 Provider 货币符号及两位小数。金额标题独立于 Chart.js 是否加载，切换周期时立即清理旧金额，同周期刷新保留已有值；已有响应周期匹配检查继续阻止过时响应覆盖新选择。
+
+## 0.6.52：月份单行与宽屏热力图间距
+
+热力图月份行改为与日历同列宽/间距的 Grid，每个月标签跨到下个月开始列，最后标签跨至日历末列；white-space:nowrap、overflow-wrap:normal 避免继承页面长文本折行规则后逐字换行。标签保留 title，超窄月份区域可截断但不增加日期行高度。
+
+取消两图间距的 28px 上限。宽度足够时，两张日历保留原始大小，剩余横向空间分配给图间空白；收窄后间距减到 4px 才同比缩放。标题英文改为 Total token heatmap，中文为 总 Token 热力图。
+
+## 0.6.53：空历史后的热力图恢复
+
+updateHeatmap 收到空历史时，清除静态模板缓存与周列数、重置天数为 0，并销毁/释放已从 DOM 移除的两个日图表实例。之后再次收到数据必须重建热力图及 Canvas；清理第三方图表异常被捕获，避免阻止恢复。重复空历史不会重复销毁旧实例。

@@ -310,7 +310,8 @@ describe('DeepSeek official', () => {
     store.dispatch({ type: 'API_SUCCESS', payload: parse(balance()) });
     const state = store.getState();
     const text = calc.formatProviderStatus(state, '🐋', 'DeepSeek', 'absolute');
-    expect(text).to.include('110.00');
+    expect(text).to.include('\uD83D\uDCB0\u00a5110.00');
+    expect(text).not.to.include('Balance');
     expect(text).not.to.include('%');
     const presenter = new StatusBarPresenter(store, getProvider('deepseek'));
     try { expect((await (presenter as any).buildTooltip(state)).value).to.include('110.00'); }
@@ -330,12 +331,12 @@ describe('DeepSeek official', () => {
     new Script(source + '\nglobalThis.render = renderCurrentUsage;').runInNewContext(sandbox);
     sandbox.render(usage, 'percent');
     expect(nodes.get('row-balance').style.display).to.equal('');
-    expect(nodes.get('lbl-balance').textContent).to.include('110.00');
+    expect(nodes.get('account-available').textContent).to.include('110.00');
     expect(nodes.get('row-5h').style.display).to.equal('none');
     expect(nodes.get('row-7d').style.display).to.equal('none');
     const missing = (DashboardPanel.prototype as any).buildKimiUsageData.call({}, { ...defaultState(), activeProvider: 'deepseek' });
     sandbox.render(missing, 'percent');
-    expect(nodes.get('lbl-balance').textContent).not.to.include('110.00');
+    expect(nodes.get('account-available').textContent).not.to.include('110.00');
   });
   it('shows a failed balance query instead of leaving an empty account spinning', () => {
     const store = new Store();

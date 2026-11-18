@@ -220,7 +220,7 @@ export interface DashboardMessage {
 }
 
 export interface KimiUsageData {
-  accountBilling?: { usedPct?: number; usedText: string; summary: string; details: string };
+  accountBilling?: { usedPct?: number; usedText: string; summary: string; details: string; items?: Array<{ text: string; label: string }> };
   accountBillingError?: string;
   monthlyBreakdown?: { kimiPct: number; codePct: number; kimiText: string; codeText: string; kimiLegend: string; codeLegend: string };
   monthlyCodeLabel?: string;

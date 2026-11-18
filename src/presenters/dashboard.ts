@@ -7,7 +7,7 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatAccountBalance, formatKimiMonthlyBreakdown, formatDeepseekBilling, buildDeepseekBalanceBilling } from '../calc';
+import { formatCostCurveTitle, calculateHeatmapLayout, formatProviderLogo, formatAccountBalance, formatKimiMonthlyBreakdown, formatDeepseekBilling, buildDeepseekBalanceBilling } from '../calc';
 import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, fmtReportedResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
@@ -75,7 +75,7 @@ export class DashboardPanel {
   static createOrShow(store: Store): void {
     if (DashboardPanel.instance) {
       if (DashboardPanel.instance.store !== store) DashboardPanel.instance.bindStore(store);
-      DashboardPanel.instance.panel.reveal(vscode.ViewColumn.Beside);
+      DashboardPanel.instance.panel.reveal(DashboardPanel.instance.panel.viewColumn);
       return;
     }
     DashboardPanel.instance = new DashboardPanel(store);
@@ -594,6 +594,8 @@ export class DashboardPanel {
       const active = p.id === activeProvider ? ' active' : '';
       return `<span class="provider-choice${active}"><input type="checkbox" data-provider-check="${p.id}" aria-label="${i18n('dashboard.showProvider').replace('{provider}', label)}"${checked}><button class="provider-link" data-provider-open="${p.id}" aria-pressed="${p.id === activeProvider}">${label}</button></span>`;
     }).join('');
+    const providerLogo = '<span class="provider-logo" aria-hidden="true">'
+      + formatProviderLogo(getProvider(activeProvider)?.ui.mainIcon ?? '') + '</span>';
     const activeInfo = getProviderInfo(activeProvider);
     const activeName = activeInfo ? (isZh ? activeInfo.displayNameZh : activeInfo.displayName) : activeProvider;
     return `<!DOCTYPE html>
@@ -605,7 +607,9 @@ export class DashboardPanel {
   <title>${activeName} ${i18n('dashboard.title')}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
+    html { width: 100%; overflow-y: scroll; scrollbar-gutter: stable; }
     body {
+      width: 100%; min-width: 0; overflow-wrap: anywhere;
       background: var(--vscode-editor-background);
       color: var(--vscode-editor-foreground);
       font-family: var(--vscode-editor-font-family, monospace);
@@ -637,6 +641,10 @@ export class DashboardPanel {
     .card-title-row { display: flex; justify-content: space-between; align-items: center; margin: 0 0 10px 0; }
     .card-title-row .card-title { margin: 0; }
     .account-balance { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .provider-logo { display: inline-flex; width: 1.2em; height: 1.2em; vertical-align: -0.2em; align-items: center; justify-content: center; }
+    .provider-logo svg { width: 100%; height: 100%; }
+    .card { min-width: 0; max-width: 100%; }
+    canvas { max-width: 100%; }
     .help-tip { cursor: help; text-transform: none; letter-spacing: normal; }
     .help-tip:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
     .progress-row { margin-bottom: 10px; }
@@ -765,21 +773,21 @@ export class DashboardPanel {
 
     /* Heatmap */
     .heatmap-container { overflow-x: auto; padding-bottom: 4px; }
-    .hm-header { display: flex; gap: 2px; margin-bottom: 2px; }
+    .hm-header { display: grid; grid-auto-columns: var(--hm-cell-size); grid-auto-flow: column; gap: var(--hm-gap); margin-bottom: var(--hm-gap); }
     .hm-col-label {
-      width: 12px; flex-shrink: 0;
+      min-width: 0; white-space: nowrap; overflow-wrap: normal;
       font-size: 0.6em; color: var(--vscode-descriptionForeground);
-      text-align: center; overflow: hidden;
+      text-align: left; overflow: hidden;
     }
     .heatmap-grid {
       display: grid;
-      grid-template-rows: repeat(7, 12px);
+      grid-template-rows: repeat(7, var(--hm-cell-size));
       grid-auto-flow: column;
-      grid-auto-columns: 12px;
-      gap: 2px;
+      grid-auto-columns: var(--hm-cell-size);
+      gap: var(--hm-gap);
     }
     .hm-cell {
-      width: 12px; height: 12px; border-radius: 2px; cursor: default;
+      width: var(--hm-cell-size, 12px); height: var(--hm-cell-size, 12px); border-radius: 2px; cursor: default;
     }
     .hm-cell.l-empty,
     .hm-cell.l0 { background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); }
@@ -803,11 +811,12 @@ export class DashboardPanel {
       margin-bottom: 4px;
     }
     .heatmap-pair {
-      display: flex; flex-wrap: wrap; gap: 28px;
-      align-items: flex-start; margin-bottom: 8px;
+      --hm-cell-size: 12px; --hm-gap: 2px; --hm-calendar-width: 138px; --hm-pair-gap: 28px;
+      display: grid; grid-template-columns: repeat(2, var(--hm-calendar-width)); gap: var(--hm-pair-gap);
+      align-items: start; margin-bottom: 8px;
     }
     .heatmap-block {
-      flex: 1 1 320px; min-width: min(100%, 280px);
+      min-width: 0; overflow-wrap: anywhere;
     }
     .heatmap-block .heatmap-section-title { margin-top: 0; }
     .hourly-title {
@@ -840,11 +849,14 @@ export class DashboardPanel {
 
   <!-- Current Usage -->
   <div class="card">
-    <div class="card-title">${i18n('dashboard.currentUsage')} <span class="help-tip" tabindex="0" title="${i18n(activeProvider === 'deepseek' ? 'deepseek.accountHint' : activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}" aria-label="${i18n(activeProvider === 'deepseek' ? 'deepseek.accountHint' : activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}">&#9432;</span></div>
+    <div class="card-title">${i18n('dashboard.currentUsage')} <span class="help-tip" tabindex="0" title="${i18n(activeProvider === 'deepseek' ? 'deepseek.accountHint' : activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}" aria-label="${i18n(activeProvider === 'deepseek' ? 'deepseek.accountHint' : activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}">${providerLogo}</span></div>
     <div id="quota-warning" style="color:var(--vscode-errorForeground);">⚠ ${i18n('usage.quotaUnavailable')}</div>
     <div class="progress-row account-balance" id="row-balance" style="${activeProvider === 'deepseek' ? '' : 'display:none;'}">
-      <strong id="lbl-balance">${i18n('deepseek.balanceUnavailable')}</strong>
-      <button id="btn-deepseek-web">${i18n('deepseek.webConnect')}</button>
+      <strong id="lbl-balance">
+        <span id="account-amounts" style="display:none;"><span id="account-spent" tabindex="0"></span> · <span id="account-available" tabindex="0"></span> · <span id="account-initial" tabindex="0"></span></span>
+        <span id="account-balance-status">${i18n('deepseek.balanceUnavailable')}</span>
+      </strong>
+      <button id="btn-deepseek-web" title="${i18n('deepseek.webConnect')}" aria-label="${i18n('deepseek.webConnect')}">${i18n('deepseek.calibrateIcon')}</button>
     </div>
     <div class="progress-row" id="row-account-billing" style="display:none;">
       <div class="progress-labels"><span>${i18n('deepseek.webUsageLabel')}</span><span id="lbl-account-billing">—</span></div>
@@ -943,7 +955,7 @@ export class DashboardPanel {
   <!-- Detailed Usage -->
   <div class="card">
     <div class="card-title-row">
-      <div class="card-title">${i18n('dashboard.detailedUsage')} <span class="help-tip" tabindex="0" title="${i18n('usage.localScope')}" aria-label="${i18n('usage.localScope')}">&#9432;</span></div>
+      <div class="card-title">${i18n('dashboard.detailedUsage')} <span class="help-tip" tabindex="0" title="${i18n('usage.localScope')}" aria-label="${i18n('usage.localScope')}">${providerLogo}</span></div>
       <button class="detail-toggle" id="details-toggle">${i18n('dashboard.hide')}</button>
     </div>
     <div id="details-body">
@@ -1402,9 +1414,18 @@ export class DashboardPanel {
       if (codeMonthLabel) codeMonthLabel.textContent = usage.monthlyCodeLabel || '';
       const balanceRow = document.getElementById('row-balance');
       if (balanceRow) balanceRow.style.display = usage.isBalanceProvider ? '' : 'none';
-      const balanceLabel = document.getElementById('lbl-balance');
-      if (balanceLabel) balanceLabel.textContent = usage.balanceText || '';
       const account = usage.isBalanceProvider ? usage.accountBilling : null;
+      document.getElementById('account-amounts').style.display = account ? '' : 'none';
+      const balanceStatus = document.getElementById('account-balance-status');
+      balanceStatus.style.display = account ? 'none' : '';
+      balanceStatus.textContent = usage.balanceText || '';
+      ['account-spent', 'account-available', 'account-initial'].forEach((id, index) => {
+        const node = document.getElementById(id);
+        const item = account && account.items ? account.items[index] : null;
+        node.textContent = item ? item.text : '';
+        node.title = item ? item.label : '';
+        node.ariaLabel = item ? item.label + ': ' + item.text : '';
+      });
       document.getElementById('row-account-billing').style.display = account ? '' : 'none';
       document.getElementById('lbl-account-billing').textContent = account ? account.usedText : '';
       const accountFill = document.getElementById('fill-account-billing');
@@ -1712,6 +1733,20 @@ export class DashboardPanel {
     }
 
     // ---- Heatmap ----
+    const heatmapLayout = ${calculateHeatmapLayout.toString()};
+    let heatmapColumns = 0;
+    function fitHeatmaps() {
+      const content = document.getElementById('heatmap-content');
+      const pair = content && content.querySelector('.heatmap-pair');
+      if (!pair || !heatmapColumns || !content.getBoundingClientRect) return;
+      const width = content.getBoundingClientRect().width;
+      if (!(width > 0)) return;
+      const layout = heatmapLayout(width, heatmapColumns);
+      pair.style.setProperty('--hm-cell-size', layout.cellSize + 'px');
+      pair.style.setProperty('--hm-gap', layout.cellGap + 'px');
+      pair.style.setProperty('--hm-pair-gap', layout.pairGap + 'px');
+      pair.style.setProperty('--hm-calendar-width', layout.calendarWidth + 'px');
+    }
     let hourlyChartTokens = null;
     let hourlyChartCost = null;
 
@@ -1738,7 +1773,7 @@ export class DashboardPanel {
       const minV = Math.min(...vals);
       const span = maxV - minV;
       const firstDow = new Date(daily[0].date + 'T12:00:00').getDay();
-      let headerHtml = '';
+      const monthLabels = [];
       const allCells = [...Array(firstDow).fill(null), ...daily];
       const numCols = Math.ceil(allCells.length / 7);
       let lastMonth = -1;
@@ -1756,8 +1791,12 @@ export class DashboardPanel {
             break;
           }
         }
-        headerHtml += '<div class="hm-col-label">' + (label ? esc(label) : '') + '</div>';
+        if (label) monthLabels.push({ col, label });
       }
+      const headerHtml = monthLabels.map((month, index) => {
+        const nextCol = index + 1 < monthLabels.length ? monthLabels[index + 1].col : numCols;
+        return '<div class="hm-col-label" style="grid-column:' + (month.col + 1) + ' / span ' + (nextCol - month.col) + '" title="' + esc(month.label) + '">' + esc(month.label) + '</div>';
+      }).join('');
       let gridHtml = '';
       for (let i = 0; i < firstDow; i++) {
         gridHtml += '<div class="hm-cell l-empty"></div>';
@@ -1773,13 +1812,20 @@ export class DashboardPanel {
         gridHtml += '<div class="hm-cell" style="background-color:' + bg + ';border:' + border + '" title="' + esc(title) + '"></div>';
       }
       const scaleText = '${i18n('dashboard.heatmapScale')}: ' + fmtNum(minV) + ' \u2192 ' + fmtNum(maxV);
-      return { headerHtml, gridHtml, scaleText };
+      return { headerHtml, gridHtml, scaleText, columns: numCols };
     }
 
     function updateHeatmap(heatmap) {
       const el = document.getElementById('heatmap-content');
       const daysEl = document.getElementById('heatmap-days');
       if (!heatmap || !heatmap.daily || heatmap.daily.length === 0) {
+        el.__heatmapStatic = null;
+        heatmapColumns = 0;
+        if (daysEl) daysEl.textContent = '0';
+        try { hourlyChartTokens?.destroy(); } catch { /* Chart cleanup must not block history recovery. */ }
+        try { hourlyChartCost?.destroy(); } catch { /* Chart cleanup must not block history recovery. */ }
+        hourlyChartTokens = null;
+        hourlyChartCost = null;
         el.innerHTML = '<div class="placeholder">${i18n('dashboard.noUsageHistory')}</div>';
         return;
       }
@@ -1798,6 +1844,7 @@ export class DashboardPanel {
         d => d.tokensTotal,
         (day, v) => day.date + ': ' + fmtNum(v) + ' tok' + (day.sessionCount > 0 ? ' (' + day.sessionCount + ' ${i18n('dashboard.msgs')})' : ''),
       );
+      heatmapColumns = tokCal.columns;
       const costCal = buildHeatmapCalendarHtml(
         daily,
         d => d.cost,
@@ -1813,7 +1860,7 @@ export class DashboardPanel {
       const costScalePlain = '${i18n('dashboard.heatmapScale')}: ' + fmtCurrency(Math.min(...costs)) + ' \u2192 ' + fmtCurrency(Math.max(...costs));
 
       const nextStatic =
-        '<span class="heatmap-hint help-tip" tabindex="0" title="${i18n('dashboard.heatmapColdWarmHint')} ${i18n('dashboard.heatmapLocalTzHint')}">&#9432; ${i18n('dashboard.help')}</span>' +
+        '<span class="heatmap-hint help-tip" tabindex="0" title="${i18n('dashboard.heatmapColdWarmHint')} ${i18n('dashboard.heatmapLocalTzHint')}">${providerLogo} ${i18n('dashboard.help')}</span>' +
         '<div class="heatmap-pair">' +
           '<div class="heatmap-block">' +
             '<div class="heatmap-section-title">${i18n('dashboard.heatmapTokensTitle')}</div>' +
@@ -1839,6 +1886,7 @@ export class DashboardPanel {
         el.__heatmapStatic = nextStatic;
       }
 
+      fitHeatmaps();
       const sTok = document.getElementById('hm-scale-tok');
       const sUsd = document.getElementById('hm-scale-usd');
       const hTok = document.getElementById('hm-header-tok');
@@ -1959,6 +2007,13 @@ export class DashboardPanel {
     }
 
     // ---- Cost Curve ----
+    const costCurveTitle = ${formatCostCurveTitle.toString()};
+    const costCurveRanges = {};
+    function updateCostCurveTitle(windowKey, points) {
+      const title = document.getElementById('costcurve-title-' + windowKey);
+      if (title) title.textContent = costCurveTitle(windowKey === '5h'
+        ? '${i18n('dashboard.costCurve5h')}' : '${i18n('dashboard.costCurve7d')}', points || [], CURRENCY_SYMBOL);
+    }
     let costCurveOptions = null;
     let costCurveChart5h = null;
     let costCurveChart7d = null;
@@ -2015,7 +2070,7 @@ export class DashboardPanel {
         root.innerHTML =
           '<div class="curve-block">' +
             '<div class="curve-row">' +
-              '<div class="curve-title">${i18n('dashboard.costCurve5h')}</div>' +
+              '<div class="curve-title" id="costcurve-title-5h">${i18n('dashboard.costCurve5h')}</div>' +
               '<div class="curve-controls">' +
                 '<span class="curve-label">${i18n('dashboard.date')}</span>' +
                 '<select id="costcurve-sel-5h-date" class="ccu-select"></select>' +
@@ -2027,7 +2082,7 @@ export class DashboardPanel {
           '</div>' +
           '<div class="curve-block" style="margin-top:10px">' +
             '<div class="curve-row">' +
-              '<div class="curve-title">${i18n('dashboard.costCurve7d')}</div>' +
+              '<div class="curve-title" id="costcurve-title-7d">${i18n('dashboard.costCurve7d')}</div>' +
               '<div class="curve-controls"><span class="curve-label">${i18n('dashboard.selectWindow')}</span>' +
               '<select id="costcurve-sel-7d" class="ccu-select"></select>' +
               '</div>' +
@@ -2128,6 +2183,8 @@ export class DashboardPanel {
     }
 
     function renderCostCurveChart(windowKey, points) {
+      updateCostCurveTitle(windowKey, points);
+      if (points && points.length) costCurveRanges[windowKey] = Number(points[0].tMs) + ':' + Number(points[points.length - 1].tMs);
       const canvas = document.getElementById(windowKey === '5h' ? 'costcurve-5h' : 'costcurve-7d');
       if (!canvas || typeof Chart === 'undefined') return;
 
@@ -2223,6 +2280,9 @@ export class DashboardPanel {
     }
 
     function scheduleCostCurvePending(windowKey, startMs, endMs) {
+      const range = Number(startMs) + ':' + Number(endMs);
+      if (costCurveRanges[windowKey] !== range) updateCostCurveTitle(windowKey, []);
+      costCurveRanges[windowKey] = range;
       if (windowKey === '5h') {
         if (costCurvePendingTimer5h) clearTimeout(costCurvePendingTimer5h);
         costCurvePendingTimer5h = setTimeout(() => { costCurvePendingTimer5h = null; setCostCurvePending('5h', startMs, endMs); }, 150);
@@ -2319,6 +2379,11 @@ export class DashboardPanel {
       }
     });
 
+    window.addEventListener('resize', fitHeatmaps);
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(fitHeatmaps);
+      observer.observe(document.getElementById('heatmap-content'));
+    }
     vscode.postMessage({ type: 'ready' });
   </script>
 </body>

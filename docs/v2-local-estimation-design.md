@@ -822,3 +822,25 @@ calc.ts 新增 parseDeepseekWebSummary、parseDeepseekRecharge、formatDeepseekB
 calculateDeepseekInitialAmount 校正公式为官网累计消费＋可用余额－基础费用，保留十位小数后持久化，仅接受正结果。其等价百分比为（官网累计消费－基础费用）÷（官网累计消费＋可用余额－基础费用）。
 
 buildDeepseekBalanceBilling 日常只使用 API 当前余额与保存的初始金额：消费=初始金额−当前余额，百分比=消费÷初始金额。基础费用作为说明元数据，绝不在每次刷新时重复扣减。默认初始金额 10、基础费用 0；充值导致余额大于初始金额时保留公式得到的负值，不把原始比例伪造为零，进度条视觉宽度仍限制 0–100%。formatDeepseekBilling 输出紧凑消费/余额/初始摘要，整数初始金额显示一位小数；公式与基础费用等详细说明用于气泡。本地模型 Token 定价和费用曲线不变。
+
+## 0.6.48：Provider 标识格式化
+
+calc.formatProviderLogo 接收 Provider ui.mainIcon，返回可直接用于 WebView 的可信标识 HTML。仅识别本项目 Emoji 和 OpenAI/Claude Codicon 名称，未知值返回中性菱形，不透传任意 HTML。Codicon 字形转换为内联 SVG，使用 currentColor 随主题变化；来源、CC BY 4.0 授权链接及坐标转换记录于随包 THIRD_PARTY_NOTICES.md。不在 Presenter 加载字体、访问磁盘或拼接外部图片。
+
+## 0.6.49：紧凑账单项和热力图布局计算
+
+formatDeepseekBilling 新增 items（text、label），花朵表示花费、钱袋表示余额、房屋表示总额；summary 由三项文本拼接。金额沿用币种和精度处理，初始金额公式不变；label 通过 makeT 同时支持中英文。
+
+calculateHeatmapLayout 是无外部依赖的纯函数，可序列化到 WebView 复用：原日历宽度＝列数×12＋(列数−1)×2；双图间距 clamp(可用宽−两张原日历宽，4，28)。不足时缩放比例＝(可用宽−间距)÷两张原日历宽，最多 1；格子、格间距和日历宽度统一缩放。未知/暂时为零的容器宽度保留原尺寸，WebView 隐藏时不覆盖已应用布局。
+
+## 0.6.50：费用曲线标题格式化
+
+formatCostCurveTitle 为自包含纯函数，接收本地化基础标题、顺序累计采样与货币符号，自尾向前查找有效有限数字并格式化为两位小数。真实零显示 0.00；空序列、全 null/非法序列不附金额，避免把未获取数据冒充零。函数可序列化到 WebView 复用，避免 Presenter 再维护金额格式。
+
+## 0.6.51：状态栏余额图标
+
+formatProviderStatus 的 DeepSeek 余额段将 Balance / 余额文字前缀改为 makeT 提供的钱袋图标，图标与货币符号之间不留空格，例如 💰¥9.47。余额数值、币种、消费百分比、可用性警告及数据源标识仍由原逻辑处理，悬停账单说明保持原样。
+
+## 0.6.52：宽屏间距修正
+
+calculateHeatmapLayout 的 pairGap 改为 max(4, 可用宽−两张原始日历宽)，移除最大 28px 限制，使宽屏剩余空间增大图间距；最小间距和缩放计算保留。未知宽度时的 28px 只是初始化后备值。

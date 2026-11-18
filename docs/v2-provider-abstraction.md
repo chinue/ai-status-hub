@@ -631,3 +631,13 @@ DeepseekAuthProvider.startWebLoginFlow 通过模态步骤引导同账号登录�
 DeepseekApiProvider 移除网页凭据 getter 及自动网页查询，只调用模型余额 API，再以已保存初始金额计算消费和比例。网页会话过期不影响日常统计；不再依赖网页 total_costs 每次刷新成功。
 
 startWebLoginFlow 对应按钮和命令标题改为“校正 / Calibrate”。弹窗新增 Edit Setting，直接打开 aiStatusHub.deepseek 设置，不请求网页；继续校正时密码框可复用已保存凭据。验证成功后计算 initialAmount=spent+available-baseCost，拒绝非有限/非正金额，保存初始金额至本机用户设置并刷新 API 余额。基础费用只在校正时减一次。网页层 fetchBilling 的 summaryOnly 模式仅 GET get_user_summary，校正不再读取充值订单；原完整查询兼容函数保留但不由后台调度调用。
+
+## 0.6.46：Edit Setting 直接编辑
+
+校正弹窗中的 Edit Setting 不再调用通用设置文本搜索，而是提供“初始金额 / 基础费用”选择，再显示带当前有效值的输入框；默认分别为 10 和 0，也能显示本机后备金额。校验有限数值，初始金额大于 0、基础费用不小于 0。取消或非法输入不修改金额；保存失败提供独立错误，成功返回 true 让现有命令刷新余额。编辑不读取网页凭据、不请求网站，也不需要 API Key。基础费用只影响下次校正，不会自动重算初始金额。
+
+## 0.6.47：Edit Setting 打开用户设置页面
+
+按用户要求移除 0.6.46 的插件内金额选择和输入弹窗。Edit Setting 调用 workbench.action.openSettings2，参数 query 为 @id:aiStatusHub.deepseek.initialAmount,aiStatusHub.deepseek.baseCost。该命令强制图形设置编辑器，PreferencesService.openSettings 将目标设为 USER_LOCAL；不沿用工作区设置页，也不受默认 JSON 编辑器偏好影响。完整 ID 过滤同时显示两项已注册设置，编辑通过 VS Code 标准控件完成。不读取凭据、写入金额或请求网页，返回 false 避免误认为已完成校正。命令失败不退回插件内编辑器。
+
+命令行为核对：https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts 以及 services/preferences/browser/preferencesService.ts；多个 ID 的逗号过滤由 settingsTreeModels.ts 的 parseQuery 解析。

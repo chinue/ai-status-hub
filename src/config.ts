@@ -7,7 +7,7 @@ import { log } from './utils';
 
 const CFG_SECTION = 'aiStatusHub';
 const STATUS_BAR_SELECTION_KEY = 'aiStatusHub.statusBar.providers';
-const DEEPSEEK_INITIAL_FALLBACK_KEY = 'aiStatusHub.deepseek.initialAmountFallback';
+
 
 export class ConfigService {
   private static instance: ConfigService;
@@ -49,42 +49,45 @@ export class ConfigService {
     return this.cfg.get<Record<string, unknown>>('claudeLog.modelProviders', {}) ?? {};
   }
 
-  get deepseekBaseCost(): number {
-    const value = this.cfg.get<number>('deepseek.baseCost', 0);
-    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
-  }
-  private deepseekConfiguredInitialValue(): number | null {
+  get deepseekBaseCost(): number { return this.deepseekAmount('baseCost', 0); }
+  get deepseekInitialAmount(): number { return this.deepseekAmount('initialAmount', 10); }
+  private deepseekConfiguredAmount(key: 'baseCost' | 'initialAmount'): number | null {
     try {
-      const value = this.cfg.inspect?.<number>('deepseek.initialAmount')?.globalValue;
+      const value = this.cfg.inspect?.<number>(`deepseek.${key}`)?.globalValue;
       return typeof value === 'number' && Number.isFinite(value) ? value : null;
     } catch { return null; }
   }
-  get deepseekInitialAmount(): number {
-    const value = this.cfg.get<number>('deepseek.initialAmount', 10);
+  private deepseekAmount(key: 'baseCost' | 'initialAmount', fallback: number): number {
+    const valid = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+      && (key === 'baseCost' ? value >= 0 : value > 0);
+    const value = this.cfg.get<number>(`deepseek.${key}`, fallback);
     try {
-      const saved = this.selectionStorage?.get<{ amount?: unknown; configuredValue?: unknown }>(DEEPSEEK_INITIAL_FALLBACK_KEY);
-      if (saved && typeof saved.amount === 'number' && Number.isFinite(saved.amount) && saved.amount > 0
-        && saved.configuredValue === this.deepseekConfiguredInitialValue()) return saved.amount;
+      const saved = this.selectionStorage?.get<{ amount?: unknown; configuredValue?: unknown }>(`aiStatusHub.deepseek.${key}Fallback`);
+      if (saved && valid(saved.amount) && saved.configuredValue === this.deepseekConfiguredAmount(key)) return saved.amount;
     } catch { /* An unreadable fallback must not hide a valid user setting. */ }
-    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 10;
+    return valid(value) ? value : fallback;
   }
-  async clearDeepseekInitialAmountFallback(): Promise<void> {
-    try { await this.selectionStorage?.update(DEEPSEEK_INITIAL_FALLBACK_KEY, undefined); }
+  async clearDeepseekInitialAmountFallback(): Promise<void> { await this.clearDeepseekAmountFallback('initialAmount'); }
+  async clearDeepseekBaseCostFallback(): Promise<void> { await this.clearDeepseekAmountFallback('baseCost'); }
+  private async clearDeepseekAmountFallback(key: 'baseCost' | 'initialAmount'): Promise<void> {
+    try { await this.selectionStorage?.update(`aiStatusHub.deepseek.${key}Fallback`, undefined); }
     catch { /* A successful explicit settings write remains authoritative. */ }
   }
-  async setDeepseekInitialAmount(amount: number): Promise<boolean> {
-    if (!Number.isFinite(amount) || amount <= 0) return false;
-    const configuredValue = this.deepseekConfiguredInitialValue();
-    try { await this.cfg.update('deepseek.initialAmount', amount, vscode.ConfigurationTarget.Global); }
+  async setDeepseekInitialAmount(amount: number): Promise<boolean> { return this.setDeepseekAmount('initialAmount', amount); }
+  async setDeepseekBaseCost(amount: number): Promise<boolean> { return this.setDeepseekAmount('baseCost', amount); }
+  private async setDeepseekAmount(key: 'baseCost' | 'initialAmount', amount: number): Promise<boolean> {
+    if (!Number.isFinite(amount) || (key === 'baseCost' ? amount < 0 : amount <= 0)) return false;
+    const configuredValue = this.deepseekConfiguredAmount(key);
+    try { await this.cfg.update(`deepseek.${key}`, amount, vscode.ConfigurationTarget.Global); }
     catch {
       if (!this.selectionStorage) return false;
       try {
-        await this.selectionStorage.update(DEEPSEEK_INITIAL_FALLBACK_KEY, { amount, configuredValue });
-        log('DeepSeek initial amount saved locally; user settings write was unavailable.');
+        await this.selectionStorage.update(`aiStatusHub.deepseek.${key}Fallback`, { amount, configuredValue });
+        log('DeepSeek amount saved locally; user settings write was unavailable.');
         return true;
       } catch { return false; }
     }
-    await this.clearDeepseekInitialAmountFallback();
+    await this.clearDeepseekAmountFallback(key);
     return true;
   }
 

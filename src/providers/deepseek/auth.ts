@@ -31,7 +31,9 @@ export class DeepseekAuthProvider implements IAuthProvider {
       const action = await vscode.window.showInformationMessage(t('deepseek.webConnect'),
         { modal: true, detail: t('deepseek.webGuide') }, open, t('deepseek.webEnter'), t('deepseek.editSetting'));
       if (action === t('deepseek.editSetting')) {
-        await vscode.commands.executeCommand('workbench.action.openSettings', 'aiStatusHub.deepseek');
+        await vscode.commands.executeCommand('workbench.action.openSettings2', {
+          query: '@id:aiStatusHub.deepseek.initialAmount,aiStatusHub.deepseek.baseCost'
+        });
         return false;
       }
       if (!action) return false;

@@ -2771,3 +2771,15 @@ ConfigService 新增 deepseekBaseCost（默认 0）、deepseekInitialAmount（�
 setDeepseekInitialAmount 使用显式 ConfigurationTarget.Global 写入用户设置；失败时复用已初始化的 context.globalState 本机 Memento，保存 aiStatusHub.deepseek.initialAmountFallback={amount,configuredValue}。配置值未改变时采用后备金额，重启后恢复；显式用户值改变时优先使用新值，配置变更事件清除旧后备，避免后续重置时恢复过时金额。用户设置写入成功也清理后备。无效/损坏的后备不覆盖合法设置；只有两种存储都不可用才返回失败。
 
 后备仅保存金额及旧显式设置值，不保存密钥、网页令牌或账单原文；该 globalState key 未注册同步。日志仅记录固定的后备保存说明，不输出异常原文或金额。
+
+## 0.6.46：金额直接编辑与统一后备
+
+ConfigService 将初始金额和基础费用统一通过金额读写方法管理，保留原 initialAmountFallback 键和数据结构，新增 baseCostFallback；两者优先写 Global 用户设置，失败时保存本机 globalState。基础费用允许 0，初始金额必须为正；非法数值不写入。显式设置改变或写入成功会清理各自后备，后备中的旧 globalValue 用于识别后续手动修改。配置变更与编辑成功都会触发余额 API 刷新，网页账单仍只手动校正。
+
+## 0.6.47：金额在用户设置页面编辑
+
+DeepSeek 的两个金额设置继续注册为 machine / ignoreSync，默认基础费用 0、初始金额 10。Edit Setting 恢复并精确定位标准图形用户设置页面；本机金额后备及已有配置变更刷新逻辑保留，用户在设置页修改后显式配置优先。移除插件内金额选择/输入步骤。
+
+## 0.6.49：金额展示项数据
+
+KimiUsageData.accountBilling 展示数据扩展可选 items 数组（text/label），承载格式化金额与对应本地化悬停说明；仍属于 DeepSeek 仪表盘展示层数据，不写账号凭据或新增账单网络查询。

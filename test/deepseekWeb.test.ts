@@ -53,6 +53,14 @@ describe('DeepSeek web billing', () => {
   const state={...defaultState(),activeProvider:'deepseek',quota:{balance:{currency:'CNY',total:70,granted:5,toppedUp:65,isAvailable:true},accountBilling:data}};
   expect(calc.formatProviderStatus(state as any,'icon','DeepSeek','absolute')).to.include('30.00%');
  });
+ it('formats compact icon amounts with independent localized labels and both currencies', () => {
+  const data={currency:'CNY' as const,spent:6.39,available:9.79,initialAmount:16.18};
+  const result=calc.formatDeepseekBilling(data,'zh-CN');
+  expect(result.summary).to.equal('\uD83C\uDF38 \u00a56.39 \u00b7 \uD83D\uDCB0 \u00a59.79 \u00b7 \uD83C\uDFE0 \u00a516.18');
+  expect(result.items.map((item:any)=>item.label)).to.deep.equal(['\u82b1\u8d39','\u4f59\u989d','\u603b\u989d']);
+  expect(result.items[0].text).to.include('6.39');
+  expect(calc.formatDeepseekBilling({...data,currency:'USD'},'en').items[1]).to.include({label:'Balance',text:'\uD83D\uDCB0 $9.79'});
+ });
  it('queries only the two fixed read-only website routes with strict TLS and sanitizes partial failures', async () => {
   const {DeepseekWebApi}=require('../src/providers/deepseek/webApi');
   const fetcher=sinon.stub().callsFake(async (url:string)=>reply(url.includes('summary')?summary():invoices()));
@@ -107,13 +115,45 @@ describe('DeepSeek web billing', () => {
   input.resolves(undefined);expect(await auth.startWebLoginFlow()).to.equal(false);expect(await auth.resolveWebToken()).to.equal('web-fixture');
   await auth.signOut();expect(await auth.resolveWebToken()).to.equal(undefined);
  });
- it('opens settings from calibration without querying the website or changing the initial amount', async () => {
+ it('opens the graphical user settings for both amounts without any plugin amount editor or website request', async () => {
   const web={fetchBilling:sinon.spy()};const auth=new (DeepseekAuthProvider as any)(undefined,web);
-  sinon.stub(vscode.window,'showInformationMessage').resolves('Edit Setting' as any);
-  const command=sinon.stub(vscode.commands,'executeCommand').resolves();const input=sinon.stub(vscode.window,'showInputBox');
+  const messages=sinon.stub(vscode.window,'showInformationMessage').resolves('Edit Setting' as any);
+  const input=sinon.stub(vscode.window,'showInputBox');
+  const initial=sinon.stub(ConfigService.prototype,'setDeepseekInitialAmount');
+  const base=sinon.stub(ConfigService.prototype,'setDeepseekBaseCost');
+  const command=sinon.stub(vscode.commands,'executeCommand').resolves();
   expect(await auth.startWebLoginFlow()).to.equal(false);
-  expect(command.calledWith('workbench.action.openSettings','aiStatusHub.deepseek')).to.equal(true);
-  expect(web.fetchBilling.called).to.equal(false);expect(input.called).to.equal(false);
+  expect(command.calledOnceWithExactly('workbench.action.openSettings2', {
+   query:'@id:aiStatusHub.deepseek.initialAmount,aiStatusHub.deepseek.baseCost'
+  })).to.equal(true);
+  expect(messages.calledOnce).to.equal(true);expect(input.called).to.equal(false);
+  expect(initial.called).to.equal(false);expect(base.called).to.equal(false);expect(web.fetchBilling.called).to.equal(false);
+  const properties=require('../package.json').contributes.configuration.properties;
+  for(const [key,value] of [['initialAmount',10],['baseCost',0]]) {
+   expect(properties['aiStatusHub.deepseek.'+key]).to.include({type:'number',default:value,scope:'machine',ignoreSync:true});
+  }
+ });
+ it('contains settings-page failures without falling back to a plugin amount editor', async () => {
+  const auth=new DeepseekAuthProvider();
+  sinon.stub(vscode.window,'showInformationMessage').resolves('Edit Setting' as any);
+  const input=sinon.stub(vscode.window,'showInputBox');const error=sinon.stub(vscode.window,'showErrorMessage');
+  sinon.stub(vscode.commands,'executeCommand').rejects(new Error('private-fixture'));
+  expect(await auth.startWebLoginFlow()).to.equal(false);expect(input.called).to.equal(false);
+  expect(error.calledOnce).to.equal(true);expect(error.firstCall.args[0]).not.to.include('private-fixture');
+ });
+ it('saves base cost locally if settings are unavailable and respects later manual changes', async () => {
+  let configured:number|undefined;
+  const update=sinon.stub().rejects(new Error('settings-unavailable'));
+  sinon.stub(vscode.workspace,'getConfiguration').returns({get:(_key:string,fallback:unknown)=>configured??fallback,
+   inspect:()=>({globalValue:configured}),update} as any);
+  const config=new ConfigService();const storage=new MemoryMemento();config.initializeSelectionStorage(storage);
+  expect(await config.setDeepseekBaseCost(90)).to.equal(true);expect(config.deepseekBaseCost).to.equal(90);
+  const reloaded=new ConfigService();reloaded.initializeSelectionStorage(storage);expect(reloaded.deepseekBaseCost).to.equal(90);
+  expect(await config.setDeepseekBaseCost(-1)).to.equal(false);expect(await config.setDeepseekBaseCost(NaN)).to.equal(false);
+  configured=50;expect(reloaded.deepseekBaseCost).to.equal(50);
+  await reloaded.clearDeepseekBaseCostFallback();configured=0;expect(reloaded.deepseekBaseCost).to.equal(0);
+  update.resolves();expect(await config.setDeepseekBaseCost(0)).to.equal(true);
+  expect(update.lastCall.args).to.deep.equal(['deepseek.baseCost',0,vscode.ConfigurationTarget.Global]);
  });
  it('persists the initial amount in user settings and reports save failures without accepting invalid values', async () => {
   const update=sinon.stub().resolves();
@@ -203,6 +243,7 @@ describe('DeepSeek web billing', () => {
   expect(usage.accountBilling.usedPct).to.equal(30);
   const html=(DashboardPanel.prototype as any).getHtml.call({store:{getState:()=>state}},'nonce','en');
   expect(html).to.include('id="row-account-billing"');
+  expect(html).to.include('id="btn-deepseek-web" title="Calibrate" aria-label="Calibrate">\uD83C\uDFAF</button>');
   const nodes=new Map();const document={getElementById(id:string){if(!nodes.has(id))nodes.set(id,{style:{},textContent:''});return nodes.get(id);}};
   const sandbox:any={document,labels:{},CURRENCY_SYMBOL:'\u00a5',vscode:{postMessage:sinon.spy()}};
   const source=html.slice(html.indexOf('    function renderCurrentUsage('),html.indexOf('      // Memory breakdown'))+'\n}';
@@ -211,6 +252,10 @@ describe('DeepSeek web billing', () => {
   expect(html).not.to.include('id="meta-account-billing"');
   expect(html).not.to.include('id="detail-account-billing"');
   expect(nodes.get('fill-account-billing').title).to.include('70.00');
+  expect(nodes.get('account-spent').textContent).to.include('30.00');
+  expect(nodes.get('account-spent').title).to.equal('Spent');
+  expect(nodes.get('account-available').title).to.equal('Balance');
+  expect(nodes.get('account-initial').title).to.equal('Total');
   expect(html.indexOf('id="lbl-balance"')).to.be.lessThan(html.indexOf('id="btn-deepseek-web"'));
   expect(html.indexOf('id="btn-deepseek-web"')).to.be.lessThan(html.indexOf('id="row-account-billing"'));
   nodes.get('btn-deepseek-web').onclick();expect(sandbox.vscode.postMessage.firstCall.args[0].type).to.equal('connectDeepseekWeb');

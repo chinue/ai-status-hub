@@ -331,3 +331,23 @@ deepseek.web* 中英双语覆盖连接、F12/Network/请求头 Value 步骤、�
 ## 0.6.44：页面说明长度规则
 
 AGENTS.md 新增仪表盘长说明默认收进气泡/帮助图标的规则。DeepSeek 的校正、Edit Setting、紧凑金额摘要、基础费用与初始金额口径、保存/校验失败均中英双语，使用 makeT。金额和百分比格式化保留在 calc.ts，不在 Provider/Presenter 中拼接显示金额；页面布局只绑定已格式化摘要和 title 详情。
+
+### 0.6.46 金额编辑文案
+
+DeepSeek 的金额选择标签、输入提示、校验及保存失败信息同时提供 en / zh-CN，通过 makeT 获取；Edit Setting 保留用户指定按钮名。金额输入显示未加货币符号的原值，供用户直接修改。
+
+### 0.6.47 金额编辑页面修正
+
+移除 0.6.46 插件内编辑器专用标签、输入提示、校验及错误翻译；金额编辑由 VS Code 标准用户设置页面承担。原校正操作说明及 Edit Setting 按钮翻译保留。
+
+### 0.6.49 紧凑账单控件
+
+金额行使用图标和金额，每项通过独立 title 提供含义，不常驻冗长文字；气泡标签同时提供 Spent/Balance/Total 和 花费/余额/总额。校正按钮图标由 deepseek.calibrateIcon 双语字典提供，操作含义保留在原本地化 title/aria-label 中。
+
+### 0.6.51 状态栏余额图标
+
+deepseek.balanceIcon 在中英文词典中均提供钱袋图标，用于紧凑状态栏余额显示；详细悬停说明继续使用原本地化文字。
+
+### 0.6.52 热力图标题
+
+dashboard.heatmapTokensTitle 更新为 Total token heatmap / 总 Token 热力图，使用原有 makeT 入口，无新增长说明。

@@ -154,12 +154,114 @@ describe('Dashboard Current Usage', () => {
     }
   });
 
+  it('keeps the dashboard in its existing editor column while switching providers', () => {
+    const first = new Store();
+    const second = new Store();second.dispatch({ type: 'SET_PROVIDER', payload: 'deepseek' });
+    DashboardPanel.createOrShow(first);
+    const dashboard = (DashboardPanel as any).instance;
+    dashboard.panel.viewColumn = 1;
+    const reveal = sinon.spy(dashboard.panel, 'reveal');
+    try {
+      DashboardPanel.createOrShow(second);
+      expect(reveal.calledOnceWithExactly(1)).to.equal(true);
+      expect(dashboard.store).to.equal(second);
+    } finally { reveal.restore();dashboard.dispose(); }
+  });
+
+  it('renders the active provider logo in every help icon while retaining tooltip and keyboard access', () => {
+    for (const provider of ['codex', 'claude', 'kimi', 'glm', 'volcengine', 'deepseek', 'cursor']) {
+      const html = (DashboardPanel.prototype as any).getHtml.call(
+        { store: { getState: () => ({ ...defaultState(), activeProvider: provider }) } }, 'nonce', 'en') as string;
+      expect(html).not.to.include('&#9432;');
+      expect(html).not.to.include('$(openai)');expect(html).not.to.include('$(claude)');
+      expect(html).to.match(/class="help-tip" tabindex="0" title="[^"]+" aria-label="[^"]+"><span class="provider-logo" aria-hidden="true">/);
+      const expected:Record<string,string> = {kimi:'\uD83C\uDF18',glm:'\u26A1',volcengine:'\uD83C\uDF0B',deepseek:'\uD83D\uDC0B',cursor:'\uD83D\uDCA0'};
+      if (expected[provider]) expect(html).to.include(expected[provider]);
+      else expect(html).to.include('<svg');
+    }
+  });
+
   it('routes the login button to the dashboard provider', () => {
     const execute = sinon.stub(vscode.commands, 'executeCommand').resolves();
     try {
       (DashboardPanel.prototype as any).handleMessage.call({ store: { getState: () => ({ activeProvider: 'kimi' }) } }, { type: 'signIn' });
       expect(execute.calledWith('aiStatusHub.signIn', 'kimi')).to.equal(true);
     } finally { execute.restore(); }
+  });
+});
+
+describe('Responsive paired heatmaps', () => {
+  it('restores calendars after empty history and disposes the detached charts', () => {
+    const html=(DashboardPanel.prototype as any).getHtml.call({store:{getState:()=>defaultState()}},'nonce','en') as string;
+    const content:any={innerHTML:'',querySelector:()=>null};const days:any={textContent:''};
+    const destroyed=[sinon.spy(),sinon.spy()];
+    const sandbox:any={document:{getElementById:(id:string)=>id==='heatmap-content'?content:id==='heatmap-days'?days:null},
+      esc:String,fmtNum:String,fmtCurrency:String,heatmapColdWarmColor:()=>'',historyRange:'day'};
+    const source=html.slice(html.indexOf('    // ---- Heatmap ----'),html.indexOf('    // ---- Budget ----'));
+    new Script(source+';globalThis.update=updateHeatmap;globalThis.setCharts=(a,b)=>{hourlyChartTokens=a;hourlyChartCost=b;};').runInNewContext(sandbox);
+    const data={daily:[{date:'2026-11-18',tokensTotal:10,cost:1,sessionCount:1}]};
+    sandbox.update(data);expect(content.innerHTML).to.include('class="heatmap-pair"');
+    sandbox.setCharts({destroy:destroyed[0]},{destroy:destroyed[1]});
+    sandbox.update({daily:[]});expect(days.textContent).to.equal('0');
+    for(const spy of destroyed) expect(spy.calledOnce).to.equal(true);
+    sandbox.update(data);expect(content.innerHTML).to.include('class="heatmap-pair"');
+    sandbox.update(null);for(const spy of destroyed) expect(spy.calledOnce).to.equal(true);
+  });
+  it('gives month labels a shared single-line grid spanning their calendar columns', () => {
+    const html=(DashboardPanel.prototype as any).getHtml.call({store:{getState:()=>defaultState()}},'nonce','en') as string;
+    const sandbox:any={esc:(v:string)=>v,fmtNum:(v:number)=>String(v),heatmapColdWarmColor:()=>''};
+    new Script(html.slice(html.indexOf('    // ---- Heatmap ----'),html.indexOf('    // ---- Budget ----'))
+      +';globalThis.calendar=buildHeatmapCalendarHtml;').runInNewContext(sandbox);
+    const daily=Array.from({length:31},(_,i)=>({date:'2026-01-'+String(i+1).padStart(2,'0'),value:1}));
+    const result=sandbox.calendar(daily,(d:any)=>d.value,()=> '');
+    expect(result.columns).to.equal(5);
+    expect(result.headerHtml).to.include('grid-column:1 / span 5');
+    expect((result.headerHtml.match(/class="hm-col-label"/g)||[]).length).to.equal(1);
+    expect(html).to.include('Total token heatmap');
+  });
+  it('applies the layout to both calendars and restores it when the container expands', () => {
+    const html=(DashboardPanel.prototype as any).getHtml.call(
+      {store:{getState:()=>defaultState()}},'nonce','en') as string;
+    const properties=new Map<string,string>();
+    const pair={style:{setProperty:(key:string,value:string)=>properties.set(key,value)}};
+    let width=142;
+    const content={querySelector:()=>pair,getBoundingClientRect:()=>({width})};
+    const sandbox:any={document:{getElementById:()=>content}};
+    const source=html.slice(html.indexOf('    // ---- Heatmap ----'),html.indexOf('    // ---- Budget ----'));
+    new Script(source+';heatmapColumns=10;globalThis.fit=fitHeatmaps;').runInNewContext(sandbox);
+    sandbox.fit();expect(properties.get('--hm-cell-size')).to.equal('6px');
+    expect(properties.get('--hm-gap')).to.equal('1px');expect(properties.get('--hm-calendar-width')).to.equal('69px');
+    width=400;sandbox.fit();expect(properties.get('--hm-cell-size')).to.equal('12px');
+    expect(properties.get('--hm-pair-gap')).to.equal('124px');
+    width=0;sandbox.fit();expect(properties.get('--hm-cell-size')).to.equal('12px');
+  });
+  it('shrinks only the gap before scaling both calendars, and restores native size on expansion', () => {
+    const layout=require('../src/calc').calculateHeatmapLayout;
+    const columns=10; // Native width = 10*12 + 9*2 = 138.
+    expect(layout(400,columns)).to.include({cellSize:12,cellGap:2,pairGap:124,calendarWidth:138});
+    expect(layout(290,columns)).to.include({cellSize:12,cellGap:2,pairGap:14,calendarWidth:138});
+    expect(layout(280,columns)).to.include({cellSize:12,cellGap:2,pairGap:4,calendarWidth:138});
+    const small=layout(142,columns);
+    expect(small.cellSize).to.equal(6);expect(small.cellGap).to.equal(1);expect(small.pairGap).to.equal(4);
+    expect(small.calendarWidth*2+small.pairGap).to.equal(142);
+    expect(layout(400,columns).cellSize).to.equal(12);
+    expect(layout(800,columns).pairGap).to.equal(524);
+    for(const count of [1,5,53,100]) {
+      const result=layout(240,count);
+      expect(result.calendarWidth*2+result.pairGap).to.be.at.most(240.000001);
+      expect(result.cellSize).to.be.at.most(12);
+    }
+    for(const width of [0,NaN,Infinity]) expect(layout(width,10).cellSize).to.equal(12);
+  });
+});
+
+describe('Cost curve title formatting', () => {
+  it('uses the last actual cumulative sample, preserves currency and avoids fake zero for missing data', () => {
+    const format=require('../src/calc').formatCostCurveTitle;
+    expect(format('5h curve',[{cumulativeRmb:0},{cumulativeRmb:1.71},{cumulativeRmb:null}], '\u00a5')).to.equal('5h curve (\u00a51.71)');
+    expect(format('7d curve',[{cumulativeRmb:6.71}], '$')).to.equal('7d curve ($6.71)');
+    expect(format('5h curve',[], '$')).to.equal('5h curve');
+    expect(format('5h curve',[{cumulativeRmb:null},{cumulativeRmb:NaN}], '$')).to.equal('5h curve');
   });
 });
 
@@ -175,8 +277,9 @@ describe('Dashboard chart refresh', () => {
       set height(value: number) { heights.push(value); },
     };
     const charts: any[] = [];
+    const titles:Record<string,any> = {'costcurve-title-5h':{}, 'costcurve-title-7d':{}};
     const sandbox: any = {
-      document: { getElementById: () => canvas, body: {} },
+      document: { getElementById: (id:string) => titles[id] || canvas, body: {} },
       getComputedStyle: () => ({ getPropertyValue: () => '' }),
       chartHeightRatio: 0.4, CURRENCY_SYMBOL: '$',
       setTimeout, clearTimeout,
@@ -191,10 +294,25 @@ describe('Dashboard chart refresh', () => {
     new Script(html.slice(html.indexOf('    // ---- Heatmap ----'), html.indexOf('    // ---- Budget ----')) + `
       globalThis.api = { renderCostCurveChart, scheduleCostCurvePending, cancelCostCurvePending };
     `).runInNewContext(sandbox);
-    return { api: sandbox.api, heights, charts, setHeightRatio: (ratio: number) => { sandbox.chartHeightRatio = ratio; } };
+    return { api: sandbox.api, heights, charts, titles, setHeightRatio: (ratio: number) => { sandbox.chartHeightRatio = ratio; } };
   }
 
   for (const windowKey of ['5h', '7d']) {
+    it(`shows the selected ${windowKey} cumulative total and clears it when changing periods`, () => {
+      const {api,titles}=createCharts();
+      const points=[{tMs:1000,cumulativeRmb:0},{tMs:1500,cumulativeRmb:1},{tMs:1800,cumulativeRmb:1.71},{tMs:2000,cumulativeRmb:null}];
+      api.renderCostCurveChart(windowKey,points);
+      expect(titles['costcurve-title-'+windowKey].textContent).to.equal(windowKey+' curve ($1.71)');
+      api.scheduleCostCurvePending(windowKey,1000,2000);
+      expect(titles['costcurve-title-'+windowKey].textContent).to.include('$1.71');
+      api.cancelCostCurvePending(windowKey);
+      api.scheduleCostCurvePending(windowKey,3000,4000);
+      expect(titles['costcurve-title-'+windowKey].textContent).to.equal(windowKey+' curve');
+      api.cancelCostCurvePending(windowKey);
+      api.renderCostCurveChart(windowKey,[{tMs:3000,cumulativeRmb:0},{tMs:4000,cumulativeRmb:0}]);
+      expect(titles['costcurve-title-'+windowKey].textContent).to.equal(windowKey+' curve ($0.00)');
+    });
+
     it(`keeps the ${windowKey} curve visible while a same-window refresh is delayed`, () => {
       const clock = sinon.useFakeTimers();
       try {

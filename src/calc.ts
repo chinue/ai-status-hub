@@ -13,6 +13,17 @@ export function normalizeStatusBarProviders(value: unknown): string[] {
 import { RateLimits, UnifiedUsageEntry } from './providers/base/types';
 import { makeT, Locale } from './i18n';
 
+/** Trusted inline provider marks. Codicons glyph outlines: Microsoft, CC BY 4.0; see THIRD_PARTY_NOTICES.md. */
+export function formatProviderLogo(icon: string): string {
+  const paths: Record<string, string> = {
+    '$(openai)': 'M256 186Q261 198 260 211.5Q259 225 252 236Q240 257 217 263.5Q194 270 172 260Q164 270 152 275.5Q140 281 127 281Q103 281 85.5 264.5Q68 248 66 224Q53 222 42 214.5Q31 207 25 195Q13 174 18.5 151Q24 128 44 114Q39 102 40.5 88.5Q42 75 48 64Q56 50 70.5 42Q85 34 101 34Q115 34 128 40Q137 30 148.5 24.5Q160 19 174 19Q198 19 215.5 35.5Q233 52 234 76Q247 78 258 86Q269 94 276 105Q288 126 282 149.5Q276 173 257 186ZM236 227Q244 212 240 195L192 223Q187 226 183 223L122 188V209L178 242Q193 250 210 245.5Q227 241 236 226ZM178 134 150 117 122 134V166L150 182L178 166ZM84 220Q84 238 96.5 250.5Q109 263 126 263Q143 263 156 251L108 223Q103 220 103 215V145L84 156V221ZM41 186Q49 200 66 205V150Q66 145 70 142L131 107L112 96L56 128Q41 137 36.5 154Q32 171 41 186ZM64 74Q56 88 60 105L108 77Q110 76 112.5 76Q115 76 117 77L178 112V91L122 58Q107 50 90 54.5Q73 59 64 74ZM216 80Q216 62 203.5 50Q191 38 174 38Q157 38 144 49L192 77Q197 80 197 85V155L216 144V80ZM259 114Q251 100 234 95V150Q234 155 230 158L169 193L187 204L244 172Q259 163 263.5 146Q268 129 259 114Z',
+    '$(claude)': 'M133 32 137 48 144 86 147 107 149 114H148L108 60L89 40L85 38L77 42L78 50L124 110L134 122V124L64 78L52 77L46 82L47 90L50 93L71 107L122 136L123 139L122 140L82 141L31 144L25 145L19 153L20 157L25 160L92 156L119 153H123L124 155L121 157L67 193L45 209L41 214L39 225L47 233L59 231L121 184L122 185V186L90 243L83 254L81 261Q80 265 80 269L88 280L93 282L104 280L108 276L126 236L148 193L152 182H153L155 202L157 225L161 263L165 273L173 278L179 275L185 267L181 242L171 189H173L176 192L186 206L205 229L222 248L228 252H239L247 240L243 227L208 182L200 167V165H202L234 172L271 178L280 174L281 170L277 161L256 156L230 151L192 142L193 141L217 139H235L268 136L277 130L282 124L281 118L268 112L194 129H191V128L203 116L253 71L254 65L251 59L247 60L223 78L192 104H191V102L221 56L223 44L221 41L214 38L207 40L192 61L176 84L164 106L162 104L155 25L151 21L143 18L137 23Z',
+  };
+  const path = paths[icon];
+  if (path) return `<svg viewBox="0 0 300 300" focusable="false" aria-hidden="true"><path fill="currentColor" transform="translate(0 300) scale(1 -1)" d="${path}"/></svg>`;
+  return ['\uD83C\uDF18', '\u26A1', '\uD83C\uDF0B', '\uD83D\uDC0B', '\uD83D\uDCA0'].includes(icon) ? icon : '\u25C6';
+}
+
 export interface UtilizationResult {
   weeklyPct: number;
   windowPct: number;
@@ -759,7 +770,7 @@ export function formatProviderStatus(state: AppState, icon: string, name: string
     const t = makeT(locale ?? (state.ui.language === 'zh-CN' ? 'zh-CN' : 'en'));
     const billing = quota.accountBilling ? formatDeepseekBilling(quota.accountBilling, locale ?? 'en') : undefined;
     const billingPct = billing?.usedPct !== undefined ? ` · ${billing.usedText}` : '';
-    return `${icon} ${name}: ${t('deepseek.balance')} ${fmtCurrency(quota.balance.total, quota.balance.currency === 'USD' ? '$' : '¥')}${quota.balance.isAvailable ? '' : ' $(warning)'}${billingPct}${indicators}`;
+    return `${icon} ${name}: ${t('deepseek.balanceIcon')}${fmtCurrency(quota.balance.total, quota.balance.currency === 'USD' ? '$' : '¥')}${quota.balance.isAvailable ? '' : ' $(warning)'}${billingPct}${indicators}`;
   }
   if (quota?.has5hLimit === false && quota.has7dLimit === false) {
     return `${icon} ${name}: ${formatPercent(quota.monthlyUsedPct ?? quota.monthlyCodeUsedPct ?? 0, 2)}${indicators}`;
@@ -1179,9 +1190,14 @@ export function formatDeepseekBilling(data: DeepseekBilling, locale: Locale) {
   const denominator = data.initialAmount ?? data.spent + data.available;
   const usedPct = Number.isFinite(denominator) && denominator > 0 ? data.spent / denominator * 100 : undefined;
   const money = (n: number | undefined) => n === undefined ? t('deepseek.webUnavailableShort') : fmtCurrency(n, symbol);
+  const initial = Number.isInteger(denominator) ? symbol + denominator.toFixed(1) : money(denominator);
+  const items = [
+    { text: '\uD83C\uDF38 ' + money(data.spent), label: t('deepseek.spentLabel') },
+    { text: '\uD83D\uDCB0 ' + money(data.available), label: t('deepseek.balanceLabel') },
+    { text: '\uD83C\uDFE0 ' + initial, label: t('deepseek.totalLabel') },
+  ];
   return { usedPct, usedText: usedPct === undefined ? '—' : formatPercent(usedPct, 2),
-    summary: t('deepseek.accountSummary', money(data.spent), money(data.available),
-      Number.isInteger(denominator) ? symbol + denominator.toFixed(1) : money(denominator)),
+    items, summary: items.map(item => item.text).join(' · '),
     details: [t('deepseek.accountDetails', money(data.spent), money(data.available), money(denominator), money(data.baseCost ?? 0)),
       data.recharged !== undefined ? t('deepseek.webTotals', money(data.spent), money(data.available), money(data.recharged), money(data.refunded)) : ''].filter(Boolean).join('\n') };
 }
@@ -1194,4 +1210,24 @@ export function calculateDeepseekInitialAmount(spent: number, available: number,
 }
 export function buildDeepseekBalanceBilling(balance: NonNullable<QuotaData['balance']>, initialAmount: number, baseCost: number): DeepseekBilling {
   return { currency: balance.currency, spent: initialAmount - balance.total, available: balance.total, initialAmount, baseCost };
+}
+
+
+/** Keep paired calendars at native size until their minimum gap no longer fits. Self-contained for the WebView. */
+export function calculateHeatmapLayout(width: number, columns: number) {
+  const count = Number.isFinite(columns) && columns > 0 ? Math.ceil(columns) : 1;
+  const nativeWidth = count * 12 + (count - 1) * 2;
+  if (!Number.isFinite(width) || width <= 0) return { cellSize: 12, cellGap: 2, pairGap: 28, calendarWidth: nativeWidth };
+  const pairGap = Math.max(4, width - nativeWidth * 2);
+  const scale = Math.min(1, Math.max(0, (width - pairGap) / (nativeWidth * 2)));
+  return { cellSize: 12 * scale, cellGap: 2 * scale, pairGap, calendarWidth: nativeWidth * scale };
+}
+
+/** Curve samples already contain cumulative cost; trailing future gaps are not zero usage. */
+export function formatCostCurveTitle(label: string, points: Array<{ cumulativeRmb: number | null }>, symbol: string): string {
+  for (let i = points.length - 1; i >= 0; i--) {
+    const cost = points[i].cumulativeRmb;
+    if (typeof cost === 'number' && Number.isFinite(cost)) return label + ' (' + symbol + cost.toFixed(2) + ')';
+  }
+  return label;
 }
