@@ -8,7 +8,7 @@ import { ConfigService } from '../../config';
 
 export class DeepseekWebApi {
   constructor(private readonly fetcher: typeof fetch = fetch) {}
-  async fetchBilling(token: string, currency: 'CNY' | 'USD'): Promise<{ ok: boolean; data?: DeepseekBilling; error?: string }> {
+  async fetchBilling(token: string, currency: 'CNY' | 'USD', summaryOnly = false): Promise<{ ok: boolean; data?: DeepseekBilling; error?: string }> {
     const t = makeT(ConfigService.getInstance().effectiveLanguage);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
@@ -24,9 +24,10 @@ export class DeepseekWebApi {
           return response.ok ? await response.json() : null;
         } catch { return null; }
       };
-      const [summary, invoices] = await Promise.all([read('/api/v0/users/get_user_summary'), read('/auth-api/v0/users/get_all_invoice')]);
+      const [summary, invoices] = await Promise.all([read('/api/v0/users/get_user_summary'), summaryOnly ? Promise.resolve(null) : read('/auth-api/v0/users/get_all_invoice')]);
       const data = parseDeepseekWebSummary(summary, currency);
       if (!data) return { ok: false, error: t('deepseek.webQueryFailed') };
+      if (summaryOnly) return { ok: true, data };
       const recharge = parseDeepseekRecharge(invoices, currency);
       if (recharge) Object.assign(data, recharge);
       return { ok: true, data, error: recharge ? undefined : t('deepseek.webRechargeMissing') };

@@ -1176,10 +1176,22 @@ export function parseDeepseekRecharge(value: unknown, currency: 'CNY' | 'USD'): 
 }
 export function formatDeepseekBilling(data: DeepseekBilling, locale: Locale) {
   const t = makeT(locale), symbol = data.currency === 'USD' ? '$' : '¥';
-  const denominator = data.spent + data.available;
+  const denominator = data.initialAmount ?? data.spent + data.available;
   const usedPct = Number.isFinite(denominator) && denominator > 0 ? data.spent / denominator * 100 : undefined;
   const money = (n: number | undefined) => n === undefined ? t('deepseek.webUnavailableShort') : fmtCurrency(n, symbol);
   return { usedPct, usedText: usedPct === undefined ? '—' : formatPercent(usedPct, 2),
-    summary: t('deepseek.webTotals', money(data.spent), money(data.available), money(data.recharged), money(data.refunded)),
-    details: t('deepseek.webBasis') };
+    summary: t('deepseek.accountSummary', money(data.spent), money(data.available),
+      Number.isInteger(denominator) ? symbol + denominator.toFixed(1) : money(denominator)),
+    details: [t('deepseek.accountDetails', money(data.spent), money(data.available), money(denominator), money(data.baseCost ?? 0)),
+      data.recharged !== undefined ? t('deepseek.webTotals', money(data.spent), money(data.available), money(data.recharged), money(data.refunded)) : ''].filter(Boolean).join('\n') };
+}
+
+/** Monetary calibration is applied once; balance polls never subtract the base cost again. */
+export function calculateDeepseekInitialAmount(spent: number, available: number, baseCost: number): number | null {
+  if (![spent, available, baseCost].every(n => typeof n === 'number' && Number.isFinite(n)) || spent < 0 || baseCost < 0) return null;
+  const amount = Number((spent + available - baseCost).toFixed(10));
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+export function buildDeepseekBalanceBilling(balance: NonNullable<QuotaData['balance']>, initialAmount: number, baseCost: number): DeepseekBilling {
+  return { currency: balance.currency, spent: initialAmount - balance.total, available: balance.total, initialAmount, baseCost };
 }

@@ -816,3 +816,9 @@ calc.ts 新增 parseDeepseekWebSummary、parseDeepseekRecharge、formatDeepseekB
 累计消费直接来自 total_costs；当前可用余额为同币种 normal_wallets 与 bonus_wallets 余额之和。累计充值为 SUCCESS、REFUNDED、CHARGEBACK 已支付订单原额合计（包含后续退款/拒付订单，不含赠金）；另列退款/拒付订单原额，不将其冒充部分退款明细。CREATED/FAILED/PENDING 不计入。按 payment_order_id 去重，同 ID 冲突或未知状态使充值汇总无效；缺失/非法数据不当零。空订单列表为真实零。
 
 按用户明确选择，百分比=累计消费÷（累计消费＋当前可用余额），不使用充值汇总作为分母。分母为零时显示破折号；已获取的真实零消费在有余额时显示 0%。这是从官网金额计算的账号资金比例，不是五小时、七天或固定套餐配额。格式化集中在 calc.ts，网页统计不覆盖本地日志 Token、定价或费用曲线。
+
+## 0.6.44：DeepSeek 基础费用与余额差额
+
+calculateDeepseekInitialAmount 校正公式为官网累计消费＋可用余额－基础费用，保留十位小数后持久化，仅接受正结果。其等价百分比为（官网累计消费－基础费用）÷（官网累计消费＋可用余额－基础费用）。
+
+buildDeepseekBalanceBilling 日常只使用 API 当前余额与保存的初始金额：消费=初始金额−当前余额，百分比=消费÷初始金额。基础费用作为说明元数据，绝不在每次刷新时重复扣减。默认初始金额 10、基础费用 0；充值导致余额大于初始金额时保留公式得到的负值，不把原始比例伪造为零，进度条视觉宽度仍限制 0–100%。formatDeepseekBilling 输出紧凑消费/余额/初始摘要，整数初始金额显示一位小数；公式与基础费用等详细说明用于气泡。本地模型 Token 定价和费用曲线不变。

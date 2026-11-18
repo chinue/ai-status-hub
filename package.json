@@ -2,7 +2,7 @@
   "name": "ai-status-hub",
   "displayName": "AI Status Hub",
   "description": "Monitor AI coding assistant usage and rate limits across Codex, Claude, Kimi, GLM, DeepSeek, Volcengine, and Cursor",
-  "version": "0.6.43",
+  "version": "0.6.44",
   "publisher": "kayuii",
   "license": "MIT",
   "repository": {
@@ -22,7 +22,7 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      { "command": "aiStatusHub.deepseekConnectWeb", "title": "AI Status Hub: Connect DeepSeek Web Billing / 连接 DeepSeek 网页账单" },
+      { "command": "aiStatusHub.deepseekConnectWeb", "title": "AI Status Hub: Calibrate DeepSeek / 校正" },
       {
         "command": "aiStatusHub.refresh",
         "title": "AI Status Hub: Refresh",
@@ -1190,6 +1190,22 @@
           "type": "string",
           "default": "2026-11-16T13:00:00+08:00",
           "description": "仍有歧义的裸名 GLM 5.3 渠道切换时间（ISO 8601，含时区）：此前归 GLM，此刻起归火山。已核对的 glm-5.3-flash 回复归 GLM；显式会话/模型覆盖优先。留空禁用时间规则。Ambiguous bare GLM 5.3 cutoff: before = GLM, at/after = Volcengine. Audited glm-5.3-flash replies stay GLM; explicit session/model overrides take priority. Empty disables the time rule."
+        },
+        "aiStatusHub.deepseek.baseCost": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "scope": "machine",
+          "ignoreSync": true,
+          "description": "基础费用：校正时从官网累计消费中扣除，默认 0。修改后需手动校正。金额单位与 DeepSeek 余额币种一致。Base cost deducted once during calibration; recalibrate after changing it."
+        },
+        "aiStatusHub.deepseek.initialAmount": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1e-10,
+          "scope": "machine",
+          "ignoreSync": true,
+          "description": "初始金额：默认 10。校正后自动保存“累计消费＋可用余额－基础费用”，也可手动修改。消费＝初始金额－当前余额。金额单位与余额币种一致，更换币种后需校正。Initial amount saved locally; consumption equals initial amount minus API balance."
         },
         "aiStatusHub.deepseek.offPeakDates": {
           "type": "array",

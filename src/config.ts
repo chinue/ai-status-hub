@@ -47,6 +47,20 @@ export class ConfigService {
     return this.cfg.get<Record<string, unknown>>('claudeLog.modelProviders', {}) ?? {};
   }
 
+  get deepseekBaseCost(): number {
+    const value = this.cfg.get<number>('deepseek.baseCost', 0);
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+  }
+  get deepseekInitialAmount(): number {
+    const value = this.cfg.get<number>('deepseek.initialAmount', 10);
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 10;
+  }
+  async setDeepseekInitialAmount(amount: number): Promise<boolean> {
+    if (!Number.isFinite(amount) || amount <= 0) return false;
+    try { await this.cfg.update('deepseek.initialAmount', amount, true); return true; }
+    catch { return false; }
+  }
+
   get deepseekOffPeakDates(): string[] {
     return this.cfg.get<string[]>('deepseek.offPeakDates', []) ?? [];
   }

@@ -7,7 +7,7 @@ import * as path from 'path';
 import { Store } from '../store';
 import { ConfigService } from '../config';
 import { makeT } from '../i18n';
-import { formatAccountBalance, formatKimiMonthlyBreakdown, formatDeepseekBilling } from '../calc';
+import { formatAccountBalance, formatKimiMonthlyBreakdown, formatDeepseekBilling, buildDeepseekBalanceBilling } from '../calc';
 import { formatPercent, fmtCurrency, fmtNumber, resolveWeeklyPct, resolveWindowPct, resolveFableWeeklyPct, fmtResetTime, fmtReportedResetTime, resolveResetTime, estimateStateMemory, formatMemorySize, hasQuotaData } from '../calc';
 import { HistoryService } from '../services/historyService';
 import {
@@ -341,11 +341,13 @@ export class DashboardPanel {
         )
       : undefined;
 
+    const account = state.activeProvider === 'deepseek' && quota?.balance
+      ? formatDeepseekBilling(buildDeepseekBalanceBilling(quota.balance, config.deepseekInitialAmount, config.deepseekBaseCost), locale) : undefined;
     return {
-      accountBilling: state.activeProvider === 'deepseek' && quota?.accountBilling ? formatDeepseekBilling(quota.accountBilling, locale) : undefined,
-      accountBillingError: quota?.accountBillingError ?? (quota?.accountBilling ? undefined : t('deepseek.webMissing')),
+      accountBilling: account,
+      accountBillingError: undefined,
       isBalanceProvider: state.activeProvider === 'deepseek',
-      balanceText: quota?.balance ? formatAccountBalance(quota.balance, locale) : t('deepseek.balanceUnavailable'),
+      balanceText: account?.summary ?? (quota?.balance ? formatAccountBalance(quota.balance, locale) : t('deepseek.balanceUnavailable')),
       monthlyUnavailableText: state.activeProvider === 'kimi' && quota?.monthlyUsedPct == null
         ? t('kimi.monthlyUnavailable') : undefined,
       percentOnly: quota?.percentOnly,
@@ -634,6 +636,9 @@ export class DashboardPanel {
     .card-title { font-size: 0.75em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--vscode-descriptionForeground); margin: 0 0 10px 0; }
     .card-title-row { display: flex; justify-content: space-between; align-items: center; margin: 0 0 10px 0; }
     .card-title-row .card-title { margin: 0; }
+    .account-balance { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .help-tip { cursor: help; text-transform: none; letter-spacing: normal; }
+    .help-tip:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
     .progress-row { margin-bottom: 10px; }
     .progress-labels { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.9em; }
     .progress-meta-row { display: flex; gap: 16px; color: var(--vscode-descriptionForeground); font-size: 0.85em; margin-top: 2px; }
@@ -835,19 +840,15 @@ export class DashboardPanel {
 
   <!-- Current Usage -->
   <div class="card">
-    <div class="card-title">${i18n('dashboard.currentUsage')}</div>
+    <div class="card-title">${i18n('dashboard.currentUsage')} <span class="help-tip" tabindex="0" title="${i18n(activeProvider === 'deepseek' ? 'deepseek.accountHint' : activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}" aria-label="${i18n(activeProvider === 'deepseek' ? 'deepseek.accountHint' : activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}">&#9432;</span></div>
     <div id="quota-warning" style="color:var(--vscode-errorForeground);">⚠ ${i18n('usage.quotaUnavailable')}</div>
-    <div class="progress-row" id="row-balance" style="${activeProvider === 'deepseek' ? '' : 'display:none;'}"><strong id="lbl-balance">${i18n('deepseek.balanceUnavailable')}</strong></div>
-    <div style="color:var(--vscode-descriptionForeground);">${i18n(activeProvider === 'volcengine' ? 'volcengine.costExplanation' : activeProvider === 'glm' ? 'glm.costExplanation' : 'usage.costEstimated')}</div>
+    <div class="progress-row account-balance" id="row-balance" style="${activeProvider === 'deepseek' ? '' : 'display:none;'}">
+      <strong id="lbl-balance">${i18n('deepseek.balanceUnavailable')}</strong>
+      <button id="btn-deepseek-web">${i18n('deepseek.webConnect')}</button>
+    </div>
     <div class="progress-row" id="row-account-billing" style="display:none;">
       <div class="progress-labels"><span>${i18n('deepseek.webUsageLabel')}</span><span id="lbl-account-billing">—</span></div>
-      <div class="progress-track"><div class="progress-fill" id="fill-account-billing" style="width:0%"></div></div>
-      <div class="progress-meta-row"><span id="meta-account-billing"></span></div>
-      <div class="progress-meta-row"><span id="detail-account-billing"></span></div>
-    </div>
-    <div id="deepseek-web-actions" style="display:none;">
-      <span class="progress-meta" id="deepseek-web-error"></span>
-      <button id="btn-deepseek-web">${i18n('deepseek.webConnect')}</button>
+      <div class="progress-track" id="track-account-billing" tabindex="0"><div class="progress-fill" id="fill-account-billing" style="width:0%"></div></div>
     </div>
     <div class="progress-row" id="row-5h" style="${this.store.getState().quota?.has5hLimit === false ? 'display:none' : ''}">
       <div class="progress-labels">
@@ -942,11 +943,10 @@ export class DashboardPanel {
   <!-- Detailed Usage -->
   <div class="card">
     <div class="card-title-row">
-      <div class="card-title">${i18n('dashboard.detailedUsage')}</div>
+      <div class="card-title">${i18n('dashboard.detailedUsage')} <span class="help-tip" tabindex="0" title="${i18n('usage.localScope')}" aria-label="${i18n('usage.localScope')}">&#9432;</span></div>
       <button class="detail-toggle" id="details-toggle">${i18n('dashboard.hide')}</button>
     </div>
     <div id="details-body">
-      <div style="color:var(--vscode-descriptionForeground);">${i18n('usage.localScope')}</div>
       <div class="ccu-tabs" id="ccu-tabs">
         <button class="ccu-tab active" data-tab="w5h">${i18n('dashboard.window5h')}</button>
         <button class="ccu-tab" data-tab="w7d">${i18n('dashboard.window7d')}</button>
@@ -1407,13 +1407,11 @@ export class DashboardPanel {
       const account = usage.isBalanceProvider ? usage.accountBilling : null;
       document.getElementById('row-account-billing').style.display = account ? '' : 'none';
       document.getElementById('lbl-account-billing').textContent = account ? account.usedText : '';
-      document.getElementById('meta-account-billing').textContent = account ? account.summary : '';
-      document.getElementById('detail-account-billing').textContent = account ? account.details : '';
       const accountFill = document.getElementById('fill-account-billing');
       accountFill.style.width = (account ? Math.max(0, Math.min(100, account.usedPct || 0)) : 0) + '%';
       accountFill.title = account ? account.details : '';
-      document.getElementById('deepseek-web-actions').style.display = usage.isBalanceProvider ? '' : 'none';
-      document.getElementById('deepseek-web-error').textContent = usage.isBalanceProvider && (!account || usage.accountBillingError) ? usage.accountBillingError || '' : '';
+      document.getElementById('track-account-billing').title = account ? account.summary + '\\n' + account.details : '';
+      document.getElementById('track-account-billing').ariaLabel = account ? account.details : '';
       document.getElementById('btn-deepseek-web').onclick = () => vscode.postMessage({ type: 'connectDeepseekWeb' });
       document.getElementById('row-5h').style.display = usage.has5hLimit === false ? 'none' : '';
       const w5h = Math.min(100, usage.utilization5h * 100 || 0);
@@ -1815,7 +1813,7 @@ export class DashboardPanel {
       const costScalePlain = '${i18n('dashboard.heatmapScale')}: ' + fmtCurrency(Math.min(...costs)) + ' \u2192 ' + fmtCurrency(Math.max(...costs));
 
       const nextStatic =
-        '<div class="heatmap-hint">${i18n('dashboard.heatmapColdWarmHint')} ${i18n('dashboard.heatmapLocalTzHint')}</div>' +
+        '<span class="heatmap-hint help-tip" tabindex="0" title="${i18n('dashboard.heatmapColdWarmHint')} ${i18n('dashboard.heatmapLocalTzHint')}">&#9432; ${i18n('dashboard.help')}</span>' +
         '<div class="heatmap-pair">' +
           '<div class="heatmap-block">' +
             '<div class="heatmap-section-title">${i18n('dashboard.heatmapTokensTitle')}</div>' +

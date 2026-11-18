@@ -9,7 +9,7 @@ import { makeT } from '../../i18n';
 
 export function createDeepseekProvider(): IProvider {
   const auth = new DeepseekAuthProvider();
-  const api = new DeepseekApiProvider(undefined, () => auth.resolveWebToken());
+  const api = new DeepseekApiProvider();
   const name = makeT(ConfigService.getInstance().effectiveLanguage)('provider.deepseek');
   return { id: 'deepseek', displayName: name, currency: { code: 'CNY', symbol: '¥' },
     api, auth, localUsage: new ClaudeLocalParser('deepseek'),

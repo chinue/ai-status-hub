@@ -3,6 +3,7 @@
 export interface DeepseekBilling {
   currency: 'CNY' | 'USD'; spent: number; available: number;
   recharged?: number; refunded?: number;
+  initialAmount?: number; baseCost?: number;
 }
 
 export interface QuotaData {

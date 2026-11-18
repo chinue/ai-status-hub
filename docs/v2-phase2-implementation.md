@@ -2757,3 +2757,9 @@ ConfigService.getPricing 按 provider 私有值 → 全局同模型值 → Provi
 DeepseekBilling 仅包含 currency、spent、available 及可选 recharged/refunded 汇总；QuotaData/UnifiedQuota 添加 accountBilling/accountBillingError，Dashboard 视图添加已格式化账单信息。缓存只持久化汇总，不存令牌、完整订单或账单原文；原普通缓存已有余额，新增的汇总同样是本地明文财务信息，不能当成凭据存储。
 
 extension.ts 新增 aiStatusHub.deepseekConnectWeb：密码交互在调度队列外，成功后仅 force DeepSeek。Provider 创建时将网页令牌 getter 接入 DeepseekApiProvider，模型 Key 验证独立执行，不混入旧网页账号数据。statusBar.ts Tooltip 使用 calc.ts 格式化，状态文本保留余额并增加官网资金使用比例。
+
+## 0.6.44：DeepSeek 本地初始金额
+
+ConfigService 新增 deepseekBaseCost（默认 0）、deepseekInitialAmount（默认 10）及 setDeepseekInitialAmount。设置项 aiStatusHub.deepseek.baseCost / initialAmount 为 machine scope、ignoreSync=true，校正写入本机用户设置（global target），不写项目工作区。初始金额必须有限且为正，基础费用必须有限且非负。设置更新失败返回 false，保留原初始金额；不把金额写入凭据字段或日志。
+
+修改金额设置会触发 DeepSeek API 余额刷新；手动校正完成也只 force 余额 API。DeepseekBilling 添加可选 initialAmount/baseCost，状态栏比例跟随余额 API 生成的数据；Tooltip 使用紧凑消费/余额/初始金额摘要，取消重复的赠送/充值余额行。切换账号或币种、充值/退款后应由用户校正或手动修改初始金额，金额单位跟随余额币种。

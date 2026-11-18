@@ -625,3 +625,9 @@ DeepSeek 内置费率为动态计算，只有显式配置才可覆盖。ConfigSe
 DeepseekApiProvider 在余额查询成功且配置了网页凭据时补充 accountBilling；不发送模型 API Key 到网页接口，也不发送网页登录令牌到模型 API。网页失败保留 API 余额及本地统计；部分充值数据无效时显示未获取，不作零值，仍保留成功获取的消费/可用余额。
 
 DeepseekAuthProvider.startWebLoginFlow 通过模态步骤引导同账号登录平台，F12 > Network > 刷新 > get_user_summary > Headers > Request Headers > Authorization，复制完整值至 password 输入框（兼容 Bearer 前缀）。验证后保存到 aiStatusHub.deepseek.webToken；不读 Cookie/浏览器数据库，不存网站密码，不支持自动续期；过期、设备验证或拒绝时重新连接。取消/验证失败不覆盖旧网页凭据；切换 API Key 清除旧网页登录，DeepSeek 退出清除自己的 API Key 和网页令牌，不清除其他 Provider。账号相同由用户确认，尚未自动比对账号身份。
+
+## 0.6.44：网页仅用于手动校正
+
+DeepseekApiProvider 移除网页凭据 getter 及自动网页查询，只调用模型余额 API，再以已保存初始金额计算消费和比例。网页会话过期不影响日常统计；不再依赖网页 total_costs 每次刷新成功。
+
+startWebLoginFlow 对应按钮和命令标题改为“校正 / Calibrate”。弹窗新增 Edit Setting，直接打开 aiStatusHub.deepseek 设置，不请求网页；继续校正时密码框可复用已保存凭据。验证成功后计算 initialAmount=spent+available-baseCost，拒绝非有限/非正金额，保存初始金额至本机用户设置并刷新 API 余额。基础费用只在校正时减一次。网页层 fetchBilling 的 summaryOnly 模式仅 GET get_user_summary，校正不再读取充值订单；原完整查询兼容函数保留但不由后台调度调用。

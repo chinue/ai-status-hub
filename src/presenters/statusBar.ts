@@ -182,7 +182,7 @@ export class StatusBarPresenter {
     else if (state.dataSource === 'local-only') { sourceLabel = '&nbsp;*' + t('dashboard.estimate') + '*'; }
 
     const parts: string[] = [];
-    if (q?.balance) parts.push(formatAccountBalance(q.balance, locale), '');
+    if (q?.balance && !q.accountBilling) parts.push(formatAccountBalance(q.balance, locale), '');
     if (q?.accountBilling) {
       const billing = formatDeepseekBilling(q.accountBilling, locale);
       parts.push(billing.usedText, billing.summary, billing.details, '');

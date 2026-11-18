@@ -969,3 +969,9 @@ Kimi/Code 色块后紧邻标签增加各自占完整月额度的百分比，例�
 Current Usage 在原 API 余额下新增账号资金使用比例进度条，显示官网累计消费、网页可用余额、累计充值（含退款订单）及退款/拒付订单原额，明确公式和官网可能有约 5 分钟延迟。充值未获取显示未获取，消费和余额仍可显示。重连按钮在 DeepSeek 页可用，消息 connectDeepseekWeb 调用 aiStatusHub.deepseekConnectWeb，成功后刷新 DeepSeek。
 
 网页数据缺失或切换 Provider 时隐藏进度条并清空文本/宽度，不遗留别的账号或 Provider 数据。网页统计与 Detailed Usage 的本地估算分开；数据不会用 API 剩余充值余额冒充累计充值。状态栏追加该比例，Tooltip 同步金额和口径。
+
+## 0.6.44：紧凑金额行与说明气泡
+
+DeepSeek 的 API 余额行改为“消费 ¥8.39 · 余额 ¥1.61 · 初始 ¥10.0”，校正按钮紧随金额摘要，不再单独占用大块说明行。账号进度条保留比例，公式、基础费用与校正规则通过 track/fill 的 title 气泡呈现，清除原常驻 meta/detail/web-error 段落；错误在必要的登录/校正弹窗显示，不隐藏模型 API 错误。切换 Provider 后清空进度条标题和宽度。
+
+Dashboard 构造时用实时余额和当前金额设置生成视图，不依赖旧网页缓存；Edit Setting 修改金额后刷新余额。跨模型共同整理：Current Usage 的费用估算口径、Detailed Usage 的本地日志范围、热力图色温/时区说明移到帮助图标气泡，保留必要的短标签、数值和错误。帮助图标可聚焦，说明通过 title/ariaLabel 提供；长操作步骤仍留在模态弹窗。

@@ -327,3 +327,7 @@ kimi.monthlyUnavailable 中英文同步简化，英文 Monthly usage unavailable
 ## 0.6.43：DeepSeek 网页账单双语与敏感信息
 
 deepseek.web* 中英双语覆盖连接、F12/Network/请求头 Value 步骤、密码输入、失效重连、数据延迟和比例口径。余额文案区分充值余额与累计充值。格式化集中在 calc.ts；账单错误不显示第三方原文，不把 Authorization、Cookie、订单标识写入日志或 WebView。新入口使用独立 SecretStorage，不在 settings.json 中存密钥。
+
+## 0.6.44：页面说明长度规则
+
+AGENTS.md 新增仪表盘长说明默认收进气泡/帮助图标的规则。DeepSeek 的校正、Edit Setting、紧凑金额摘要、基础费用与初始金额口径、保存/校验失败均中英双语，使用 makeT。金额和百分比格式化保留在 calc.ts，不在 Provider/Presenter 中拼接显示金额；页面布局只绑定已格式化摘要和 title 详情。
