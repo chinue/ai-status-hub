@@ -213,3 +213,7 @@ The account bar uses total cost / (total cost + current available balance), as s
 ### DeepSeek manual calibration (0.6.44)
 
 DeepSeek now defaults to Initial Amount = 10 and Base Cost = 0. Daily refreshes query only the API balance: spent = initial amount - balance; used = spent / initial amount. Click Calibrate beside the compact account summary to save initial = website total cost + available balance - base cost into local user settings. Website authentication is needed only for manual calibration; the dialog also offers Edit Setting. After top-ups, account/currency changes or a Base Cost change, recalibrate or edit the initial amount. Formula details are in the progress-bar tooltip. Long scope and calculation notes elsewhere in the Dashboard use help tooltips as well.
+
+### Calibration save fallback (0.6.45)
+
+Calibration first writes Initial Amount to user settings. If VS Code rejects that write, the amount is retained in local extension storage and survives restarts. Later manual edits to Initial Amount take priority and clear the fallback. Both stores must fail before calibration reports a save failure; credentials are never stored in the amount fallback.

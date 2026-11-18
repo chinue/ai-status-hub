@@ -3,9 +3,11 @@
 import * as vscode from 'vscode';
 import { DisplayMode, LanguageSetting, TokenPricing } from './types';
 import { parseCustomPricing, pricingModelKey, normalizeStatusBarProviders } from './calc';
+import { log } from './utils';
 
 const CFG_SECTION = 'aiStatusHub';
 const STATUS_BAR_SELECTION_KEY = 'aiStatusHub.statusBar.providers';
+const DEEPSEEK_INITIAL_FALLBACK_KEY = 'aiStatusHub.deepseek.initialAmountFallback';
 
 export class ConfigService {
   private static instance: ConfigService;
@@ -51,14 +53,39 @@ export class ConfigService {
     const value = this.cfg.get<number>('deepseek.baseCost', 0);
     return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
   }
+  private deepseekConfiguredInitialValue(): number | null {
+    try {
+      const value = this.cfg.inspect?.<number>('deepseek.initialAmount')?.globalValue;
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    } catch { return null; }
+  }
   get deepseekInitialAmount(): number {
     const value = this.cfg.get<number>('deepseek.initialAmount', 10);
+    try {
+      const saved = this.selectionStorage?.get<{ amount?: unknown; configuredValue?: unknown }>(DEEPSEEK_INITIAL_FALLBACK_KEY);
+      if (saved && typeof saved.amount === 'number' && Number.isFinite(saved.amount) && saved.amount > 0
+        && saved.configuredValue === this.deepseekConfiguredInitialValue()) return saved.amount;
+    } catch { /* An unreadable fallback must not hide a valid user setting. */ }
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 10;
+  }
+  async clearDeepseekInitialAmountFallback(): Promise<void> {
+    try { await this.selectionStorage?.update(DEEPSEEK_INITIAL_FALLBACK_KEY, undefined); }
+    catch { /* A successful explicit settings write remains authoritative. */ }
   }
   async setDeepseekInitialAmount(amount: number): Promise<boolean> {
     if (!Number.isFinite(amount) || amount <= 0) return false;
-    try { await this.cfg.update('deepseek.initialAmount', amount, true); return true; }
-    catch { return false; }
+    const configuredValue = this.deepseekConfiguredInitialValue();
+    try { await this.cfg.update('deepseek.initialAmount', amount, vscode.ConfigurationTarget.Global); }
+    catch {
+      if (!this.selectionStorage) return false;
+      try {
+        await this.selectionStorage.update(DEEPSEEK_INITIAL_FALLBACK_KEY, { amount, configuredValue });
+        log('DeepSeek initial amount saved locally; user settings write was unavailable.');
+        return true;
+      } catch { return false; }
+    }
+    await this.clearDeepseekInitialAmountFallback();
+    return true;
   }
 
   get deepseekOffPeakDates(): string[] {

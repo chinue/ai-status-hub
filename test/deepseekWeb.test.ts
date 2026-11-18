@@ -9,7 +9,7 @@ import { activate, deactivate } from '../src/extension';
 import { Scheduler } from '../src/services/scheduler';
 import { CacheService } from '../src/services/cacheService';
 import { ApiHistoryService } from '../src/services/apiHistoryService';
-import { MemorySecretStorage, makeContext } from './mocks/vscode';
+import { MemorySecretStorage, MemoryMemento, makeContext } from './mocks/vscode';
 import { DashboardPanel } from '../src/presenters/dashboard';
 import { ConfigService } from '../src/config';
 import { defaultState } from '../src/store';
@@ -120,10 +120,49 @@ describe('DeepSeek web billing', () => {
   sinon.stub(vscode.workspace,'getConfiguration').returns({get:(_key:string,fallback:unknown)=>fallback,update} as any);
   const config=ConfigService.getInstance();expect(config.deepseekBaseCost).to.equal(0);expect(config.deepseekInitialAmount).to.equal(10);
   expect(await config.setDeepseekInitialAmount(10.01)).to.equal(true);
-  expect(update.calledOnceWithExactly('deepseek.initialAmount',10.01,true)).to.equal(true);
+  expect(update.calledOnceWithExactly('deepseek.initialAmount',10.01,vscode.ConfigurationTarget.Global)).to.equal(true);
   expect(await config.setDeepseekInitialAmount(0)).to.equal(false);
   expect(await config.setDeepseekInitialAmount(NaN)).to.equal(false);expect(update.calledOnce).to.equal(true);
   update.rejects(new Error('settings-write-failed'));expect(await config.setDeepseekInitialAmount(20)).to.equal(false);
+ });
+ it('persists calibration in local extension storage when settings are unavailable and honors later manual settings', async () => {
+  let configured:number|undefined=5;
+  const update=sinon.stub().rejects(new Error('settings-editor-unavailable'));
+  sinon.stub(vscode.workspace,'getConfiguration').returns({get:(key:string,fallback:unknown)=>key==='deepseek.initialAmount'?(configured??fallback):fallback,
+    inspect:()=>({globalValue:configured}),update} as any);
+  const config=new ConfigService();const storage=new MemoryMemento();config.initializeSelectionStorage(storage);
+  expect(await config.setDeepseekInitialAmount(12.34)).to.equal(true);expect(config.deepseekInitialAmount).to.equal(12.34);
+  const reloaded=new ConfigService();reloaded.initializeSelectionStorage(storage);expect(reloaded.deepseekInitialAmount).to.equal(12.34);
+  configured=20;expect(reloaded.deepseekInitialAmount).to.equal(20);
+  await reloaded.clearDeepseekInitialAmountFallback();configured=5;expect(reloaded.deepseekInitialAmount).to.equal(5);
+  update.callsFake(async(_key:string,value:number)=>{configured=value;});
+  expect(await reloaded.setDeepseekInitialAmount(30)).to.equal(true);expect(reloaded.deepseekInitialAmount).to.equal(30);
+  expect(storage.get('aiStatusHub.deepseek.initialAmountFallback')).to.equal(undefined);
+ });
+ it('returns failure only if both settings and fallback storage fail and ignores malformed fallback amounts', async () => {
+  sinon.stub(vscode.workspace,'getConfiguration').returns({get:(_key:string,fallback:unknown)=>fallback,inspect:()=>undefined,
+    update:async()=>{throw new Error('settings-unavailable');}} as any);
+  const config=new ConfigService();const storage=new MemoryMemento();config.initializeSelectionStorage(storage);
+  expect(await config.setDeepseekInitialAmount(15)).to.equal(true);expect(config.deepseekInitialAmount).to.equal(15);
+  for(const value of [null,{amount:-1,configuredValue:null},{amount:NaN,configuredValue:null},{amount:'12',configuredValue:null}]) {
+   await storage.update('aiStatusHub.deepseek.initialAmountFallback',value);expect(config.deepseekInitialAmount).to.equal(10);
+  }
+  config.initializeSelectionStorage({get:()=>undefined,update:async()=>{throw new Error('storage-unavailable');}} as any);
+  expect(await config.setDeepseekInitialAmount(20)).to.equal(false);expect(config.deepseekInitialAmount).to.equal(10);
+ });
+ it('completes manual calibration and subsequent balance-only percentage even when user settings cannot be written', async () => {
+  sinon.stub(vscode.workspace,'getConfiguration').returns({get:(_key:string,fallback:unknown)=>fallback,inspect:()=>undefined,
+    update:async()=>{throw new Error('settings-unavailable');}} as any);
+  const config=ConfigService.getInstance();config.initializeSelectionStorage(new MemoryMemento());
+  try {
+   const secrets=new MemorySecretStorage();
+   const auth=new (DeepseekAuthProvider as any)(undefined,{fetchBilling:async()=>({ok:true,data:{currency:'CNY',spent:30,available:70}})});auth.initSecrets(secrets);
+   sinon.stub(vscode.window,'showInformationMessage').resolves('Calibrate' as any);sinon.stub(vscode.window,'showInputBox').resolves('web-fixture' as any);
+   expect(await auth.startWebLoginFlow()).to.equal(true);expect(config.deepseekInitialAmount).to.equal(100);
+   const fetcher=sinon.stub().resolves(reply({is_available:true,balance_infos:[{currency:'CNY',total_balance:'70',granted_balance:'0',topped_up_balance:'70'}]}));
+   const result=await new DeepseekApiProvider(fetcher as any).fetchQuota('api-fixture');
+   expect(result.data?.accountBilling?.spent).to.equal(30);expect(fetcher.calledOnce).to.equal(true);
+  } finally {config.initializeSelectionStorage();}
  });
  it('applies base cost once when manually calibrating and keeps the saved amount on validation or save failure', async () => {
   const values:Record<string,unknown>={'deepseek.baseCost':90};

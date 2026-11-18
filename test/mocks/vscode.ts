@@ -102,3 +102,5 @@ export function makeContext(initial?: Record<string, unknown>) {
     globalStorageUri: Uri.file('/tmp/globalStorage'),
   };
 }
+
+export enum ConfigurationTarget { Global = 1, Workspace = 2, WorkspaceFolder = 3 }

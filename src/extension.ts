@@ -196,6 +196,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           DashboardPanel.switchStore(runtimes.get(activeId)!.store);
         } else {
           await reconcile();
+          if (e.affectsConfiguration('aiStatusHub.deepseek.initialAmount')) await config.clearDeepseekInitialAmountFallback();
           if (e.affectsConfiguration('aiStatusHub.deepseek.initialAmount') || e.affectsConfiguration('aiStatusHub.deepseek.baseCost')) {
             runtimes.get('deepseek')?.scheduler.force();
           }

@@ -2763,3 +2763,11 @@ extension.ts 新增 aiStatusHub.deepseekConnectWeb：密码交互在调度队列
 ConfigService 新增 deepseekBaseCost（默认 0）、deepseekInitialAmount（默认 10）及 setDeepseekInitialAmount。设置项 aiStatusHub.deepseek.baseCost / initialAmount 为 machine scope、ignoreSync=true，校正写入本机用户设置（global target），不写项目工作区。初始金额必须有限且为正，基础费用必须有限且非负。设置更新失败返回 false，保留原初始金额；不把金额写入凭据字段或日志。
 
 修改金额设置会触发 DeepSeek API 余额刷新；手动校正完成也只 force 余额 API。DeepseekBilling 添加可选 initialAmount/baseCost，状态栏比例跟随余额 API 生成的数据；Tooltip 使用紧凑消费/余额/初始金额摘要，取消重复的赠送/充值余额行。切换账号或币种、充值/退款后应由用户校正或手动修改初始金额，金额单位跟随余额币种。
+
+## 0.6.45：初始金额保存失败后备
+
+现场 0.6.44 已激活，用户设置 JSON 有效且文件非只读；旧代码吞掉 WorkspaceConfiguration.update 异常，无法确定本次宿主拒绝写入的具体原因。错误提示所在分支证明官网校正已成功，失败发生在保存初始金额阶段，不应误报网页登录失败。
+
+setDeepseekInitialAmount 使用显式 ConfigurationTarget.Global 写入用户设置；失败时复用已初始化的 context.globalState 本机 Memento，保存 aiStatusHub.deepseek.initialAmountFallback={amount,configuredValue}。配置值未改变时采用后备金额，重启后恢复；显式用户值改变时优先使用新值，配置变更事件清除旧后备，避免后续重置时恢复过时金额。用户设置写入成功也清理后备。无效/损坏的后备不覆盖合法设置；只有两种存储都不可用才返回失败。
+
+后备仅保存金额及旧显式设置值，不保存密钥、网页令牌或账单原文；该 globalState key 未注册同步。日志仅记录固定的后备保存说明，不输出异常原文或金额。
